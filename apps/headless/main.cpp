@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <cctype>
 #include <charconv>
 #include <cmath>
 #include <cstdlib>
@@ -21,6 +22,12 @@ namespace {
 constexpr clife::Tick kDefaultTicks{5};
 constexpr int kValueWidth{16};
 
+struct DisplayName final {
+    std::string role;
+    clife::TypeIndex index;
+    std::string name;
+};
+
 struct LabConfig final {
     clife::Tick ticks{kDefaultTicks};
     std::vector<clife::Amount> fields{};
@@ -29,6 +36,7 @@ struct LabConfig final {
     std::vector<clife::ResourceDefinition> resource_definitions{};
     std::vector<clife::StateDefinition> state_definitions{};
     std::vector<clife::MatterDefinition> matter_definitions{};
+    std::vector<DisplayName> names{};
     clife::CellPhenotype phenotype{};
 };
 
@@ -43,6 +51,16 @@ struct CommandLine final {
     constexpr clife::MeasureType matter_measure{1};
 
     LabConfig config;
+    config.names = {
+        {.role = "field", .index = 1, .name = "Light"},
+        {.role = "resource", .index = 7, .name = "Energy"},
+        {.role = "state", .index = 2, .name = "Heat"},
+        {.role = "matter", .index = 0, .name = "Organic"},
+        {.role = "measure", .index = 0, .name = "EnergyMeasure"},
+        {.role = "measure", .index = 1, .name = "MatterMeasure"},
+        {.role = "property", .index = 0, .name = "Volume"},
+        {.role = "property", .index = 1, .name = "HeatCapacity"},
+    };
     config.fields = {0.0, 1.0};
     config.configured_fields = {clife::FieldType{1}};
     config.field_definitions = {
@@ -235,6 +253,40 @@ void append_unique(std::vector<Type>& values, Type value)
     }
 }
 
+void set_display_name(LabConfig& config, std::string_view definition)
+{
+    const ThreeParts parts = split_three(definition, ':', "name definition");
+    const std::string role{parts.first};
+    if (role != "field" && role != "resource" && role != "state" && role != "matter" && role != "measure" &&
+        role != "property") {
+        throw std::invalid_argument{"name role must be field, resource, state, matter, measure, or property"};
+    }
+
+    const clife::TypeIndex index = parse_type_index(parts.second, "named type");
+    const auto found = std::find_if(config.names.begin(), config.names.end(), [&role, index](const DisplayName& entry) {
+        return entry.role == role && entry.index == index;
+    });
+    if (found == config.names.end()) {
+        config.names.push_back({.role = role, .index = index, .name = std::string{parts.third}});
+    } else {
+        found->name = std::string{parts.third};
+    }
+}
+
+[[nodiscard]] std::string display_name(const LabConfig& config, std::string_view role, clife::TypeIndex index)
+{
+    const auto found = std::find_if(config.names.begin(), config.names.end(), [role, index](const DisplayName& entry) {
+        return entry.role == role && entry.index == index;
+    });
+    if (found != config.names.end()) {
+        return found->name;
+    }
+
+    std::string fallback{role};
+    fallback[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(fallback[0])));
+    return fallback + '[' + std::to_string(index) + ']';
+}
+
 void set_field(LabConfig& config, std::string_view definition)
 {
     const auto [type_text, amount_text] = split_pair(definition, '=', "field definition");
@@ -369,6 +421,8 @@ void add_cell_matter(LabConfig& config, std::string_view definition)
 
         if (argument == "--help" || argument == "-h") {
             command.show_help = true;
+        } else if (argument == "--name") {
+            set_display_name(command.config, require_value(argc, argv, index, argument));
         } else if (argument == "--ticks") {
             command.config.ticks = parse_tick_count(require_value(argc, argv, index, argument));
         } else if (argument == "--field") {
@@ -409,6 +463,7 @@ void print_help()
               << "Usage:\n"
               << "  clife_headless [options]\n\n"
               << "Options:\n"
+              << "  --name ROLE:TYPE:NAME             Human-readable world type name\n"
               << "  --ticks N                         Number of simulation ticks\n"
               << "  --field FIELD=AMOUNT              Constant field input for every tick\n"
               << "  --transform FIELD:RESOURCE:RATE   Field -> Resource transform\n"
@@ -422,23 +477,27 @@ void print_help()
               << "  --cell-matter TYPE:AMOUNT         Add structural Matter to the cell\n"
               << "  --help, -h                        Show this help\n\n"
               << "SCALE means how much of Measure[n] one unit of the type represents.\n"
-              << "ROLE is field, resource, state, or matter. Type options may be repeated.\n"
+              << "Property ROLE is field, resource, state, or matter. Name ROLE additionally accepts measure/property.\n"
+              << "Names are presentation metadata; unnamed types fall back to Field[n], Resource[n], etc.\n"
+              << "Type and name options may be repeated.\n"
               << "If no cell-definition options are supplied, a built-in demonstration is used.\n\n"
               << "Example with unit conversion (1 Field[1] = 2 Measure[0], "
                  "1 Resource[7] = 4 Measure[0]):\n"
-              << "  clife_headless --ticks 5 --field-type 1:0:2 --resource-type 7:0:4 "
+              << "  clife_headless --ticks 5 --name field:1:Light --name resource:7:Energy "
+                 "--field-type 1:0:2 --resource-type 7:0:4 "
                  "--state-type 2:0:1 --matter-type 0:1:1 --property matter:0:0:1 "
                  "--field 1=1 --transform 1:7:1 --store 7:0.25 --remainder 7:2 --cell-matter 0:1.25\n";
 }
 
 template <typename Definition>
-void print_type_definitions(std::string_view role, const std::vector<Definition>& definitions)
+void print_type_definitions(const LabConfig& config, std::string_view role, const std::vector<Definition>& definitions)
 {
     for (const Definition& definition : definitions) {
-        std::cout << role << '[' << definition.type.index << "]: Measure[" << definition.unit.measure.index
-                  << "] per unit=" << definition.unit.measure_per_unit << '\n';
+        std::cout << display_name(config, role, definition.type.index) << ": unit=" << definition.unit.measure_per_unit
+                  << ' ' << display_name(config, "measure", definition.unit.measure.index) << '\n';
         for (const clife::TypeProperty& property : definition.properties) {
-            std::cout << "  Property[" << property.property.index << "] = " << property.value << '\n';
+            std::cout << "  " << display_name(config, "property", property.property.index) << " = " << property.value
+                      << '\n';
         }
     }
 }
@@ -478,65 +537,68 @@ void print_configuration(const LabConfig& config)
     std::cout << "CLife cell lab\n\n";
     std::cout << "ticks = " << config.ticks << '\n';
 
-    print_type_definitions("Field", config.field_definitions);
-    print_type_definitions("Resource", config.resource_definitions);
-    print_type_definitions("State", config.state_definitions);
-    print_type_definitions("Matter", config.matter_definitions);
+    print_type_definitions(config, "field", config.field_definitions);
+    print_type_definitions(config, "resource", config.resource_definitions);
+    print_type_definitions(config, "state", config.state_definitions);
+    print_type_definitions(config, "matter", config.matter_definitions);
 
     for (const clife::FieldType field : config.configured_fields) {
         const auto index = static_cast<std::size_t>(field.index);
         const clife::Amount amount = index < config.fields.size() ? config.fields[index] : 0.0;
-        std::cout << "Field[" << field.index << "] input = " << amount << '\n';
+        std::cout << "Input " << display_name(config, "field", field.index) << " = " << amount << '\n';
     }
 
     for (const clife::MatterAmount& component : config.phenotype.composition) {
-        std::cout << "Cell matter: Matter[" << component.type.index << "], amount=" << component.amount << '\n';
+        std::cout << "Cell matter: " << display_name(config, "matter", component.type.index)
+                  << ", amount=" << component.amount << '\n';
     }
 
     for (const clife::FieldToResourceTransform& transform : config.phenotype.transforms) {
-        std::cout << "Transform: Field[" << transform.input.index << "] -> Resource[" << transform.output.index
-                  << "], throughput=" << transform.throughput << " input units/tick\n";
+        std::cout << "Transform: " << display_name(config, "field", transform.input.index) << " -> "
+                  << display_name(config, "resource", transform.output.index) << ", throughput=" << transform.throughput
+                  << " input units/tick\n";
     }
 
     for (const clife::Store& store : config.phenotype.stores) {
-        std::cout << "Store: Resource[" << store.resource.index << "], capacity=" << store.capacity << '\n';
+        std::cout << "Store: " << display_name(config, "resource", store.resource.index)
+                  << ", capacity=" << store.capacity << '\n';
     }
 
     for (const clife::RemainderToState& remainder : config.phenotype.remainders) {
-        std::cout << "Remainder: Resource[" << remainder.resource.index << "] -> State[" << remainder.state.index
-                  << "]\n";
+        std::cout << "Remainder: " << display_name(config, "resource", remainder.resource.index) << " -> "
+                  << display_name(config, "state", remainder.state.index) << '\n';
     }
 
     std::cout << '\n';
 }
 
-[[nodiscard]] std::string field_label(clife::FieldType type)
+[[nodiscard]] std::string field_label(const LabConfig& config, clife::FieldType type)
 {
-    return "field[" + std::to_string(type.index) + "]";
+    return display_name(config, "field", type.index);
 }
 
-[[nodiscard]] std::string resource_label(clife::ResourceType type)
+[[nodiscard]] std::string resource_label(const LabConfig& config, clife::ResourceType type)
 {
-    return "stored[" + std::to_string(type.index) + "]";
+    return "stored:" + display_name(config, "resource", type.index);
 }
 
-[[nodiscard]] std::string state_label(clife::StateType type)
+[[nodiscard]] std::string state_label(const LabConfig& config, clife::StateType type)
 {
-    return "state[" + std::to_string(type.index) + "]";
+    return display_name(config, "state", type.index);
 }
 
-void print_table_header(const std::vector<clife::FieldType>& fields, const std::vector<clife::ResourceType>& resources,
-                        const std::vector<clife::StateType>& states)
+void print_table_header(const LabConfig& config, const std::vector<clife::FieldType>& fields,
+                        const std::vector<clife::ResourceType>& resources, const std::vector<clife::StateType>& states)
 {
     std::cout << std::setw(8) << "tick";
     for (const clife::FieldType field : fields) {
-        std::cout << std::setw(kValueWidth) << field_label(field);
+        std::cout << std::setw(kValueWidth) << field_label(config, field);
     }
     for (const clife::ResourceType resource : resources) {
-        std::cout << std::setw(kValueWidth) << resource_label(resource);
+        std::cout << std::setw(kValueWidth) << resource_label(config, resource);
     }
     for (const clife::StateType state : states) {
-        std::cout << std::setw(kValueWidth) << state_label(state);
+        std::cout << std::setw(kValueWidth) << state_label(config, state);
     }
     std::cout << '\n';
 }
@@ -586,7 +648,7 @@ int run_headless(int argc, char* argv[])
     const std::vector<clife::StateType> states = observed_states(config);
 
     std::cout << std::fixed << std::setprecision(3);
-    print_table_header(fields, resources, states);
+    print_table_header(config, fields, resources, states);
     print_table_row(simulation, inputs, cell, fields, resources, states);
 
     for (clife::Tick tick = 0; tick < config.ticks; ++tick) {
