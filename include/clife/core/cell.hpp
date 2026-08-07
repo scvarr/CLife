@@ -27,6 +27,23 @@ struct StateType final {
     friend constexpr bool operator==(StateType, StateType) noexcept = default;
 };
 
+struct MatterType final {
+    TypeIndex index;
+
+    friend constexpr bool operator==(MatterType, MatterType) noexcept = default;
+};
+
+struct MatterDefinition final {
+    MatterType type;
+    Amount volume_per_unit;
+    Amount heat_capacity_per_unit;
+};
+
+struct MatterAmount final {
+    MatterType type;
+    Amount amount;
+};
+
 struct FieldToResourceTransform final {
     FieldType input;
     ResourceType output;
@@ -47,6 +64,7 @@ struct CellPhenotype final {
     std::vector<FieldToResourceTransform> transforms;
     std::vector<Store> stores;
     std::vector<RemainderToState> remainders;
+    std::vector<MatterAmount> composition;
 };
 
 struct CellInputs final {
@@ -57,12 +75,15 @@ struct CellInputs final {
 
 class Cell final {
 public:
-    explicit Cell(CellPhenotype phenotype);
+    explicit Cell(CellPhenotype phenotype, std::span<const MatterDefinition> matter_definitions = {});
 
     void step(CellInputs inputs) noexcept;
 
     [[nodiscard]] Amount stored(ResourceType resource) const noexcept;
     [[nodiscard]] Amount state(StateType state) const noexcept;
+    [[nodiscard]] Amount matter(MatterType type) const noexcept;
+    [[nodiscard]] Amount volume() const noexcept;
+    [[nodiscard]] Amount heat_capacity() const noexcept;
 
 private:
     struct ResourceStorage final {
@@ -94,6 +115,8 @@ private:
     std::vector<ResourceStorage> storage_;
     std::vector<TickResource> tick_resources_;
     std::vector<StateValue> states_;
+    Amount volume_{0.0};
+    Amount heat_capacity_{0.0};
 };
 
 } // namespace clife

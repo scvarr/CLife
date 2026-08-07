@@ -18,6 +18,9 @@ constexpr clife::ResourceType kOtherResource{12};
 constexpr clife::StateType kFirstState{2};
 constexpr clife::StateType kSecondState{5};
 constexpr clife::StateType kOtherState{9};
+constexpr clife::MatterType kFirstMatter{17};
+constexpr clife::MatterType kSecondMatter{23};
+constexpr clife::MatterType kOtherMatter{99};
 
 bool expect_equal(clife::Tick actual, clife::Tick expected, const char* message)
 {
@@ -59,6 +62,31 @@ bool test_simulation_lifecycle()
     }
 
     return expect_equal(simulation.tick(), 100, "tick after deterministic stepping");
+}
+
+bool test_cell_matter_properties()
+{
+    const std::array matter_definitions{
+        clife::MatterDefinition{.type = kFirstMatter, .volume_per_unit = 1.0, .heat_capacity_per_unit = 2.0},
+        clife::MatterDefinition{.type = kSecondMatter, .volume_per_unit = 0.5, .heat_capacity_per_unit = 4.0},
+    };
+
+    const clife::CellPhenotype phenotype{
+        .composition =
+            {
+                {.type = kFirstMatter, .amount = 2.0},
+                {.type = kSecondMatter, .amount = 3.0},
+                {.type = kFirstMatter, .amount = 1.0},
+            },
+    };
+
+    const clife::Cell cell{phenotype, matter_definitions};
+
+    return expect_near(cell.matter(kFirstMatter), 3.0, "repeated first matter entries are aggregated") &&
+           expect_near(cell.matter(kSecondMatter), 3.0, "second matter amount is preserved") &&
+           expect_near(cell.matter(kOtherMatter), 0.0, "unconfigured matter remains absent") &&
+           expect_near(cell.volume(), 4.5, "cell volume derives from structural matter") &&
+           expect_near(cell.heat_capacity(), 18.0, "cell heat capacity derives from structural matter");
 }
 
 bool test_cell_multiple_functions_and_stores()
@@ -191,6 +219,10 @@ bool test_competing_transforms_share_field()
 int main()
 {
     if (!test_simulation_lifecycle()) {
+        return 1;
+    }
+
+    if (!test_cell_matter_properties()) {
         return 1;
     }
 

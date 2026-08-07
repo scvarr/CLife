@@ -25,6 +25,7 @@ struct LabConfig final {
     clife::Tick ticks{kDefaultTicks};
     std::vector<clife::Amount> fields;
     std::vector<clife::FieldType> configured_fields;
+    std::vector<clife::MatterDefinition> matter_definitions;
     clife::CellPhenotype phenotype;
 };
 
@@ -38,6 +39,9 @@ struct CommandLine final {
     LabConfig config;
     config.fields = {0.0, 1.0};
     config.configured_fields = {clife::FieldType{1}};
+    config.matter_definitions = {
+        {.type = clife::MatterType{0}, .volume_per_unit = 1.0, .heat_capacity_per_unit = 1.0},
+    };
     config.phenotype.transforms = {
         {.input = clife::FieldType{1}, .output = clife::ResourceType{7}, .throughput = 1.0},
     };
@@ -47,12 +51,16 @@ struct CommandLine final {
     config.phenotype.remainders = {
         {.resource = clife::ResourceType{7}, .state = clife::StateType{2}},
     };
+    config.phenotype.composition = {
+        {.type = clife::MatterType{0}, .amount = 1.25},
+    };
     return config;
 }
 
 [[nodiscard]] bool is_cell_definition_option(std::string_view argument) noexcept
 {
-    return argument == "--field" || argument == "--transform" || argument == "--store" || argument == "--remainder";
+    return argument == "--field" || argument == "--transform" || argument == "--store" || argument == "--remainder" ||
+           argument == "--matter" || argument == "--cell-matter";
 }
 
 [[nodiscard]] bool has_custom_cell_definition(int argc, char* argv[]) noexcept
@@ -229,6 +237,36 @@ void add_remainder(LabConfig& config, std::string_view definition)
     });
 }
 
+void add_matter_definition(LabConfig& config, std::string_view definition)
+{
+    const ThreeParts parts = split_three(definition, ':', "matter definition");
+    const clife::Amount volume_per_unit = parse_amount(parts.second, "matter volume per unit");
+    const clife::Amount heat_capacity_per_unit = parse_amount(parts.third, "matter heat capacity per unit");
+    if (volume_per_unit < 0.0 || heat_capacity_per_unit < 0.0) {
+        throw std::invalid_argument{"matter properties must be non-negative"};
+    }
+
+    config.matter_definitions.push_back({
+        .type = clife::MatterType{parse_type_index(parts.first, "matter type")},
+        .volume_per_unit = volume_per_unit,
+        .heat_capacity_per_unit = heat_capacity_per_unit,
+    });
+}
+
+void add_cell_matter(LabConfig& config, std::string_view definition)
+{
+    const auto [type_text, amount_text] = split_pair(definition, ':', "cell matter definition");
+    const clife::Amount amount = parse_amount(amount_text, "cell matter amount");
+    if (amount < 0.0) {
+        throw std::invalid_argument{"cell matter amount must be non-negative"};
+    }
+
+    config.phenotype.composition.push_back({
+        .type = clife::MatterType{parse_type_index(type_text, "cell matter type")},
+        .amount = amount,
+    });
+}
+
 [[nodiscard]] CommandLine parse_command_line(int argc, char* argv[])
 {
     CommandLine command{
@@ -250,6 +288,10 @@ void add_remainder(LabConfig& config, std::string_view definition)
             add_store(command.config, require_value(argc, argv, index, argument));
         } else if (argument == "--remainder") {
             add_remainder(command.config, require_value(argc, argv, index, argument));
+        } else if (argument == "--matter") {
+            add_matter_definition(command.config, require_value(argc, argv, index, argument));
+        } else if (argument == "--cell-matter") {
+            add_cell_matter(command.config, require_value(argc, argv, index, argument));
         } else {
             throw std::invalid_argument{"unknown option: " + std::string{argument}};
         }
@@ -269,12 +311,14 @@ void print_help()
               << "  --transform FIELD:RESOURCE:RATE   Field -> Resource transform\n"
               << "  --store RESOURCE:CAPACITY         Persistent resource store\n"
               << "  --remainder RESOURCE:STATE        Unstored resource -> cell state\n"
+              << "  --matter TYPE:VOLUME:HEAT         Define Matter type properties\n"
+              << "  --cell-matter TYPE:AMOUNT         Add structural Matter to the cell\n"
               << "  --help, -h                        Show this help\n\n"
               << "Cell-definition options may be repeated. If none are supplied, the built-in\n"
               << "Field[1] -> Resource[7] -> Store/State[2] demonstration is used.\n\n"
               << "Example:\n"
               << "  clife_headless --ticks 5 --field 1=1 --transform 1:7:1 "
-                 "--store 7:0.25 --remainder 7:2\n";
+                 "--store 7:0.25 --remainder 7:2 --matter 0:1:1 --cell-matter 0:1.25\n";
 }
 
 [[nodiscard]] std::vector<clife::FieldType> observed_fields(const LabConfig& config)
@@ -316,6 +360,15 @@ void print_configuration(const LabConfig& config)
         const auto index = static_cast<std::size_t>(field.index);
         const clife::Amount amount = index < config.fields.size() ? config.fields[index] : 0.0;
         std::cout << "Field[" << field.index << "] = " << amount << '\n';
+    }
+
+    for (const clife::MatterDefinition& matter : config.matter_definitions) {
+        std::cout << "Matter[" << matter.type.index << "]: volume_per_unit=" << matter.volume_per_unit
+                  << ", heat_capacity_per_unit=" << matter.heat_capacity_per_unit << '\n';
+    }
+
+    for (const clife::MatterAmount& component : config.phenotype.composition) {
+        std::cout << "Cell matter: Matter[" << component.type.index << "], amount=" << component.amount << '\n';
     }
 
     for (const clife::FieldToResourceTransform& transform : config.phenotype.transforms) {
@@ -394,9 +447,12 @@ int run_headless(int argc, char* argv[])
     const LabConfig& config = command.config;
     print_configuration(config);
 
-    clife::Cell cell{config.phenotype};
+    clife::Cell cell{config.phenotype, config.matter_definitions};
     clife::Simulation simulation;
     const clife::CellInputs inputs{.fields = config.fields};
+
+    std::cout << "Cell volume = " << cell.volume() << '\n';
+    std::cout << "Cell heat capacity = " << cell.heat_capacity() << "\n\n";
 
     const std::vector<clife::FieldType> fields = observed_fields(config);
     const std::vector<clife::ResourceType> resources = observed_resources(config);

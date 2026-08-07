@@ -27,6 +27,27 @@ CLife строится как **переносимое C++-ядро симуля
 - не владеет главным циклом процесса;
 - содержит законы и состояние симуляции.
 
+### 1.1. Законы в коде, мир в данных
+
+`clife_core` реализует роли величин, примитивы и законы их взаимодействия. Конкретные типы внутри существующих ролей являются данными определения мира.
+
+```text
+core code:
+    Field / Resource / State / Matter roles
+    Transform / Store / future primitives
+    simulation laws
+
+world data:
+    which Field[n] / Resource[n] / State[n] / Matter[n] exist
+    their names and physical properties
+    available cell/module definitions
+    initial world configuration
+```
+
+Добавление нового типа `Field`, `Resource`, `State` или `Matter` не должно требовать изменения или перекомпиляции `clife_core`. Новый C++-код требуется только при появлении нового закона или нового примитива поведения.
+
+Сохранённый шаблон мира, sandbox/editor и будущий renderer являются потребителями этого контракта, а не источниками законов симуляции.
+
 ## 2. Точка входа и жизненный цикл
 
 Точка входа принадлежит **хост-приложению**.

@@ -8,6 +8,19 @@
 #include <utility>
 
 namespace clife {
+namespace {
+
+[[nodiscard]] const MatterDefinition* find_matter_definition(std::span<const MatterDefinition> definitions,
+                                                              MatterType type) noexcept
+{
+    const auto found = std::find_if(definitions.begin(), definitions.end(), [type](const MatterDefinition& definition) {
+        return definition.type == type;
+    });
+
+    return found == definitions.end() ? nullptr : &*found;
+}
+
+} // namespace
 
 Amount CellInputs::field(FieldType type) const noexcept
 {
@@ -19,8 +32,46 @@ Amount CellInputs::field(FieldType type) const noexcept
     return fields[index];
 }
 
-Cell::Cell(CellPhenotype phenotype) : phenotype_(std::move(phenotype))
+Cell::Cell(CellPhenotype phenotype, std::span<const MatterDefinition> matter_definitions)
+    : phenotype_(std::move(phenotype))
 {
+    for (std::size_t i = 0; i < matter_definitions.size(); ++i) {
+        const MatterDefinition& definition = matter_definitions[i];
+        if (!std::isfinite(definition.volume_per_unit) || definition.volume_per_unit < 0.0 ||
+            !std::isfinite(definition.heat_capacity_per_unit) || definition.heat_capacity_per_unit < 0.0) {
+            throw std::invalid_argument{"matter properties must be finite and non-negative"};
+        }
+
+        for (std::size_t previous = 0; previous < i; ++previous) {
+            if (matter_definitions[previous].type == definition.type) {
+                throw std::invalid_argument{"matter type has more than one definition"};
+            }
+        }
+    }
+
+    for (const MatterAmount& component : phenotype_.composition) {
+        if (!std::isfinite(component.amount) || component.amount < 0.0) {
+            throw std::invalid_argument{"matter amount must be finite and non-negative"};
+        }
+
+        const MatterDefinition* definition = find_matter_definition(matter_definitions, component.type);
+        if (definition == nullptr) {
+            throw std::invalid_argument{"cell composition references undefined matter type"};
+        }
+
+        const Amount volume_contribution = component.amount * definition->volume_per_unit;
+        const Amount heat_capacity_contribution = component.amount * definition->heat_capacity_per_unit;
+        if (!std::isfinite(volume_contribution) || !std::isfinite(heat_capacity_contribution)) {
+            throw std::invalid_argument{"derived matter property is not finite"};
+        }
+
+        volume_ += volume_contribution;
+        heat_capacity_ += heat_capacity_contribution;
+        if (!std::isfinite(volume_) || !std::isfinite(heat_capacity_)) {
+            throw std::invalid_argument{"derived cell property is not finite"};
+        }
+    }
+
     for (const FieldToResourceTransform& transform : phenotype_.transforms) {
         // C0 currently defines 100% efficiency only for the normalized throughput of 1.
         assert(transform.throughput == 1.0);
@@ -113,6 +164,29 @@ Amount Cell::state(StateType state_type) const noexcept
 {
     const StateValue* value = find_state(state_type);
     return value == nullptr ? 0.0 : value->amount;
+}
+
+Amount Cell::matter(MatterType type) const noexcept
+{
+    Amount total{0.0};
+
+    for (const MatterAmount& component : phenotype_.composition) {
+        if (component.type == type) {
+            total += component.amount;
+        }
+    }
+
+    return total;
+}
+
+Amount Cell::volume() const noexcept
+{
+    return volume_;
+}
+
+Amount Cell::heat_capacity() const noexcept
+{
+    return heat_capacity_;
 }
 
 Amount Cell::total_demand(FieldType field) const noexcept
