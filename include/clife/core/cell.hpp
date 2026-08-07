@@ -1,34 +1,45 @@
 #pragma once
 
 #include <cstdint>
+#include <span>
 
 namespace clife {
 
-using ResourceAmount = double;
+using Amount = double;
+using TypeIndex = std::uint32_t;
 
-enum class Resource : std::uint8_t {
-    Light,
-    Energy,
+struct FieldType final {
+    TypeIndex index;
+
+    friend constexpr bool operator==(FieldType, FieldType) noexcept = default;
 };
 
-struct Transform final {
-    Resource input;
-    Resource output;
-    ResourceAmount throughput;
+struct ResourceType final {
+    TypeIndex index;
+
+    friend constexpr bool operator==(ResourceType, ResourceType) noexcept = default;
+};
+
+struct FieldToResourceTransform final {
+    FieldType input;
+    ResourceType output;
+    Amount throughput;
 };
 
 struct Store final {
-    Resource resource;
-    ResourceAmount capacity;
+    ResourceType resource;
+    Amount capacity;
 };
 
 struct CellPhenotype final {
-    Transform transform;
+    FieldToResourceTransform transform;
     Store store;
 };
 
 struct CellInputs final {
-    ResourceAmount light{0.0};
+    std::span<const Amount> fields{};
+
+    [[nodiscard]] Amount field(FieldType type) const noexcept;
 };
 
 class Cell final {
@@ -37,13 +48,11 @@ public:
 
     void step(CellInputs inputs) noexcept;
 
-    [[nodiscard]] ResourceAmount stored_energy() const noexcept;
-    [[nodiscard]] ResourceAmount thermal_energy() const noexcept;
+    [[nodiscard]] Amount stored(ResourceType resource) const noexcept;
 
 private:
     CellPhenotype phenotype_;
-    ResourceAmount stored_energy_{0.0};
-    ResourceAmount thermal_energy_{0.0};
+    Amount stored_amount_{0.0};
 };
 
 } // namespace clife

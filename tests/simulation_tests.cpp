@@ -1,10 +1,15 @@
 #include <clife/core/cell.hpp>
 #include <clife/core/simulation.hpp>
 
+#include <array>
 #include <cmath>
 #include <iostream>
 
 namespace {
+
+constexpr clife::FieldType kSelectedField{1};
+constexpr clife::ResourceType kStoredResource{7};
+constexpr clife::ResourceType kOtherResource{8};
 
 bool expect_equal(clife::Tick actual, clife::Tick expected, const char* message)
 {
@@ -16,9 +21,9 @@ bool expect_equal(clife::Tick actual, clife::Tick expected, const char* message)
     return false;
 }
 
-bool expect_near(clife::ResourceAmount actual, clife::ResourceAmount expected, const char* message)
+bool expect_near(clife::Amount actual, clife::Amount expected, const char* message)
 {
-    constexpr clife::ResourceAmount tolerance{1e-12};
+    constexpr clife::Amount tolerance{1e-12};
     if (std::abs(actual - expected) <= tolerance) {
         return true;
     }
@@ -53,40 +58,47 @@ bool test_cell_resource_flow()
     const clife::CellPhenotype phenotype{
         .transform =
             {
-                .input = clife::Resource::Light,
-                .output = clife::Resource::Energy,
+                .input = kSelectedField,
+                .output = kStoredResource,
                 .throughput = 1.0,
             },
         .store =
             {
-                .resource = clife::Resource::Energy,
+                .resource = kStoredResource,
                 .capacity = 1.5,
             },
     };
 
     clife::Cell cell{phenotype};
 
-    cell.step({.light = 0.25});
-    if (!expect_near(cell.stored_energy(), 0.25, "stored energy after partial input") ||
-        !expect_near(cell.thermal_energy(), 0.0, "thermal energy after partial input")) {
+    std::array<clife::Amount, 2> fields{10.0, 0.25};
+    cell.step({.fields = fields});
+    if (!expect_near(cell.stored(kStoredResource), 0.25, "stored resource after partial input") ||
+        !expect_near(cell.stored(kOtherResource), 0.0, "unconfigured resource remains absent")) {
         return false;
     }
 
-    cell.step({.light = 2.0});
-    if (!expect_near(cell.stored_energy(), 1.25, "stored energy after throughput-limited input") ||
-        !expect_near(cell.thermal_energy(), 0.0, "unprocessed light is not thermalized")) {
+    fields = {10.0, 2.0};
+    cell.step({.fields = fields});
+    if (!expect_near(cell.stored(kStoredResource), 1.25, "stored resource after throughput-limited input")) {
         return false;
     }
 
-    cell.step({.light = 1.0});
-    if (!expect_near(cell.stored_energy(), 1.5, "stored energy at capacity") ||
-        !expect_near(cell.thermal_energy(), 0.75, "unstored produced energy becomes heat")) {
+    fields = {10.0, 1.0};
+    cell.step({.fields = fields});
+    if (!expect_near(cell.stored(kStoredResource), 1.5, "stored resource at capacity")) {
         return false;
     }
 
-    cell.step({.light = 10.0});
-    return expect_near(cell.stored_energy(), 1.5, "stored energy remains capped") &&
-           expect_near(cell.thermal_energy(), 1.75, "full store thermalizes produced energy");
+    fields = {10.0, 10.0};
+    cell.step({.fields = fields});
+    if (!expect_near(cell.stored(kStoredResource), 1.5, "stored resource remains capped")) {
+        return false;
+    }
+
+    const std::array<clife::Amount, 1> missing_selected_field{10.0};
+    cell.step({.fields = missing_selected_field});
+    return expect_near(cell.stored(kStoredResource), 1.5, "missing field type provides zero input");
 }
 
 } // namespace
