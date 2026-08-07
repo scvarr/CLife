@@ -1,5 +1,5 @@
 add_executable(clife_headless
-    main.cpp
+    calculator_main.cpp
 )
 
 target_link_libraries(clife_headless PRIVATE clife::core)

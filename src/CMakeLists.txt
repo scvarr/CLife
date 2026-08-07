@@ -1,5 +1,5 @@
 add_library(clife_core STATIC
-    core/cell.cpp
+    core/calculator.cpp
     core/simulation.cpp
 )
 

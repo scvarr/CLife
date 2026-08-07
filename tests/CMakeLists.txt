@@ -1,5 +1,5 @@
 add_executable(clife_tests
-    simulation_tests.cpp
+    calculator_tests.cpp
 )
 
 target_link_libraries(clife_tests PRIVATE clife::core)
@@ -10,4 +10,4 @@ set_target_properties(clife_tests PROPERTIES
     FOLDER "CLife/Tests"
 )
 
-add_test(NAME clife.simulation.lifecycle COMMAND clife_tests)
+add_test(NAME clife.calculator.core COMMAND clife_tests)
