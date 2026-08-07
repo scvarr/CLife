@@ -15,6 +15,9 @@ constexpr clife::FieldType kSharedField{4};
 constexpr clife::ResourceType kFirstResource{7};
 constexpr clife::ResourceType kSecondResource{11};
 constexpr clife::ResourceType kOtherResource{12};
+constexpr clife::StateType kFirstState{2};
+constexpr clife::StateType kSecondState{5};
+constexpr clife::StateType kOtherState{9};
 
 bool expect_equal(clife::Tick actual, clife::Tick expected, const char* message)
 {
@@ -72,6 +75,11 @@ bool test_cell_multiple_functions_and_stores()
                 {.resource = kFirstResource, .capacity = 1.0},
                 {.resource = kSecondResource, .capacity = 2.0},
             },
+        .remainders =
+            {
+                {.resource = kFirstResource, .state = kFirstState},
+                {.resource = kSecondResource, .state = kSecondState},
+            },
     };
 
     clife::Cell cell{phenotype};
@@ -80,23 +88,30 @@ bool test_cell_multiple_functions_and_stores()
     cell.step({.fields = fields});
     if (!expect_near(cell.stored(kFirstResource), 0.25, "first resource after first tick") ||
         !expect_near(cell.stored(kSecondResource), 1.0, "second resource after first tick") ||
-        !expect_near(cell.stored(kOtherResource), 0.0, "unconfigured resource remains absent")) {
+        !expect_near(cell.stored(kOtherResource), 0.0, "unconfigured resource remains absent") ||
+        !expect_near(cell.state(kFirstState), 0.0, "first state starts without remainder") ||
+        !expect_near(cell.state(kSecondState), 0.0, "second state starts without remainder") ||
+        !expect_near(cell.state(kOtherState), 0.0, "unconfigured state remains absent")) {
         return false;
     }
 
     fields = {0.0, 2.0, 0.0, 2.0};
     cell.step({.fields = fields});
     if (!expect_near(cell.stored(kFirstResource), 1.25, "first resource uses combined store capacity") ||
-        !expect_near(cell.stored(kSecondResource), 2.0, "second resource reaches its own capacity")) {
+        !expect_near(cell.stored(kSecondResource), 2.0, "second resource reaches its own capacity") ||
+        !expect_near(cell.state(kFirstState), 0.0, "first state still has no remainder") ||
+        !expect_near(cell.state(kSecondState), 0.0, "second state still has no remainder")) {
         return false;
     }
 
     cell.step({.fields = fields});
     return expect_near(cell.stored(kFirstResource), 1.5, "first resource remains independently capped") &&
-           expect_near(cell.stored(kSecondResource), 2.0, "second resource remains independently capped");
+           expect_near(cell.stored(kSecondResource), 2.0, "second resource remains independently capped") &&
+           expect_near(cell.state(kFirstState), 0.75, "first remainder becomes first state") &&
+           expect_near(cell.state(kSecondState), 1.0, "second remainder becomes second state");
 }
 
-bool test_unstored_tick_resource_does_not_persist()
+bool test_unstored_tick_resource_becomes_state()
 {
     const clife::CellPhenotype phenotype{
         .transforms =
@@ -107,19 +122,32 @@ bool test_unstored_tick_resource_does_not_persist()
             {
                 {.resource = kFirstResource, .capacity = 0.25},
             },
+        .remainders =
+            {
+                {.resource = kFirstResource, .state = kFirstState},
+            },
     };
 
     clife::Cell cell{phenotype};
 
     std::array<clife::Amount, 2> fields{0.0, 1.0};
     cell.step({.fields = fields});
-    if (!expect_near(cell.stored(kFirstResource), 0.25, "store keeps only its available capacity")) {
+    if (!expect_near(cell.stored(kFirstResource), 0.25, "store keeps only its available capacity") ||
+        !expect_near(cell.state(kFirstState), 0.75, "unstored remainder becomes persistent state")) {
         return false;
     }
 
     fields = {0.0, 0.0};
     cell.step({.fields = fields});
-    return expect_near(cell.stored(kFirstResource), 0.25, "unstored tick resource does not survive next tick");
+    if (!expect_near(cell.stored(kFirstResource), 0.25, "stored resource persists without new input") ||
+        !expect_near(cell.state(kFirstState), 0.75, "state persists without new input")) {
+        return false;
+    }
+
+    fields = {0.0, 1.0};
+    cell.step({.fields = fields});
+    return expect_near(cell.stored(kFirstResource), 0.25, "full store remains capped") &&
+           expect_near(cell.state(kFirstState), 1.75, "full store sends whole new remainder to state");
 }
 
 bool test_competing_transforms_share_field()
@@ -134,8 +162,14 @@ bool test_competing_transforms_share_field()
         {.resource = kSecondResource, .capacity = 10.0},
     };
 
-    const auto run = [&stores](std::vector<clife::FieldToResourceTransform> ordered_transforms) {
-        clife::Cell cell{{.transforms = std::move(ordered_transforms), .stores = stores}};
+    const std::vector<clife::RemainderToState> remainders{
+        {.resource = kFirstResource, .state = kFirstState},
+        {.resource = kSecondResource, .state = kSecondState},
+    };
+
+    const auto run = [&stores, &remainders](std::vector<clife::FieldToResourceTransform> ordered_transforms) {
+        clife::Cell cell{
+            {.transforms = std::move(ordered_transforms), .stores = stores, .remainders = remainders}};
         std::array<clife::Amount, 5> fields{0.0, 0.0, 0.0, 0.0, 1.0};
         cell.step({.fields = fields});
         return std::array<clife::Amount, 2>{cell.stored(kFirstResource), cell.stored(kSecondResource)};
@@ -164,7 +198,7 @@ int main()
         return 1;
     }
 
-    if (!test_unstored_tick_resource_does_not_persist()) {
+    if (!test_unstored_tick_resource_becomes_state()) {
         return 1;
     }
 

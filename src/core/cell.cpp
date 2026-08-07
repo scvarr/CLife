@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstddef>
+#include <stdexcept>
 #include <utility>
 
 namespace clife {
@@ -23,6 +24,10 @@ Cell::Cell(CellPhenotype phenotype) : phenotype_(std::move(phenotype))
     for (const FieldToResourceTransform& transform : phenotype_.transforms) {
         // C0 currently defines 100% efficiency only for the normalized throughput of 1.
         assert(transform.throughput == 1.0);
+
+        if (find_remainder(transform.output) == nullptr) {
+            throw std::invalid_argument{"transform output has no remainder state"};
+        }
     }
 
     storage_.reserve(phenotype_.stores.size());
@@ -34,6 +39,21 @@ Cell::Cell(CellPhenotype phenotype) : phenotype_(std::move(phenotype))
             .resource = store_definition.resource,
             .capacity = store_definition.capacity,
         });
+    }
+
+    states_.reserve(phenotype_.remainders.size());
+    for (std::size_t i = 0; i < phenotype_.remainders.size(); ++i) {
+        const RemainderToState& remainder = phenotype_.remainders[i];
+
+        for (std::size_t previous = 0; previous < i; ++previous) {
+            if (phenotype_.remainders[previous].resource == remainder.resource) {
+                throw std::invalid_argument{"resource has more than one remainder state"};
+            }
+        }
+
+        if (find_state(remainder.state) == nullptr) {
+            states_.push_back({.state = remainder.state});
+        }
     }
 
     // At most one temporary resource entry can be produced by each transform.
@@ -62,7 +82,17 @@ void Cell::step(CellInputs inputs) noexcept
         storage.amount += take(storage.resource, free_capacity);
     }
 
-    // Resources not persisted by Store exist only inside the current tick.
+    for (TickResource& remaining : tick_resources_) {
+        if (remaining.amount == 0.0) {
+            continue;
+        }
+
+        const RemainderToState* destination = find_remainder(remaining.resource);
+        assert(destination != nullptr);
+        add_state(destination->state, remaining.amount);
+        remaining.amount = 0.0;
+    }
+
     tick_resources_.clear();
 }
 
@@ -79,6 +109,12 @@ Amount Cell::stored(ResourceType resource) const noexcept
     return total;
 }
 
+Amount Cell::state(StateType state_type) const noexcept
+{
+    const StateValue* value = find_state(state_type);
+    return value == nullptr ? 0.0 : value->amount;
+}
+
 Amount Cell::total_demand(FieldType field) const noexcept
 {
     Amount demand{0.0};
@@ -92,6 +128,16 @@ Amount Cell::total_demand(FieldType field) const noexcept
     return demand;
 }
 
+const RemainderToState* Cell::find_remainder(ResourceType resource) const noexcept
+{
+    const auto found = std::find_if(phenotype_.remainders.begin(), phenotype_.remainders.end(),
+                                    [resource](const RemainderToState& remainder) {
+                                        return remainder.resource == resource;
+                                    });
+
+    return found == phenotype_.remainders.end() ? nullptr : &*found;
+}
+
 Cell::TickResource* Cell::find_tick_resource(ResourceType resource) noexcept
 {
     const auto found = std::find_if(tick_resources_.begin(), tick_resources_.end(), [resource](const TickResource& entry) {
@@ -99,6 +145,24 @@ Cell::TickResource* Cell::find_tick_resource(ResourceType resource) noexcept
     });
 
     return found == tick_resources_.end() ? nullptr : &*found;
+}
+
+Cell::StateValue* Cell::find_state(StateType state_type) noexcept
+{
+    const auto found = std::find_if(states_.begin(), states_.end(), [state_type](const StateValue& value) {
+        return value.state == state_type;
+    });
+
+    return found == states_.end() ? nullptr : &*found;
+}
+
+const Cell::StateValue* Cell::find_state(StateType state_type) const noexcept
+{
+    const auto found = std::find_if(states_.begin(), states_.end(), [state_type](const StateValue& value) {
+        return value.state == state_type;
+    });
+
+    return found == states_.end() ? nullptr : &*found;
 }
 
 void Cell::produce(ResourceType resource, Amount amount) noexcept
@@ -125,6 +189,16 @@ Amount Cell::take(ResourceType resource, Amount requested) noexcept
     const Amount taken = std::min(available->amount, requested);
     available->amount -= taken;
     return taken;
+}
+
+void Cell::add_state(StateType state_type, Amount amount) noexcept
+{
+    StateValue* value = find_state(state_type);
+    assert(value != nullptr);
+
+    const Amount combined = value->amount + amount;
+    assert(std::isfinite(combined));
+    value->amount = combined;
 }
 
 } // namespace clife
