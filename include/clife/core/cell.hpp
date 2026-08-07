@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <span>
+#include <vector>
 
 namespace clife {
 
@@ -32,8 +33,8 @@ struct Store final {
 };
 
 struct CellPhenotype final {
-    FieldToResourceTransform transform;
-    Store store;
+    std::vector<FieldToResourceTransform> transforms;
+    std::vector<Store> stores;
 };
 
 struct CellInputs final {
@@ -44,15 +45,26 @@ struct CellInputs final {
 
 class Cell final {
 public:
-    explicit Cell(CellPhenotype phenotype) noexcept;
+    explicit Cell(CellPhenotype phenotype);
 
     void step(CellInputs inputs) noexcept;
 
     [[nodiscard]] Amount stored(ResourceType resource) const noexcept;
 
 private:
+    struct ResourceStorage final {
+        ResourceType resource;
+        Amount capacity;
+        Amount amount{0.0};
+    };
+
+    [[nodiscard]] Amount total_demand(FieldType field) const noexcept;
+    [[nodiscard]] ResourceStorage* find_storage(ResourceType resource) noexcept;
+    [[nodiscard]] const ResourceStorage* find_storage(ResourceType resource) const noexcept;
+    void store(ResourceType resource, Amount amount) noexcept;
+
     CellPhenotype phenotype_;
-    Amount stored_amount_{0.0};
+    std::vector<ResourceStorage> storage_;
 };
 
 } // namespace clife

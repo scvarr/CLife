@@ -4,12 +4,17 @@
 #include <array>
 #include <cmath>
 #include <iostream>
+#include <utility>
+#include <vector>
 
 namespace {
 
-constexpr clife::FieldType kSelectedField{1};
-constexpr clife::ResourceType kStoredResource{7};
-constexpr clife::ResourceType kOtherResource{8};
+constexpr clife::FieldType kFirstField{1};
+constexpr clife::FieldType kSecondField{3};
+constexpr clife::FieldType kSharedField{4};
+constexpr clife::ResourceType kFirstResource{7};
+constexpr clife::ResourceType kSecondResource{11};
+constexpr clife::ResourceType kOtherResource{12};
 
 bool expect_equal(clife::Tick actual, clife::Tick expected, const char* message)
 {
@@ -53,52 +58,72 @@ bool test_simulation_lifecycle()
     return expect_equal(simulation.tick(), 100, "tick after deterministic stepping");
 }
 
-bool test_cell_resource_flow()
+bool test_cell_multiple_functions_and_stores()
 {
     const clife::CellPhenotype phenotype{
-        .transform =
+        .transforms =
             {
-                .input = kSelectedField,
-                .output = kStoredResource,
-                .throughput = 1.0,
+                {.input = kFirstField, .output = kFirstResource, .throughput = 1.0},
+                {.input = kSecondField, .output = kSecondResource, .throughput = 1.0},
             },
-        .store =
+        .stores =
             {
-                .resource = kStoredResource,
-                .capacity = 1.5,
+                {.resource = kFirstResource, .capacity = 0.5},
+                {.resource = kFirstResource, .capacity = 1.0},
+                {.resource = kSecondResource, .capacity = 2.0},
             },
     };
 
     clife::Cell cell{phenotype};
 
-    std::array<clife::Amount, 2> fields{10.0, 0.25};
+    std::array<clife::Amount, 4> fields{0.0, 0.25, 0.0, 2.0};
     cell.step({.fields = fields});
-    if (!expect_near(cell.stored(kStoredResource), 0.25, "stored resource after partial input") ||
+    if (!expect_near(cell.stored(kFirstResource), 0.25, "first resource after first tick") ||
+        !expect_near(cell.stored(kSecondResource), 1.0, "second resource after first tick") ||
         !expect_near(cell.stored(kOtherResource), 0.0, "unconfigured resource remains absent")) {
         return false;
     }
 
-    fields = {10.0, 2.0};
+    fields = {0.0, 2.0, 0.0, 2.0};
     cell.step({.fields = fields});
-    if (!expect_near(cell.stored(kStoredResource), 1.25, "stored resource after throughput-limited input")) {
+    if (!expect_near(cell.stored(kFirstResource), 1.25, "first resource uses combined store capacity") ||
+        !expect_near(cell.stored(kSecondResource), 2.0, "second resource reaches its own capacity")) {
         return false;
     }
 
-    fields = {10.0, 1.0};
     cell.step({.fields = fields});
-    if (!expect_near(cell.stored(kStoredResource), 1.5, "stored resource at capacity")) {
-        return false;
-    }
+    return expect_near(cell.stored(kFirstResource), 1.5, "first resource remains independently capped") &&
+           expect_near(cell.stored(kSecondResource), 2.0, "second resource remains independently capped");
+}
 
-    fields = {10.0, 10.0};
-    cell.step({.fields = fields});
-    if (!expect_near(cell.stored(kStoredResource), 1.5, "stored resource remains capped")) {
-        return false;
-    }
+bool test_competing_transforms_share_field()
+{
+    const std::vector<clife::FieldToResourceTransform> transforms{
+        {.input = kSharedField, .output = kFirstResource, .throughput = 1.0},
+        {.input = kSharedField, .output = kSecondResource, .throughput = 1.0},
+    };
 
-    const std::array<clife::Amount, 1> missing_selected_field{10.0};
-    cell.step({.fields = missing_selected_field});
-    return expect_near(cell.stored(kStoredResource), 1.5, "missing field type provides zero input");
+    const std::vector<clife::Store> stores{
+        {.resource = kFirstResource, .capacity = 10.0},
+        {.resource = kSecondResource, .capacity = 10.0},
+    };
+
+    const auto run = [&stores](std::vector<clife::FieldToResourceTransform> ordered_transforms) {
+        clife::Cell cell{{.transforms = std::move(ordered_transforms), .stores = stores}};
+        std::array<clife::Amount, 5> fields{0.0, 0.0, 0.0, 0.0, 1.0};
+        cell.step({.fields = fields});
+        return std::array<clife::Amount, 2>{cell.stored(kFirstResource), cell.stored(kSecondResource)};
+    };
+
+    const auto forward = run(transforms);
+    auto reversed_transforms = transforms;
+    std::swap(reversed_transforms[0], reversed_transforms[1]);
+    const auto reversed = run(std::move(reversed_transforms));
+
+    return expect_near(forward[0], 0.5, "first competing transform gets equal load fraction") &&
+           expect_near(forward[1], 0.5, "second competing transform gets equal load fraction") &&
+           expect_near(reversed[0], forward[0], "transform order does not change first result") &&
+           expect_near(reversed[1], forward[1], "transform order does not change second result");
 }
 
 } // namespace
@@ -109,7 +134,11 @@ int main()
         return 1;
     }
 
-    if (!test_cell_resource_flow()) {
+    if (!test_cell_multiple_functions_and_stores()) {
+        return 1;
+    }
+
+    if (!test_competing_transforms_share_field()) {
         return 1;
     }
 
