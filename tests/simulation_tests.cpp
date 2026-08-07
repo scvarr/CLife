@@ -96,6 +96,32 @@ bool test_cell_multiple_functions_and_stores()
            expect_near(cell.stored(kSecondResource), 2.0, "second resource remains independently capped");
 }
 
+bool test_unstored_tick_resource_does_not_persist()
+{
+    const clife::CellPhenotype phenotype{
+        .transforms =
+            {
+                {.input = kFirstField, .output = kFirstResource, .throughput = 1.0},
+            },
+        .stores =
+            {
+                {.resource = kFirstResource, .capacity = 0.25},
+            },
+    };
+
+    clife::Cell cell{phenotype};
+
+    std::array<clife::Amount, 2> fields{0.0, 1.0};
+    cell.step({.fields = fields});
+    if (!expect_near(cell.stored(kFirstResource), 0.25, "store keeps only its available capacity")) {
+        return false;
+    }
+
+    fields = {0.0, 0.0};
+    cell.step({.fields = fields});
+    return expect_near(cell.stored(kFirstResource), 0.25, "unstored tick resource does not survive next tick");
+}
+
 bool test_competing_transforms_share_field()
 {
     const std::vector<clife::FieldToResourceTransform> transforms{
@@ -135,6 +161,10 @@ int main()
     }
 
     if (!test_cell_multiple_functions_and_stores()) {
+        return 1;
+    }
+
+    if (!test_unstored_tick_resource_does_not_persist()) {
         return 1;
     }
 

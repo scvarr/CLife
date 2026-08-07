@@ -25,27 +25,25 @@ Cell::Cell(CellPhenotype phenotype) : phenotype_(std::move(phenotype))
         assert(transform.throughput == 1.0);
     }
 
+    storage_.reserve(phenotype_.stores.size());
     for (const Store& store_definition : phenotype_.stores) {
         assert(std::isfinite(store_definition.capacity));
         assert(store_definition.capacity >= 0.0);
 
-        ResourceStorage* existing = find_storage(store_definition.resource);
-        if (existing == nullptr) {
-            storage_.push_back({
-                .resource = store_definition.resource,
-                .capacity = store_definition.capacity,
-            });
-            continue;
-        }
-
-        const Amount combined_capacity = existing->capacity + store_definition.capacity;
-        assert(std::isfinite(combined_capacity));
-        existing->capacity = combined_capacity;
+        storage_.push_back({
+            .resource = store_definition.resource,
+            .capacity = store_definition.capacity,
+        });
     }
+
+    // At most one temporary resource entry can be produced by each transform.
+    tick_resources_.reserve(phenotype_.transforms.size());
 }
 
 void Cell::step(CellInputs inputs) noexcept
 {
+    tick_resources_.clear();
+
     for (const FieldToResourceTransform& transform : phenotype_.transforms) {
         const Amount available_input = inputs.field(transform.input);
         assert(std::isfinite(available_input));
@@ -56,14 +54,29 @@ void Cell::step(CellInputs inputs) noexcept
 
         const Amount load_fraction = std::min(1.0, available_input / demand);
         const Amount produced = transform.throughput * load_fraction;
-        store(transform.output, produced);
+        produce(transform.output, produced);
     }
+
+    for (ResourceStorage& storage : storage_) {
+        const Amount free_capacity = storage.capacity - storage.amount;
+        storage.amount += take(storage.resource, free_capacity);
+    }
+
+    // Resources not persisted by Store exist only inside the current tick.
+    tick_resources_.clear();
 }
 
 Amount Cell::stored(ResourceType resource) const noexcept
 {
-    const ResourceStorage* storage = find_storage(resource);
-    return storage == nullptr ? 0.0 : storage->amount;
+    Amount total{0.0};
+
+    for (const ResourceStorage& storage : storage_) {
+        if (storage.resource == resource) {
+            total += storage.amount;
+        }
+    }
+
+    return total;
 }
 
 Amount Cell::total_demand(FieldType field) const noexcept
@@ -79,33 +92,39 @@ Amount Cell::total_demand(FieldType field) const noexcept
     return demand;
 }
 
-Cell::ResourceStorage* Cell::find_storage(ResourceType resource) noexcept
+Cell::TickResource* Cell::find_tick_resource(ResourceType resource) noexcept
 {
-    const auto found = std::find_if(storage_.begin(), storage_.end(), [resource](const ResourceStorage& storage) {
-        return storage.resource == resource;
+    const auto found = std::find_if(tick_resources_.begin(), tick_resources_.end(), [resource](const TickResource& entry) {
+        return entry.resource == resource;
     });
 
-    return found == storage_.end() ? nullptr : &*found;
+    return found == tick_resources_.end() ? nullptr : &*found;
 }
 
-const Cell::ResourceStorage* Cell::find_storage(ResourceType resource) const noexcept
+void Cell::produce(ResourceType resource, Amount amount) noexcept
 {
-    const auto found = std::find_if(storage_.begin(), storage_.end(), [resource](const ResourceStorage& storage) {
-        return storage.resource == resource;
-    });
-
-    return found == storage_.end() ? nullptr : &*found;
-}
-
-void Cell::store(ResourceType resource, Amount amount) noexcept
-{
-    ResourceStorage* storage = find_storage(resource);
-    if (storage == nullptr) {
+    TickResource* existing = find_tick_resource(resource);
+    if (existing == nullptr) {
+        assert(tick_resources_.size() < tick_resources_.capacity());
+        tick_resources_.push_back({.resource = resource, .amount = amount});
         return;
     }
 
-    const Amount free_capacity = storage->capacity - storage->amount;
-    storage->amount += std::min(amount, free_capacity);
+    const Amount combined = existing->amount + amount;
+    assert(std::isfinite(combined));
+    existing->amount = combined;
+}
+
+Amount Cell::take(ResourceType resource, Amount requested) noexcept
+{
+    TickResource* available = find_tick_resource(resource);
+    if (available == nullptr) {
+        return 0.0;
+    }
+
+    const Amount taken = std::min(available->amount, requested);
+    available->amount -= taken;
+    return taken;
 }
 
 } // namespace clife

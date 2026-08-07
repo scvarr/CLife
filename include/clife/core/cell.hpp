@@ -58,13 +58,19 @@ private:
         Amount amount{0.0};
     };
 
+    struct TickResource final {
+        ResourceType resource;
+        Amount amount{0.0};
+    };
+
     [[nodiscard]] Amount total_demand(FieldType field) const noexcept;
-    [[nodiscard]] ResourceStorage* find_storage(ResourceType resource) noexcept;
-    [[nodiscard]] const ResourceStorage* find_storage(ResourceType resource) const noexcept;
-    void store(ResourceType resource, Amount amount) noexcept;
+    [[nodiscard]] TickResource* find_tick_resource(ResourceType resource) noexcept;
+    void produce(ResourceType resource, Amount amount) noexcept;
+    [[nodiscard]] Amount take(ResourceType resource, Amount requested) noexcept;
 
     CellPhenotype phenotype_;
     std::vector<ResourceStorage> storage_;
+    std::vector<TickResource> tick_resources_;
 };
 
 } // namespace clife
