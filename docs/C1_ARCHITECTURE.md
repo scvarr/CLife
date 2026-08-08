@@ -1,6 +1,6 @@
 # C1 — архитектура реализации CLife
 
-Статус: **принято / реализация начата**
+Статус: **принято / текущие правила реализации**
 
 C1 фиксирует архитектурные правила реализации. C0 описывает первый клеточный мир, C2 отражает промежуточный этап разделения типов, а текущая модель универсального core зафиксирована в `C3_CALCULATOR_MODEL.md`. При конфликте абстракций core приоритет имеет C3.
 
@@ -9,13 +9,7 @@ C1 фиксирует архитектурные правила реализац
 CLife строится как **переносимое C++-ядро симуляции**, которое не зависит от конкретного renderer/game engine.
 
 ```text
-                  clife_core
-                      ^
-                      |
-          +-----------+-----------+
-          |           |           |
-      headless      Godot       Unreal
-       main()      lifecycle     lifecycle
+clife_core <- clife_world <- headless / future Godot / future Unreal
 ```
 
 `clife_core`:
@@ -37,9 +31,8 @@ core code:
     finite genome pipeline evaluation
     proportional competition for shared input
     deterministic fixed tick
-    topology / adjacency required by the simulation
 
-world data / adapter:
+world data / runtime:
     human names and semantics of values
     genome function definitions and formulas
     end-of-tick world rules
@@ -181,20 +174,20 @@ CLife/
 
 Тесты подключены через CTest с первого рабочего commit. Любое новое фундаментальное поведение ядра должно иметь воспроизводимый тест, когда это практически возможно.
 
-## 10. Первый вертикальный срез
+## 10. Реализованные вертикальные срезы
 
-Первый код намеренно не реализует геном, renderer и многоклеточность.
+Первый lifecycle-срез и компактный calculator из C3 реализованы. C4 добавляет engine-independent world/runtime-слой, не вводя renderer и многоклеточность.
 
-Он проверяет только архитектурный контракт:
+Текущий архитектурный контракт:
 
 ```text
-host creates Simulation
+host edits/loads WorldDefinition
+        ↓ compile
+host instantiates RuntimeObject
         ↓
-host advances fixed ticks
+host stages inputs and advances fixed ticks
         ↓
-core owns simulation state
-        ↓
-host destroys Simulation
+host reads outputs
 ```
 
-Текущий рефакторинг должен сохранить наблюдаемое поведение первого клеточного сценария, но заменить специальные роли `Field / Resource / State / Matter` компактным calculator-представлением из C3.
+Специальные роли `Field / Resource / State / Matter` не входят в calculator API. Имена и семантика значений принадлежат `WorldDefinition`; скомпилированный runtime использует плотные `ValueId`. Подробный контракт зафиксирован в `C4_HOST_WORLD_EDITOR_MODEL.md`.

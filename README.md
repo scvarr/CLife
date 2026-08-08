@@ -6,11 +6,12 @@ CLife — проект искусственной жизни с переноси
 
 ## Текущий этап
 
-**C3 — переход к компактному геномному калькулятору.**
+**C4 — engine-independent World / Runtime / Host foundation.**
 
 Концептуальная база C0 зафиксирована как рабочий baseline: [`docs/C0_CONCEPT.md`](docs/C0_CONCEPT.md).
 Архитектурные правила реализации: [`docs/C1_ARCHITECTURE.md`](docs/C1_ARCHITECTURE.md).
-Текущая модель универсального core: [`docs/C3_CALCULATOR_MODEL.md`](docs/C3_CALCULATOR_MODEL.md).
+Компактный calculator core реализован: [`docs/C3_CALCULATOR_MODEL.md`](docs/C3_CALCULATOR_MODEL.md).
+Текущая модель world/runtime и host-интеграции: [`docs/C4_HOST_WORLD_EDITOR_MODEL.md`](docs/C4_HOST_WORLD_EDITOR_MODEL.md).
 
 Первый клеточный мир остаётся основным тестовым preset и предметным языком разработки, но универсальный core больше не строится вокруг специальных категорий `Field / Resource / State / Matter`.
 
@@ -30,16 +31,10 @@ CLife — проект искусственной жизни с переноси
 ## Архитектурная граница
 
 ```text
-                  clife_core
-                      ^
-                      |
-          +-----------+-----------+
-          |           |           |
-      headless      Godot       Unreal
-       main()      lifecycle     lifecycle
+clife_core <- clife_world <- headless / future Godot / future Unreal
 ```
 
-`clife_core` не имеет `main()` и не владеет главным циклом приложения. Хост создаёт `Simulation`, вызывает фиксированные simulation ticks и уничтожает объект по правилам RAII.
+`clife_core` не имеет `main()` и содержит только компактный числовой evaluator. `clife_world` содержит редактируемое определение мира, его компиляцию и runtime-объекты. Хост подаёт внешние значения, вызывает фиксированные simulation ticks и читает результаты; CLife не вызывает engine callbacks.
 
 Host/engine может поставлять внешние числовые значения и интерпретировать рассчитанные значения геометрически/визуально. Законы геномного конвейера и world rules остаются явной частью модели мира, а не скрытым порядком вызовов engine.
 
