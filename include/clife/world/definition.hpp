@@ -75,6 +75,7 @@ public:
 
     [[nodiscard]] TemplateId add_template(std::string name);
     void rename_template(TemplateId id, std::string name);
+    void remove_template(TemplateId id);
     void set_initial_value(TemplateId id, ValueKey value, Amount amount);
     void remove_initial_value(TemplateId id, ValueKey value);
 

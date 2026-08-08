@@ -112,6 +112,12 @@ void WorldDefinition::rename_template(TemplateId id, std::string name)
     mutable_template(id).name = std::move(name);
 }
 
+void WorldDefinition::remove_template(TemplateId id)
+{
+    (void)object_template(id);
+    std::erase_if(templates_, [id](const ObjectTemplate& entry) { return entry.id == id; });
+}
+
 void WorldDefinition::set_initial_value(TemplateId id, ValueKey key, Amount amount)
 {
     (void)value(key);

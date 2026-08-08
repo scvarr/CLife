@@ -23,7 +23,7 @@ if(MSVC)
 endif()
 
 add_library(clife_godot SHARED
-    src/clife_demo_runtime.cpp
+    src/clife_world_editor.cpp
     src/register_types.cpp
 )
 

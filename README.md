@@ -6,13 +6,14 @@ CLife — проект искусственной жизни с переноси
 
 ## Текущий этап
 
-**C5 — общий first-world preset и эквивалентные Godot/Unreal adapters.**
+**C6 — Godot World Editor foundation over editable `WorldDefinition`.**
 
 Концептуальная база C0 зафиксирована как рабочий baseline: [`docs/C0_CONCEPT.md`](docs/C0_CONCEPT.md).
 Архитектурные правила реализации: [`docs/C1_ARCHITECTURE.md`](docs/C1_ARCHITECTURE.md).
 Компактный calculator core реализован: [`docs/C3_CALCULATOR_MODEL.md`](docs/C3_CALCULATOR_MODEL.md).
 Текущая модель world/runtime и host-интеграции: [`docs/C4_HOST_WORLD_EDITOR_MODEL.md`](docs/C4_HOST_WORLD_EDITOR_MODEL.md).
 Dual-engine integration: [`docs/C5_DUAL_ENGINE_ADAPTERS.md`](docs/C5_DUAL_ENGINE_ADAPTERS.md).
+Current Godot editor model: [`docs/C6_GODOT_WORLD_EDITOR.md`](docs/C6_GODOT_WORLD_EDITOR.md).
 
 Первый клеточный мир остаётся основным тестовым preset и предметным языком разработки, но универсальный core больше не строится вокруг специальных категорий `Field / Resource / State / Matter`.
 
@@ -39,11 +40,11 @@ clife_core <- clife_world <- clife_presets <- headless / Godot / Unreal
 
 Host/engine может поставлять внешние числовые значения и интерпретировать рассчитанные значения геометрически/визуально. Законы геномного конвейера и world rules остаются явной частью модели мира, а не скрытым порядком вызовов engine.
 
-## Engine demos
+## Engine hosts
 
 Обычная CMake/CI сборка не требует движков и остаётся основной проверкой проекта.
 
-Godot 4.7.1 GDExtension (stable Godot 4.5 API baseline):
+Godot 4.7.1 GDExtension world editor (stable Godot 4.5 API baseline):
 
 ```powershell
 .\scripts\build_godot.ps1 -Configuration Debug
@@ -56,7 +57,7 @@ Unreal Engine 5.8 plugin/demo:
 .\scripts\build_unreal_demo.ps1 -UnrealEngineRoot 'C:\Program Files\Epic Games\UE_5.8'
 ```
 
-Полные build/run инструкции и границы ответственности находятся в [`docs/C5_DUAL_ENGINE_ADAPTERS.md`](docs/C5_DUAL_ENGINE_ADAPTERS.md).
+Godot is the primary editor/development host in C6. Unreal remains the validated C5 alternative renderer host and is not abandoned. Full editor lifecycle details are in [`docs/C6_GODOT_WORLD_EDITOR.md`](docs/C6_GODOT_WORLD_EDITOR.md); dual-engine build/run boundaries remain in [`docs/C5_DUAL_ENGINE_ADAPTERS.md`](docs/C5_DUAL_ENGINE_ADAPTERS.md).
 
 ## Первый world preset
 

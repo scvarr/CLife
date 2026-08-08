@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_script"]
 
@@ -12,11 +12,19 @@ material = SubResource("Material_cell")
 radius = 1.0
 height = 2.0
 
+[sub_resource type="SphereShape3D" id="Shape_cell"]
+radius = 1.0
+
 [node name="CLifeDemo" type="Node3D"]
 script = ExtResource("1_script")
 
 [node name="Cell" type="MeshInstance3D" parent="."]
 mesh = SubResource("Sphere_cell")
+
+[node name="SelectionArea" type="Area3D" parent="Cell"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Cell/SelectionArea"]
+shape = SubResource("Shape_cell")
 
 [node name="Camera3D" type="Camera3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6)

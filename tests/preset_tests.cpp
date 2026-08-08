@@ -103,13 +103,29 @@ bool test_fixed_tick_is_frame_rate_independent()
            expect_near(coarse.temperature(), fine.temperature(), "fixed tick values ignore frame partition");
 }
 
+bool test_modified_editable_definition_compiles()
+{
+    clife::presets::FirstWorldPreset preset = clife::presets::make_first_world_preset();
+    const clife::world::ValueKey organic = preset.definition.add_value("Organic");
+    preset.definition.rename_value(preset.light, "Solar flux");
+
+    clife::world::RuntimeWorld runtime{preset.definition};
+    const clife::world::ObjectId cell = runtime.instantiate(preset.cell);
+    runtime.set_input(cell, preset.light, 1.0);
+    runtime.step();
+
+    return expect_near(runtime.value(cell, preset.used_energy), 0.25, "edited definition UsedEnergy") &&
+           expect_near(runtime.value(cell, preset.temperature), 0.275, "edited definition Temperature") &&
+           expect_near(runtime.value(cell, organic), 0.0, "new editable value participates in runtime mapping");
+}
+
 } // namespace
 
 int main()
 {
     return test_preset_definition_and_ticks() && test_reset_reconstructs_runtime() &&
                    test_sessions_are_independent() && test_names_do_not_change_preset_semantics() &&
-                   test_fixed_tick_is_frame_rate_independent()
+                   test_fixed_tick_is_frame_rate_independent() && test_modified_editable_definition_compiles()
                ? 0
                : 1;
 }

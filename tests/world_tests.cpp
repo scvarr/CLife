@@ -266,6 +266,17 @@ bool test_world_rules_are_distinct_and_compile()
     return expect_near(runtime.value(id, world.temperature), 0.275, "separate world rule compiles correctly");
 }
 
+bool test_removed_template_ids_are_not_reused()
+{
+    WorldDefinition definition;
+    const TemplateId removed = definition.add_template("Removed");
+    definition.remove_template(removed);
+    const TemplateId replacement = definition.add_template("Replacement");
+
+    return expect_true(replacement.value > removed.value, "removed TemplateId is not reused") &&
+           expect_throws([&] { (void)definition.object_template(removed); }, "removed TemplateId remains invalid");
+}
+
 bool test_value_storage_order_does_not_define_semantics()
 {
     CellWorld forward = make_cell_world();
@@ -339,7 +350,8 @@ int main()
     return test_stable_keys_survive_reorder_and_deletion() && test_names_do_not_affect_runtime() &&
                    test_sparse_keys_compile_to_dense_ids() && test_cell_world_vertical_slice() &&
                    test_runtime_objects_are_independent() && test_invalid_references_and_definitions_are_rejected() &&
-                   test_world_rules_are_distinct_and_compile() && test_value_storage_order_does_not_define_semantics() &&
+                   test_world_rules_are_distinct_and_compile() && test_removed_template_ids_are_not_reused() &&
+                   test_value_storage_order_does_not_define_semantics() &&
                    test_mutation_api_and_runtime_validation()
                ? 0
                : 1;

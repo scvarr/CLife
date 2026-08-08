@@ -1,4 +1,4 @@
-#include "clife_demo_runtime.hpp"
+#include "clife_world_editor.hpp"
 
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/core/defs.hpp>
@@ -9,7 +9,7 @@ namespace clife::godot_adapter {
 void initialize_clife_module(godot::ModuleInitializationLevel level)
 {
     if (level == godot::MODULE_INITIALIZATION_LEVEL_SCENE) {
-        godot::ClassDB::register_class<CLifeDemoRuntime>();
+        godot::ClassDB::register_class<CLifeWorldEditor>();
     }
 }
 
