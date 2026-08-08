@@ -40,8 +40,8 @@ Queries return Godot `Array` values containing `Dictionary` records:
 - `get_initial_values(template_id)`;
 - `get_genome(template_id)`;
 - `get_world_rules()`;
-- `get_bindings(template_id)`;
-- `get_host_inputs()` and `get_runtime_values()`.
+- `get_bindings(template_id)` and `get_host_capabilities()`;
+- `get_host_inputs()`, `get_host_outputs()` and `get_runtime_values()`.
 
 `ValueKey`, `TemplateId`, indices and `ObjectId` cross the boundary as integers. Names are display data and list order is not identity. Mutation methods map directly to explicit `WorldDefinition` operations. Every exposed mutation/run operation catches domain/runtime exceptions and reports a message through `get_last_error()`.
 
@@ -65,7 +65,18 @@ Run compiles the current definition snapshot, instantiates the selected template
 
 Input controls are generated from the selected template's `Input` host bindings. Each channel keeps a host-side numeric value, defaults to zero, and is staged before every runtime tick. The first-world `world.light` channel is seeded to `1.0` in C++ using preset metadata, not by GDScript.
 
-The preview scale remains the C5 view-only rule `1.0 + value`. Its value identity is the stable temperature key supplied by the first-world preset metadata. The name "Temperature" is not searched and the rule is not part of `WorldDefinition` or `Calculator`.
+`HostBinding` remains engine-independent world data: it connects a stable `ValueKey` to a semantic channel string. The Godot Host Capability Registry is separate adapter data describing which of those channels this host can execute. C6.1 intentionally registers only:
+
+- Input `world.light` (`World Light`);
+- Output `geometry.volume` (`Cell Volume`).
+
+The binding editor offers registered capabilities instead of arbitrary new channel strings. Existing bindings that are absent from the registry remain visible as unsupported/legacy entries and can be removed; their presence does not prevent the document from loading. Capability validation is not part of `WorldDefinition`.
+
+`get_host_outputs()` enumerates every active preview-object Output binding as structured `{object_id, channel, value_key, amount}` data. It reads the amount from `RuntimeWorld` through the binding's `ValueKey`; there are no specialized Organic, volume or temperature getters.
+
+For `geometry.volume`, the Godot view interprets the bound scalar as sphere volume. Nominal volume `1` has uniform scale `1`, so presentation computes `scale = cbrt(max(volume, 0))`. Thus volume `8` produces scale `2` and volume `27` produces scale `3`. This geometry conversion belongs only to Godot. CLife value names have no geometry semantics: renaming `Organic` to `Biomass`, or rebinding another arbitrary value to `geometry.volume`, leaves the execution mechanism unchanged.
+
+The first-world document now includes ordinary value `Organic`, initial amount `10`, and `Organic -> geometry.volume`. Temperature no longer controls preview scale. Light continues to affect numerical simulation without changing cell volume.
 
 ## 6. Fixed tick
 

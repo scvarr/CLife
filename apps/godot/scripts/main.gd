@@ -2,6 +2,7 @@ extends Node3D
 
 const INPUT_DIRECTION := 0
 const OUTPUT_DIRECTION := 1
+const GEOMETRY_VOLUME_CHANNEL := "geometry.volume"
 
 var editor: CLifeWorldEditor
 var object_views: Dictionary = {}
@@ -390,33 +391,50 @@ func _build_bindings_editor(template_id: int) -> void:
 	_add_heading(inspector, "Host Bindings")
 	for binding in editor.get_bindings(template_id):
 		var index := int(binding.index)
-		var channel := LineEdit.new()
-		channel.text = str(binding.channel)
-		var direction := _direction_option(int(binding.direction_id))
+		var binding_direction := int(binding.direction_id)
+		var binding_channel := str(binding.channel)
+		var capability := _find_capability(binding_channel, binding_direction)
 		var value_option := _value_option(int(binding.value_key))
+		if capability.is_empty():
+			_add_wrapped_label(inspector, "Binding #%d — unsupported/legacy\n%s (%s)" % [
+				index, binding_channel, binding.direction,
+			])
+			inspector.add_child(_labeled_control("Value", value_option))
+			inspector.add_child(_button("Remove Legacy Binding", func() -> void:
+				_finish_edit(editor.remove_host_binding(template_id, index), "Legacy binding removed")
+			))
+			continue
+		var direction := _direction_option(binding_direction)
+		var channel := _capability_option(binding_direction, binding_channel)
+		direction.item_selected.connect(func(_selected_index: int) -> void:
+			_populate_capability_option(channel, _selected_option_id(direction), "")
+		)
 		_add_wrapped_label(inspector, "Binding #%d" % index)
-		inspector.add_child(_labeled_control("Channel", channel))
 		inspector.add_child(_labeled_control("Direction", direction))
+		inspector.add_child(_labeled_control("Capability", channel))
 		inspector.add_child(_labeled_control("Value", value_option))
 		var actions := HBoxContainer.new()
 		actions.add_child(_button("Update", func() -> void:
-			_finish_edit(editor.change_host_binding(template_id, index, channel.text,
+			_finish_edit(editor.change_host_binding(template_id, index, _selected_capability_channel(channel),
 				_selected_option_id(direction), _selected_option_id(value_option)), "Binding updated")
 		))
 		actions.add_child(_button("Remove", func() -> void:
 			_finish_edit(editor.remove_host_binding(template_id, index), "Binding removed")
 		))
 		inspector.add_child(actions)
-	var new_channel := LineEdit.new()
-	new_channel.placeholder_text = "semantic.channel"
 	var new_direction := _direction_option(INPUT_DIRECTION)
+	var new_channel := _capability_option(INPUT_DIRECTION)
+	new_direction.item_selected.connect(func(_selected_index: int) -> void:
+		_populate_capability_option(new_channel, _selected_option_id(new_direction), "")
+	)
 	var new_value := _value_option()
 	_add_wrapped_label(inspector, "New binding")
-	inspector.add_child(_labeled_control("Channel", new_channel))
 	inspector.add_child(_labeled_control("Direction", new_direction))
+	inspector.add_child(_labeled_control("Capability", new_channel))
 	inspector.add_child(_labeled_control("Value", new_value))
 	inspector.add_child(_button("Add Binding", func() -> void:
-		_finish_edit(editor.add_host_binding(template_id, new_channel.text, _selected_option_id(new_direction),
+		_finish_edit(editor.add_host_binding(template_id, _selected_capability_channel(new_channel),
+			_selected_option_id(new_direction),
 			_selected_option_id(new_value)), "Binding added")
 	))
 
@@ -527,6 +545,7 @@ func _on_run() -> void:
 		_show_facade_error_if_any()
 		return
 	object_views.clear()
+	$Cell.scale = Vector3.ONE
 	object_views[editor.get_preview_object_id()] = $Cell
 	runtime_object_selected = false
 	status_label.text = "Compiled current WorldDefinition and entered RUN"
@@ -623,11 +642,17 @@ func _refresh_mode() -> void:
 func _apply_runtime_to_views() -> void:
 	if not editor.is_run_active():
 		return
-	var visual_scale := editor.get_preview_visual_scale()
-	for object_id in object_views:
+	for output in editor.get_host_outputs():
+		if str(output.channel) != GEOMETRY_VOLUME_CHANNEL:
+			continue
+		var object_id := int(output.object_id)
+		if not object_views.has(object_id):
+			continue
 		var view := object_views[object_id] as Node3D
 		if is_instance_valid(view):
-			view.scale = Vector3.ONE * visual_scale
+			var volume := maxf(float(output.amount), 0.0)
+			var linear_scale := pow(volume, 1.0 / 3.0)
+			view.scale = Vector3.ONE * linear_scale
 
 
 func _show_facade_error_if_any() -> void:
@@ -666,6 +691,36 @@ func _direction_option(selected_direction: int) -> OptionButton:
 	option.set_item_metadata(1, OUTPUT_DIRECTION)
 	option.select(0 if selected_direction == INPUT_DIRECTION else 1)
 	return option
+
+
+func _capability_option(direction_id: int, selected_channel: String = "") -> OptionButton:
+	var option := OptionButton.new()
+	_populate_capability_option(option, direction_id, selected_channel)
+	return option
+
+
+func _populate_capability_option(option: OptionButton, direction_id: int, selected_channel: String) -> void:
+	option.clear()
+	for capability in editor.get_host_capabilities():
+		if int(capability.direction_id) != direction_id:
+			continue
+		option.add_item("%s — %s" % [capability.display_name, capability.channel])
+		option.set_item_metadata(option.item_count - 1, str(capability.channel))
+		if str(capability.channel) == selected_channel:
+			option.select(option.item_count - 1)
+
+
+func _selected_capability_channel(option: OptionButton) -> String:
+	if option.selected < 0:
+		return ""
+	return str(option.get_item_metadata(option.selected))
+
+
+func _find_capability(channel: String, direction_id: int) -> Dictionary:
+	for capability in editor.get_host_capabilities():
+		if str(capability.channel) == channel and int(capability.direction_id) == direction_id:
+			return capability
+	return {}
 
 
 func _selected_option_id(option: OptionButton) -> int:

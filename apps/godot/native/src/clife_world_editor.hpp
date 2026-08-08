@@ -28,6 +28,7 @@ public:
     [[nodiscard]] godot::Array get_genome(std::int64_t template_id);
     [[nodiscard]] godot::Array get_world_rules();
     [[nodiscard]] godot::Array get_bindings(std::int64_t template_id);
+    [[nodiscard]] godot::Array get_host_capabilities();
 
     [[nodiscard]] std::int64_t add_value(const godot::String& name);
     bool rename_value(std::int64_t key, const godot::String& name);
@@ -68,8 +69,8 @@ public:
     [[nodiscard]] std::int64_t get_preview_object_id() const noexcept;
     [[nodiscard]] godot::Array get_runtime_values();
     [[nodiscard]] godot::Array get_host_inputs();
+    [[nodiscard]] godot::Array get_host_outputs();
     bool set_host_input(const godot::String& channel, double amount);
-    [[nodiscard]] double get_preview_visual_scale() const noexcept;
     [[nodiscard]] godot::String get_last_error() const;
     void clear_last_error();
 
@@ -105,7 +106,6 @@ private:
     std::unique_ptr<world::RuntimeWorld> runtime_;
     std::optional<world::ObjectId> preview_object_;
     std::map<std::string, Amount> host_inputs_;
-    std::optional<world::ValueKey> preview_scale_value_;
     double accumulator_{};
     std::uint64_t tick_{};
     bool playing_{};

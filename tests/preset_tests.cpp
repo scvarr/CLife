@@ -2,6 +2,7 @@
 #include <clife/presets/first_world.hpp>
 #include <clife/world/runtime.hpp>
 
+#include <algorithm>
 #include <cmath>
 #include <iostream>
 #include <utility>
@@ -30,7 +31,7 @@ bool expect_near(clife::Amount actual, clife::Amount expected, const char* messa
 bool test_preset_definition_and_ticks()
 {
     const clife::presets::FirstWorldPreset preset = clife::presets::make_first_world_preset();
-    if (!expect_true(preset.definition.values().size() == 4 && preset.definition.templates().size() == 1 &&
+    if (!expect_true(preset.definition.values().size() == 5 && preset.definition.templates().size() == 1 &&
                          preset.definition.world_rules().size() == 1,
                      "first-world preset shape")) {
         return false;
@@ -49,6 +50,35 @@ bool test_preset_definition_and_ticks()
     }
     session.step();
     return expect_near(session.temperature(), 0.35, "second tick Temperature");
+}
+
+bool test_preset_material_volume_binding()
+{
+    clife::presets::FirstWorldPreset preset = clife::presets::make_first_world_preset();
+    const clife::world::ObjectTemplate& cell = preset.definition.object_template(preset.cell);
+    const auto initial = std::ranges::find(cell.initial_values, preset.organic,
+                                           &clife::world::InitialValueDefinition::value);
+    const auto binding = std::ranges::find_if(cell.host_bindings, [&](const clife::world::HostBinding& item) {
+        return item.direction == clife::world::HostChannelDirection::output &&
+               item.channel == clife::presets::kGeometryVolumeOutputChannel;
+    });
+    if (!expect_true(initial != cell.initial_values.end() && binding != cell.host_bindings.end(),
+                     "first-world material volume definitions")) {
+        return false;
+    }
+    if (!expect_near(initial->amount, 10.0, "initial Organic amount") ||
+        !expect_true(binding->value == preset.organic, "geometry.volume binds Organic ValueKey")) {
+        return false;
+    }
+
+    preset.definition.rename_value(preset.organic, "Biomass");
+    const clife::world::ObjectTemplate& renamed_cell = preset.definition.object_template(preset.cell);
+    const auto renamed_binding = std::ranges::find_if(
+        renamed_cell.host_bindings, [&](const clife::world::HostBinding& item) {
+            return item.channel == clife::presets::kGeometryVolumeOutputChannel;
+        });
+    return expect_true(renamed_binding != renamed_cell.host_bindings.end() && renamed_binding->value == preset.organic,
+                       "renaming material value preserves geometry binding identity");
 }
 
 bool test_reset_reconstructs_runtime()
@@ -106,7 +136,7 @@ bool test_fixed_tick_is_frame_rate_independent()
 bool test_modified_editable_definition_compiles()
 {
     clife::presets::FirstWorldPreset preset = clife::presets::make_first_world_preset();
-    const clife::world::ValueKey organic = preset.definition.add_value("Organic");
+    const clife::world::ValueKey extra = preset.definition.add_value("Extra");
     preset.definition.rename_value(preset.light, "Solar flux");
 
     clife::world::RuntimeWorld runtime{preset.definition};
@@ -116,14 +146,15 @@ bool test_modified_editable_definition_compiles()
 
     return expect_near(runtime.value(cell, preset.used_energy), 0.25, "edited definition UsedEnergy") &&
            expect_near(runtime.value(cell, preset.temperature), 0.275, "edited definition Temperature") &&
-           expect_near(runtime.value(cell, organic), 0.0, "new editable value participates in runtime mapping");
+           expect_near(runtime.value(cell, extra), 0.0, "new editable value participates in runtime mapping");
 }
 
 } // namespace
 
 int main()
 {
-    return test_preset_definition_and_ticks() && test_reset_reconstructs_runtime() &&
+    return test_preset_definition_and_ticks() && test_preset_material_volume_binding() &&
+                   test_reset_reconstructs_runtime() &&
                    test_sessions_are_independent() && test_names_do_not_change_preset_semantics() &&
                    test_fixed_tick_is_frame_rate_independent() && test_modified_editable_definition_compiles()
                ? 0

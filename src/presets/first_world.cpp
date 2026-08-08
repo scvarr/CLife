@@ -11,6 +11,7 @@ FirstWorldPreset make_first_world_preset()
     const world::ValueKey energy = definition.add_value("Energy");
     const world::ValueKey used_energy = definition.add_value("UsedEnergy");
     const world::ValueKey temperature = definition.add_value("Temperature");
+    const world::ValueKey organic = definition.add_value("Organic");
     const world::TemplateId cell = definition.add_template("Cell");
 
     (void)definition.add_genome_function(cell, {
@@ -31,6 +32,7 @@ FirstWorldPreset make_first_world_preset()
         .target_per_source = 0.1,
     });
     definition.set_initial_value(cell, temperature, 0.2);
+    definition.set_initial_value(cell, organic, 10.0);
     (void)definition.add_host_binding(cell, {
                                                 .channel = std::string{kLightInputChannel},
                                                 .direction = world::HostChannelDirection::input,
@@ -46,6 +48,11 @@ FirstWorldPreset make_first_world_preset()
                                                 .direction = world::HostChannelDirection::output,
                                                 .value = temperature,
                                             });
+    (void)definition.add_host_binding(cell, {
+                                                .channel = std::string{kGeometryVolumeOutputChannel},
+                                                .direction = world::HostChannelDirection::output,
+                                                .value = organic,
+                                            });
 
     return {
         .definition = std::move(definition),
@@ -53,6 +60,7 @@ FirstWorldPreset make_first_world_preset()
         .energy = energy,
         .used_energy = used_energy,
         .temperature = temperature,
+        .organic = organic,
         .cell = cell,
     };
 }

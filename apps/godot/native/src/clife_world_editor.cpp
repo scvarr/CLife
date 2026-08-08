@@ -4,6 +4,7 @@
 #include <godot_cpp/variant/char_string.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 
+#include <array>
 #include <cmath>
 #include <exception>
 #include <limits>
@@ -17,6 +18,25 @@ namespace {
 constexpr double kFixedTickSeconds = 0.1;
 constexpr std::int64_t kInputDirection = 0;
 constexpr std::int64_t kOutputDirection = 1;
+
+struct HostCapability final {
+    std::string_view channel;
+    world::HostChannelDirection direction;
+    std::string_view display_name;
+};
+
+constexpr std::array kHostCapabilities{
+    HostCapability{
+        .channel = "world.light",
+        .direction = world::HostChannelDirection::input,
+        .display_name = "World Light",
+    },
+    HostCapability{
+        .channel = "geometry.volume",
+        .direction = world::HostChannelDirection::output,
+        .display_name = "Cell Volume",
+    },
+};
 
 godot::String to_godot_string(std::string_view value)
 {
@@ -75,7 +95,6 @@ CLifeWorldEditor::CLifeWorldEditor()
 {
     presets::FirstWorldPreset preset = presets::make_first_world_preset();
     selected_template_ = preset.cell;
-    preview_scale_value_ = preset.temperature;
     definition_ = std::move(preset.definition);
     host_inputs_.emplace(std::string{presets::kLightInputChannel}, 1.0);
     ensure_host_inputs(definition_, *selected_template_);
@@ -197,6 +216,27 @@ godot::Array CLifeWorldEditor::get_bindings(std::int64_t raw_template_id)
             item["direction_id"] = binding.direction == world::HostChannelDirection::input ? kInputDirection
                                                                                             : kOutputDirection;
             item["value_key"] = static_cast<std::int64_t>(binding.value.value);
+            result.push_back(item);
+        }
+        clear_error();
+    } catch (...) {
+        capture_current_error();
+        result.clear();
+    }
+    return result;
+}
+
+godot::Array CLifeWorldEditor::get_host_capabilities()
+{
+    godot::Array result;
+    try {
+        for (const HostCapability& capability : kHostCapabilities) {
+            godot::Dictionary item;
+            item["channel"] = to_godot_string(capability.channel);
+            item["direction"] = direction_name(capability.direction);
+            item["direction_id"] = capability.direction == world::HostChannelDirection::input ? kInputDirection
+                                                                                               : kOutputDirection;
+            item["display_name"] = to_godot_string(capability.display_name);
             result.push_back(item);
         }
         clear_error();
@@ -549,6 +589,33 @@ godot::Array CLifeWorldEditor::get_host_inputs()
     return result;
 }
 
+godot::Array CLifeWorldEditor::get_host_outputs()
+{
+    godot::Array result;
+    try {
+        if (!runtime_ || !preview_object_ || !run_definition_ || !run_template_) {
+            return result;
+        }
+        const world::ObjectTemplate& object = run_definition_->object_template(*run_template_);
+        for (const world::HostBinding& binding : object.host_bindings) {
+            if (binding.direction != world::HostChannelDirection::output) {
+                continue;
+            }
+            godot::Dictionary item;
+            item["object_id"] = static_cast<std::int64_t>(preview_object_->value);
+            item["channel"] = to_godot_string(binding.channel);
+            item["value_key"] = static_cast<std::int64_t>(binding.value.value);
+            item["amount"] = runtime_->value(*preview_object_, binding.value);
+            result.push_back(item);
+        }
+        clear_error();
+    } catch (...) {
+        capture_current_error();
+        result.clear();
+    }
+    return result;
+}
+
 bool CLifeWorldEditor::set_host_input(const godot::String& channel, double amount)
 {
     try {
@@ -578,18 +645,6 @@ bool CLifeWorldEditor::set_host_input(const godot::String& channel, double amoun
     } catch (...) {
         capture_current_error();
         return false;
-    }
-}
-
-double CLifeWorldEditor::get_preview_visual_scale() const noexcept
-{
-    if (!runtime_ || !preview_object_ || !preview_scale_value_) {
-        return 1.0;
-    }
-    try {
-        return 1.0 + runtime_->value(*preview_object_, *preview_scale_value_);
-    } catch (...) {
-        return 1.0;
     }
 }
 
@@ -668,6 +723,8 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("get_genome", "template_id"), &CLifeWorldEditor::get_genome);
     godot::ClassDB::bind_method(godot::D_METHOD("get_world_rules"), &CLifeWorldEditor::get_world_rules);
     godot::ClassDB::bind_method(godot::D_METHOD("get_bindings", "template_id"), &CLifeWorldEditor::get_bindings);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_host_capabilities"),
+                                &CLifeWorldEditor::get_host_capabilities);
     godot::ClassDB::bind_method(godot::D_METHOD("add_value", "name"), &CLifeWorldEditor::add_value);
     godot::ClassDB::bind_method(godot::D_METHOD("rename_value", "key", "name"), &CLifeWorldEditor::rename_value);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_value", "key"), &CLifeWorldEditor::remove_value);
@@ -716,10 +773,9 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("get_preview_object_id"), &CLifeWorldEditor::get_preview_object_id);
     godot::ClassDB::bind_method(godot::D_METHOD("get_runtime_values"), &CLifeWorldEditor::get_runtime_values);
     godot::ClassDB::bind_method(godot::D_METHOD("get_host_inputs"), &CLifeWorldEditor::get_host_inputs);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_host_outputs"), &CLifeWorldEditor::get_host_outputs);
     godot::ClassDB::bind_method(godot::D_METHOD("set_host_input", "channel", "amount"),
                                 &CLifeWorldEditor::set_host_input);
-    godot::ClassDB::bind_method(godot::D_METHOD("get_preview_visual_scale"),
-                                &CLifeWorldEditor::get_preview_visual_scale);
     godot::ClassDB::bind_method(godot::D_METHOD("get_last_error"), &CLifeWorldEditor::get_last_error);
     godot::ClassDB::bind_method(godot::D_METHOD("clear_last_error"), &CLifeWorldEditor::clear_last_error);
 }

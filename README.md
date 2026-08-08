@@ -6,7 +6,7 @@ CLife — проект искусственной жизни с переноси
 
 ## Текущий этап
 
-**C6 — Godot World Editor foundation over editable `WorldDefinition`.**
+**C6.1 — Godot World Editor host capabilities and material cell volume over editable `WorldDefinition`.**
 
 Концептуальная база C0 зафиксирована как рабочий baseline: [`docs/C0_CONCEPT.md`](docs/C0_CONCEPT.md).
 Архитектурные правила реализации: [`docs/C1_ARCHITECTURE.md`](docs/C1_ARCHITECTURE.md).
