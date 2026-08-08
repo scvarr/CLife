@@ -22,19 +22,19 @@ constexpr std::int64_t kOutputDirection = 1;
 struct HostCapability final {
     std::string_view channel;
     world::HostChannelDirection direction;
-    std::string_view display_name;
+    std::string_view display_key;
 };
 
 constexpr std::array kHostCapabilities{
     HostCapability{
         .channel = "world.light",
         .direction = world::HostChannelDirection::input,
-        .display_name = "World Light",
+        .display_key = "capability.world_light",
     },
     HostCapability{
         .channel = "geometry.volume",
         .direction = world::HostChannelDirection::output,
-        .display_name = "Cell Volume",
+        .display_key = "capability.geometry_volume",
     },
 };
 
@@ -236,7 +236,7 @@ godot::Array CLifeWorldEditor::get_host_capabilities()
             item["direction"] = direction_name(capability.direction);
             item["direction_id"] = capability.direction == world::HostChannelDirection::input ? kInputDirection
                                                                                                : kOutputDirection;
-            item["display_name"] = to_godot_string(capability.display_name);
+            item["display_key"] = to_godot_string(capability.display_key);
             result.push_back(item);
         }
         clear_error();

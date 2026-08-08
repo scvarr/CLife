@@ -1,0 +1,293 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: CLife C6.1\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "ui.title"
+msgstr "Редактор мира CLife"
+
+msgid "ui.mode_edit"
+msgstr "РЕДАКТИРОВАНИЕ"
+
+msgid "ui.mode_run"
+msgstr "ЗАПУСК"
+
+msgid "ui.world"
+msgstr "МИР"
+
+msgid "ui.viewport_help"
+msgstr "ОБЛАСТЬ ПРОСМОТРА — щёлкните сферу, чтобы открыть инспектор"
+
+msgid "ui.inspector"
+msgstr "ИНСПЕКТОР"
+
+msgid "ui.values"
+msgstr "Значения"
+
+msgid "ui.templates"
+msgstr "Шаблоны"
+
+msgid "ui.world_rules"
+msgstr "Правила мира"
+
+msgid "ui.initial_values"
+msgstr "Начальные значения"
+
+msgid "ui.genome"
+msgstr "Геном"
+
+msgid "ui.host_bindings"
+msgstr "Привязки хоста"
+
+msgid "ui.host_inputs"
+msgstr "Входы хоста"
+
+msgid "ui.value"
+msgstr "Значение"
+
+msgid "ui.template"
+msgstr "Шаблон"
+
+msgid "ui.input"
+msgstr "Вход"
+
+msgid "ui.output"
+msgstr "Выход"
+
+msgid "ui.direction"
+msgstr "Направление"
+
+msgid "ui.capability"
+msgstr "Возможность"
+
+msgid "ui.throughput"
+msgstr "Пропускная способность"
+
+msgid "ui.result_per_input"
+msgstr "Результат / вход"
+
+msgid "ui.source"
+msgstr "Источник"
+
+msgid "ui.target"
+msgstr "Цель"
+
+msgid "ui.target_per_source"
+msgstr "Цель / источник"
+
+msgid "ui.rename"
+msgstr "Переименовать"
+
+msgid "ui.rename_template"
+msgstr "Переименовать шаблон"
+
+msgid "ui.delete_value"
+msgstr "Удалить значение"
+
+msgid "ui.delete_template"
+msgstr "Удалить шаблон"
+
+msgid "ui.set"
+msgstr "Задать"
+
+msgid "ui.set_or_add"
+msgstr "Задать / добавить"
+
+msgid "ui.update"
+msgstr "Обновить"
+
+msgid "ui.remove"
+msgstr "Удалить"
+
+msgid "ui.run"
+msgstr "Запустить"
+
+msgid "ui.stop"
+msgstr "Остановить"
+
+msgid "ui.play"
+msgstr "Продолжить"
+
+msgid "ui.pause"
+msgstr "Пауза"
+
+msgid "ui.step"
+msgstr "Шаг"
+
+msgid "ui.reset"
+msgstr "Сброс"
+
+msgid "ui.add_value"
+msgstr "+ Значение"
+
+msgid "ui.add_template"
+msgstr "+ Шаблон"
+
+msgid "ui.add_rule"
+msgstr "+ Правило"
+
+msgid "ui.add_rule_plain"
+msgstr "Добавить правило"
+
+msgid "ui.update_rule"
+msgstr "Обновить правило"
+
+msgid "ui.remove_rule"
+msgstr "Удалить правило"
+
+msgid "ui.add_function"
+msgstr "Добавить функцию"
+
+msgid "ui.add_binding"
+msgstr "Добавить привязку"
+
+msgid "ui.remove_legacy_binding"
+msgstr "Удалить устаревшую привязку"
+
+msgid "ui.new_name_placeholder"
+msgstr "Имя нового значения или шаблона"
+
+msgid "ui.new_function"
+msgstr "Новая функция"
+
+msgid "ui.new_binding"
+msgstr "Новая привязка"
+
+msgid "ui.new_world_rule"
+msgstr "Новое правило мира"
+
+msgid "ui.run_inspector"
+msgstr "Инспектор запуска"
+
+msgid "ui.stable_value_key"
+msgstr "Стабильный ValueKey: %d"
+
+msgid "ui.stable_template_id"
+msgstr "Стабильный TemplateId: %d"
+
+msgid "ui.function_format"
+msgstr "Функция №%d"
+
+msgid "ui.binding_format"
+msgstr "Привязка №%d"
+
+msgid "ui.legacy_binding_format"
+msgstr "Привязка №%d — неподдерживаемая/устаревшая\n%s (%s)"
+
+msgid "ui.world_rule_format"
+msgstr "Правило мира №%d"
+
+msgid "ui.runtime_object_format"
+msgstr "Объект Runtime №%d"
+
+msgid "ui.tick_format"
+msgstr "Такт: %d"
+
+msgid "ui.unknown"
+msgstr "Неизвестно"
+
+msgid "help.select_definition_item"
+msgstr "Выберите значение, шаблон или правило мира. При запуске загружается редактируемый документ первого мира."
+
+msgid "help.runtime_values"
+msgstr "Текущие значения RuntimeWorld, адресуемые стабильным ValueKey."
+
+msgid "help.click_runtime_object"
+msgstr "Щёлкните сферу, чтобы просмотреть её текущие значения."
+
+msgid "capability.world_light"
+msgstr "Освещение мира"
+
+msgid "capability.geometry_volume"
+msgstr "Объём объекта"
+
+msgid "status.ready"
+msgstr "Готово"
+
+msgid "status.value_added"
+msgstr "Добавлено значение со стабильным ключом №%d"
+
+msgid "status.value_renamed"
+msgstr "Значение переименовано"
+
+msgid "status.value_deleted"
+msgstr "Значение удалено"
+
+msgid "status.template_added"
+msgstr "Добавлен шаблон со стабильным идентификатором №%d"
+
+msgid "status.template_renamed"
+msgstr "Шаблон переименован"
+
+msgid "status.template_deleted"
+msgstr "Шаблон удалён"
+
+msgid "status.initial_value_updated"
+msgstr "Начальное значение обновлено"
+
+msgid "status.initial_value_removed"
+msgstr "Начальное значение удалено"
+
+msgid "status.initial_value_set"
+msgstr "Начальное значение задано"
+
+msgid "status.genome_function_updated"
+msgstr "Функция генома обновлена"
+
+msgid "status.genome_function_removed"
+msgstr "Функция генома удалена"
+
+msgid "status.genome_function_added"
+msgstr "Функция генома добавлена"
+
+msgid "status.legacy_binding_removed"
+msgstr "Устаревшая привязка удалена"
+
+msgid "status.binding_updated"
+msgstr "Привязка обновлена"
+
+msgid "status.binding_removed"
+msgstr "Привязка удалена"
+
+msgid "status.binding_added"
+msgstr "Привязка добавлена"
+
+msgid "status.world_rule_added"
+msgstr "Правило мира добавлено"
+
+msgid "status.world_rule_updated"
+msgstr "Правило мира обновлено"
+
+msgid "status.world_rule_removed"
+msgstr "Правило мира удалено"
+
+msgid "status.need_two_values"
+msgstr "Добавьте хотя бы два значения перед созданием правила мира"
+
+msgid "status.run_started"
+msgstr "Текущий WorldDefinition скомпилирован; режим ЗАПУСК активен"
+
+msgid "status.runtime_stopped"
+msgstr "Runtime уничтожен; редактируемый документ сохранён"
+
+msgid "status.runtime_playing"
+msgstr "Автоматическая симуляция 10 Гц запущена"
+
+msgid "status.runtime_paused"
+msgstr "Runtime приостановлен"
+
+msgid "status.tick_advanced"
+msgstr "Выполнен ровно один такт CLife"
+
+msgid "status.runtime_reset"
+msgstr "Runtime пересоздан из снимка запуска"
+
+msgid "status.error_format"
+msgstr "Ошибка: %s"
+
+msgid "status.locale_save_failed"
+msgstr "Не удалось сохранить настройку языка (%d)"

@@ -78,6 +78,14 @@ For `geometry.volume`, the Godot view interprets the bound scalar as sphere volu
 
 The first-world document now includes ordinary value `Organic`, initial amount `10`, and `Organic -> geometry.volume`. Temperature no longer controls preview scale. Light continues to affect numerical simulation without changing cell volume.
 
+## 5.1 Godot UI localization
+
+The Godot editor UI uses `TranslationServer` and standard PO resources under `apps/godot/translations/`. Russian is the default for a clean user profile; the header selector switches between Russian and English immediately. The selected locale is the only setting persisted in `user://settings.cfg` and never enters `WorldDefinition`.
+
+Translation keys identify application captions, help and status messages. User-owned world names and stable semantic channel strings are formatted into translated UI without being translated or mutated. The Godot capability registry similarly exposes stable `display_key` values such as `capability.world_light`; GDScript resolves them through `tr()`, while `world.light` and `geometry.volume` remain unchanged.
+
+Changing locale rebuilds only the Godot `Control` hierarchy. The editor facade, editable definition, active runtime snapshot, tick counter, selected template and runtime-object selection remain alive.
+
 ## 6. Fixed tick
 
 Automatic simulation is 10 Hz. Godot frame delta only advances an accumulator. Every accumulated `0.1` seconds stages all declared inputs and calls `RuntimeWorld::step()` once. Manual Step performs exactly one CLife tick. Pause leaves the runtime alive; Play resumes accumulator-driven stepping.

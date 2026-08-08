@@ -1,0 +1,292 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: CLife C6.1\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+msgid "ui.title"
+msgstr "CLife World Editor"
+
+msgid "ui.mode_edit"
+msgstr "EDIT"
+
+msgid "ui.mode_run"
+msgstr "RUN"
+
+msgid "ui.world"
+msgstr "WORLD"
+
+msgid "ui.viewport_help"
+msgstr "VIEWPORT — click the runtime sphere to inspect"
+
+msgid "ui.inspector"
+msgstr "INSPECTOR"
+
+msgid "ui.values"
+msgstr "Values"
+
+msgid "ui.templates"
+msgstr "Templates"
+
+msgid "ui.world_rules"
+msgstr "World Rules"
+
+msgid "ui.initial_values"
+msgstr "Initial Values"
+
+msgid "ui.genome"
+msgstr "Genome"
+
+msgid "ui.host_bindings"
+msgstr "Host Bindings"
+
+msgid "ui.host_inputs"
+msgstr "Host Inputs"
+
+msgid "ui.value"
+msgstr "Value"
+
+msgid "ui.template"
+msgstr "Template"
+
+msgid "ui.input"
+msgstr "Input"
+
+msgid "ui.output"
+msgstr "Output"
+
+msgid "ui.direction"
+msgstr "Direction"
+
+msgid "ui.capability"
+msgstr "Capability"
+
+msgid "ui.throughput"
+msgstr "Throughput"
+
+msgid "ui.result_per_input"
+msgstr "Result / input"
+
+msgid "ui.source"
+msgstr "Source"
+
+msgid "ui.target"
+msgstr "Target"
+
+msgid "ui.target_per_source"
+msgstr "Target / source"
+
+msgid "ui.rename"
+msgstr "Rename"
+
+msgid "ui.rename_template"
+msgstr "Rename Template"
+
+msgid "ui.delete_value"
+msgstr "Delete Value"
+
+msgid "ui.delete_template"
+msgstr "Delete Template"
+
+msgid "ui.set"
+msgstr "Set"
+
+msgid "ui.set_or_add"
+msgstr "Set / Add"
+
+msgid "ui.update"
+msgstr "Update"
+
+msgid "ui.remove"
+msgstr "Remove"
+
+msgid "ui.run"
+msgstr "Run"
+
+msgid "ui.stop"
+msgstr "Stop"
+
+msgid "ui.play"
+msgstr "Play"
+
+msgid "ui.pause"
+msgstr "Pause"
+
+msgid "ui.step"
+msgstr "Step"
+
+msgid "ui.reset"
+msgstr "Reset"
+
+msgid "ui.add_value"
+msgstr "+ Value"
+
+msgid "ui.add_template"
+msgstr "+ Template"
+
+msgid "ui.add_rule"
+msgstr "+ Rule"
+
+msgid "ui.add_rule_plain"
+msgstr "Add Rule"
+
+msgid "ui.update_rule"
+msgstr "Update Rule"
+
+msgid "ui.remove_rule"
+msgstr "Remove Rule"
+
+msgid "ui.add_function"
+msgstr "Add Function"
+
+msgid "ui.add_binding"
+msgstr "Add Binding"
+
+msgid "ui.remove_legacy_binding"
+msgstr "Remove Legacy Binding"
+
+msgid "ui.new_name_placeholder"
+msgstr "New value or template name"
+
+msgid "ui.new_function"
+msgstr "New function"
+
+msgid "ui.new_binding"
+msgstr "New binding"
+
+msgid "ui.new_world_rule"
+msgstr "New World Rule"
+
+msgid "ui.run_inspector"
+msgstr "RUN Inspector"
+
+msgid "ui.stable_value_key"
+msgstr "Stable ValueKey: %d"
+
+msgid "ui.stable_template_id"
+msgstr "Stable TemplateId: %d"
+
+msgid "ui.function_format"
+msgstr "Function #%d"
+
+msgid "ui.binding_format"
+msgstr "Binding #%d"
+
+msgid "ui.legacy_binding_format"
+msgstr "Binding #%d — unsupported/legacy\n%s (%s)"
+
+msgid "ui.world_rule_format"
+msgstr "World Rule #%d"
+
+msgid "ui.runtime_object_format"
+msgstr "Runtime Object #%d"
+
+msgid "ui.tick_format"
+msgstr "Tick: %d"
+
+msgid "ui.unknown"
+msgstr "Unknown"
+
+msgid "help.select_definition_item"
+msgstr "Select a value, template, or world rule. The first-world preset is the editable startup document."
+
+msgid "help.runtime_values"
+msgstr "Live values from RuntimeWorld, addressed by stable ValueKey."
+
+msgid "help.click_runtime_object"
+msgstr "Click the sphere to inspect its live values."
+
+msgid "capability.world_light"
+msgstr "World Light"
+
+msgid "capability.geometry_volume"
+msgstr "Object Volume"
+
+msgid "status.ready"
+msgstr "Ready"
+
+msgid "status.value_added"
+msgstr "Value added with stable key #%d"
+
+msgid "status.value_renamed"
+msgstr "Value renamed"
+
+msgid "status.value_deleted"
+msgstr "Value deleted"
+
+msgid "status.template_added"
+msgstr "Template added with stable id #%d"
+
+msgid "status.template_renamed"
+msgstr "Template renamed"
+
+msgid "status.template_deleted"
+msgstr "Template deleted"
+
+msgid "status.initial_value_updated"
+msgstr "Initial value updated"
+
+msgid "status.initial_value_removed"
+msgstr "Initial value removed"
+
+msgid "status.initial_value_set"
+msgstr "Initial value set"
+
+msgid "status.genome_function_updated"
+msgstr "Genome function updated"
+
+msgid "status.genome_function_removed"
+msgstr "Genome function removed"
+
+msgid "status.genome_function_added"
+msgstr "Genome function added"
+
+msgid "status.legacy_binding_removed"
+msgstr "Legacy binding removed"
+
+msgid "status.binding_updated"
+msgstr "Binding updated"
+
+msgid "status.binding_removed"
+msgstr "Binding removed"
+
+msgid "status.binding_added"
+msgstr "Binding added"
+
+msgid "status.world_rule_added"
+msgstr "World rule added"
+
+msgid "status.world_rule_updated"
+msgstr "World rule updated"
+
+msgid "status.world_rule_removed"
+msgstr "World rule removed"
+
+msgid "status.need_two_values"
+msgstr "Add at least two values before creating a world rule"
+
+msgid "status.run_started"
+msgstr "Compiled current WorldDefinition and entered RUN"
+
+msgid "status.runtime_stopped"
+msgstr "Runtime destroyed; editable document preserved"
+
+msgid "status.runtime_playing"
+msgstr "Automatic 10 Hz simulation running"
+
+msgid "status.runtime_paused"
+msgstr "Runtime paused"
+
+msgid "status.tick_advanced"
+msgstr "Advanced exactly one CLife tick"
+
+msgid "status.runtime_reset"
+msgstr "Runtime reconstructed from the Run snapshot"
+
+msgid "status.error_format"
+msgstr "Error: %s"
+
+msgid "status.locale_save_failed"
+msgstr "Could not save locale preference (%d)"
