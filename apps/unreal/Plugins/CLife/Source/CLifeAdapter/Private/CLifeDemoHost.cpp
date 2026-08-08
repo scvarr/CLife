@@ -7,6 +7,8 @@
 #include "Engine/Engine.h"
 #include "Engine/GameViewportClient.h"
 #include "Engine/StaticMesh.h"
+#include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Widgets/SWidget.h"
 
@@ -50,6 +52,18 @@ ACLifeDemoHost::~ACLifeDemoHost() = default;
 void ACLifeDemoHost::BeginPlay()
 {
     Super::BeginPlay();
+
+    Camera->Activate(true);
+    if (UWorld* World = GetWorld()) {
+        for (FConstPlayerControllerIterator Iterator = World->GetPlayerControllerIterator(); Iterator; ++Iterator) {
+            APlayerController* PlayerController = Iterator->Get();
+            if (PlayerController != nullptr && PlayerController->IsLocalController()) {
+                PlayerController->SetViewTarget(this);
+                break;
+            }
+        }
+    }
+
     Impl = MakeUnique<FImpl>();
     Impl->ObjectViews.emplace(Impl->Session.cell_object_id(), CellMesh);
     UE_LOG(LogCLifeAdapter, Display, TEXT("Created Cell ObjectId=%llu at tick=%llu Temperature=%.3f"),
