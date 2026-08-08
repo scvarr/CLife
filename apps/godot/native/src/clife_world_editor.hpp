@@ -24,6 +24,7 @@ public:
 
     [[nodiscard]] godot::Array get_values();
     [[nodiscard]] godot::Array get_templates();
+    [[nodiscard]] godot::Array get_function_types();
     [[nodiscard]] godot::Array get_initial_values(std::int64_t template_id);
     [[nodiscard]] godot::Array get_genome(std::int64_t template_id);
     [[nodiscard]] godot::Array get_world_rules();
@@ -38,10 +39,8 @@ public:
     bool remove_template(std::int64_t id);
     bool set_initial_value(std::int64_t template_id, std::int64_t value_key, double amount);
     bool remove_initial_value(std::int64_t template_id, std::int64_t value_key);
-    bool add_genome_function(std::int64_t template_id, std::int64_t input_key, std::int64_t output_key,
-                             double throughput, double result_per_input);
-    bool change_genome_function(std::int64_t template_id, std::int64_t index, std::int64_t input_key,
-                                std::int64_t output_key, double throughput, double result_per_input);
+    bool add_genome_function(std::int64_t template_id, std::int64_t function_type_id);
+    bool set_genome_parameter(std::int64_t template_id, std::int64_t index, std::int64_t parameter_id, double value);
     bool remove_genome_function(std::int64_t template_id, std::int64_t index);
     bool add_world_rule(std::int64_t source_key, std::int64_t target_key, double target_per_source);
     bool change_world_rule(std::int64_t index, std::int64_t source_key, std::int64_t target_key,
@@ -78,8 +77,7 @@ protected:
     static void _bind_methods();
 
 private:
-    template <typename Operation>
-    bool edit(Operation&& operation)
+    template <typename Operation> bool edit(Operation&& operation)
     {
         try {
             require_edit_mode();

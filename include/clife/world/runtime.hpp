@@ -1,6 +1,7 @@
 #pragma once
 
 #include <clife/world/definition.hpp>
+#include <clife/world/phenotype.hpp>
 
 #include <compare>
 #include <cstdint>
@@ -30,12 +31,14 @@ public:
     [[nodiscard]] Amount value(ObjectId object, ValueKey value) const;
     [[nodiscard]] Amount output(ObjectId object, std::string_view channel) const;
     [[nodiscard]] TemplateId source_template(ObjectId object) const;
+    [[nodiscard]] const CompiledPhenotype& phenotype(ObjectId object) const;
     [[nodiscard]] std::optional<ValueId> runtime_value_id(ValueKey key) const noexcept;
     [[nodiscard]] std::size_t object_count() const noexcept;
 
 private:
     struct CompiledTemplate final {
         TemplateId source;
+        CompiledPhenotype phenotype;
         Program program;
         std::vector<HostBinding> bindings;
     };

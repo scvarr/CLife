@@ -30,24 +30,33 @@ RuntimeWorld::RuntimeWorld(const WorldDefinition& definition)
 
     templates_.reserve(definition.templates().size());
     for (const ObjectTemplate& source : definition.templates()) {
+        CompiledPhenotype phenotype = compile_phenotype(definition, source.id);
         for (const HostBinding& binding : source.host_bindings) {
             (void)require_value_id(binding.value);
-            if (binding.direction == HostChannelDirection::input &&
-                std::ranges::any_of(source.genome, [binding](const GenomeFunctionDefinition& function) {
-                    return function.output == binding.value;
-                })) {
+            const bool produced_by_process =
+                std::ranges::any_of(source.genome, [&](const GenomeFunctionInstance& function) {
+                    const FunctionTypeDefinition& type = definition.function_type(function.type);
+                    return type.process && type.process->output == binding.value;
+                });
+            if (binding.direction == HostChannelDirection::input && produced_by_process) {
                 throw std::invalid_argument{"host input cannot target a genome-produced value"};
             }
         }
         Program program;
         program.value_count = value_ids_.size();
-        program.functions.reserve(source.genome.size());
-        for (const GenomeFunctionDefinition& function : source.genome) {
+        program.functions.reserve(phenotype.functions().size());
+        for (std::size_t index = 0; index < phenotype.functions().size(); ++index) {
+            const CompiledFunctionPhenotype& function = phenotype.function(index);
+            const FunctionTypeDefinition& type = definition.function_type(function.type());
+            if (!type.process) {
+                continue;
+            }
+            const CompiledProcessParameters& parameters = *function.process_parameters();
             program.functions.push_back({
-                .input = require_value_id(function.input),
-                .output = require_value_id(function.output),
-                .throughput = function.throughput,
-                .result_per_input = function.result_per_input,
+                .input = require_value_id(type.process->input),
+                .output = require_value_id(type.process->output),
+                .throughput = parameters.throughput,
+                .result_per_input = parameters.result_per_input,
             });
         }
         program.initial_values.reserve(source.initial_values.size());
@@ -66,7 +75,12 @@ RuntimeWorld::RuntimeWorld(const WorldDefinition& definition)
         // Construct once during compilation so invalid cross-definition combinations fail here.
         const Calculator validation{program};
         (void)validation;
-        templates_.push_back({.source = source.id, .program = std::move(program), .bindings = source.host_bindings});
+        templates_.push_back({
+            .source = source.id,
+            .phenotype = std::move(phenotype),
+            .program = std::move(program),
+            .bindings = source.host_bindings,
+        });
     }
     std::ranges::sort(templates_, {}, &CompiledTemplate::source);
 }
@@ -130,9 +144,8 @@ void RuntimeWorld::step()
             });
         }
         std::ranges::sort(external, {}, [](const ValueAmount& item) { return item.value.index; });
-        const auto duplicate = std::ranges::adjacent_find(external, {}, [](const ValueAmount& item) {
-            return item.value.index;
-        });
+        const auto duplicate =
+            std::ranges::adjacent_find(external, {}, [](const ValueAmount& item) { return item.value.index; });
         if (duplicate != external.end()) {
             throw std::invalid_argument{"a host input value is bound more than once"};
         }
@@ -159,6 +172,11 @@ Amount RuntimeWorld::output(ObjectId object_id, std::string_view channel) const
 }
 
 TemplateId RuntimeWorld::source_template(ObjectId object_id) const { return object(object_id).source; }
+
+const CompiledPhenotype& RuntimeWorld::phenotype(ObjectId object_id) const
+{
+    return compiled_template(object(object_id).source).phenotype;
+}
 
 std::optional<ValueId> RuntimeWorld::runtime_value_id(ValueKey key) const noexcept
 {

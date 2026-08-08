@@ -37,9 +37,8 @@ ValueKey WorldDefinition::add_value(std::string name)
 void WorldDefinition::rename_value(ValueKey key, std::string name)
 {
     require_name(name, "value");
-    if (std::ranges::any_of(values_, [key, &name](const ValueDefinition& entry) {
-            return entry.key != key && entry.name == name;
-        })) {
+    if (std::ranges::any_of(
+            values_, [key, &name](const ValueDefinition& entry) { return entry.key != key && entry.name == name; })) {
         throw std::invalid_argument{"value name must be unique"};
     }
     auto& entry = const_cast<ValueDefinition&>(value(key));
@@ -51,20 +50,20 @@ void WorldDefinition::remove_value(ValueKey key)
     (void)value(key);
     const auto referenced = [key](ValueKey candidate) { return candidate == key; };
     for (const ObjectTemplate& object : templates_) {
-        if (std::ranges::any_of(object.initial_values, [&](const InitialValueDefinition& item) {
-                return referenced(item.value);
-            }) ||
-            std::ranges::any_of(object.genome, [&](const GenomeFunctionDefinition& item) {
-                return referenced(item.input) || referenced(item.output);
-            }) ||
-            std::ranges::any_of(object.host_bindings, [&](const HostBinding& item) {
-                return referenced(item.value);
-            })) {
+        if (std::ranges::any_of(object.initial_values,
+                                [&](const InitialValueDefinition& item) { return referenced(item.value); }) ||
+            std::ranges::any_of(object.host_bindings,
+                                [&](const HostBinding& item) { return referenced(item.value); })) {
             throw std::invalid_argument{"cannot remove a referenced value"};
         }
     }
     if (std::ranges::any_of(world_rules_, [&](const WorldRuleDefinition& rule) {
             return referenced(rule.source) || referenced(rule.target);
+        })) {
+        throw std::invalid_argument{"cannot remove a referenced value"};
+    }
+    if (std::ranges::any_of(function_types_, [&](const FunctionTypeDefinition& type) {
+            return type.process && (referenced(type.process->input) || referenced(type.process->output));
         })) {
         throw std::invalid_argument{"cannot remove a referenced value"};
     }
@@ -104,9 +103,8 @@ TemplateId WorldDefinition::add_template(std::string name)
 void WorldDefinition::rename_template(TemplateId id, std::string name)
 {
     require_name(name, "template");
-    if (std::ranges::any_of(templates_, [id, &name](const ObjectTemplate& entry) {
-            return entry.id != id && entry.name == name;
-        })) {
+    if (std::ranges::any_of(
+            templates_, [id, &name](const ObjectTemplate& entry) { return entry.id != id && entry.name == name; })) {
         throw std::invalid_argument{"template name must be unique"};
     }
     mutable_template(id).name = std::move(name);
@@ -136,27 +134,160 @@ void WorldDefinition::set_initial_value(TemplateId id, ValueKey key, Amount amou
 void WorldDefinition::remove_initial_value(TemplateId id, ValueKey key)
 {
     ObjectTemplate& object = mutable_template(id);
-    if (std::erase_if(object.initial_values, [key](const InitialValueDefinition& item) { return item.value == key; }) == 0) {
+    if (std::erase_if(object.initial_values, [key](const InitialValueDefinition& item) { return item.value == key; }) ==
+        0) {
         throw std::invalid_argument{"initial value does not exist"};
     }
 }
 
-std::size_t WorldDefinition::add_genome_function(TemplateId id, GenomeFunctionDefinition function)
+FunctionTypeId WorldDefinition::add_function_type(std::string name)
 {
-    validate_function(function);
+    require_name(name, "function type");
+    if (std::ranges::any_of(function_types_,
+                            [&name](const FunctionTypeDefinition& entry) { return entry.name == name; })) {
+        throw std::invalid_argument{"function type name must be unique"};
+    }
+    if (next_function_type_id_ == 0) {
+        throw std::overflow_error{"FunctionTypeId space exhausted"};
+    }
+    const FunctionTypeId id{next_function_type_id_++};
+    function_types_.push_back({.id = id, .name = std::move(name)});
+    return id;
+}
+
+void WorldDefinition::rename_function_type(FunctionTypeId id, std::string name)
+{
+    require_name(name, "function type");
+    if (std::ranges::any_of(function_types_, [id, &name](const FunctionTypeDefinition& entry) {
+            return entry.id != id && entry.name == name;
+        })) {
+        throw std::invalid_argument{"function type name must be unique"};
+    }
+    mutable_function_type(id).name = std::move(name);
+}
+
+ParameterId WorldDefinition::add_genome_parameter(FunctionTypeId type_id, std::string name, Amount default_value)
+{
+    require_name(name, "parameter");
+    if (!std::isfinite(default_value)) {
+        throw std::invalid_argument{"genome parameter default must be finite"};
+    }
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    const auto duplicate_name = [&name](const auto& parameter) { return parameter.name == name; };
+    if (std::ranges::any_of(type.genome_parameters, duplicate_name) ||
+        std::ranges::any_of(type.derived_parameters, duplicate_name)) {
+        throw std::invalid_argument{"parameter name must be unique within a function type"};
+    }
+    if (next_parameter_id_ == 0) {
+        throw std::overflow_error{"ParameterId space exhausted"};
+    }
+    const ParameterId id{next_parameter_id_++};
+    type.genome_parameters.push_back({.id = id, .name = std::move(name), .default_value = default_value});
+    for (ObjectTemplate& object : templates_) {
+        for (GenomeFunctionInstance& function : object.genome) {
+            if (function.type == type_id) {
+                function.parameters.push_back({.parameter = id, .value = default_value});
+            }
+        }
+    }
+    return id;
+}
+
+ParameterId WorldDefinition::add_derived_parameter(FunctionTypeId type_id, std::string name,
+                                                   std::string_view expression_source)
+{
+    require_name(name, "parameter");
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    const auto duplicate_name = [&name](const auto& parameter) { return parameter.name == name; };
+    if (std::ranges::any_of(type.genome_parameters, duplicate_name) ||
+        std::ranges::any_of(type.derived_parameters, duplicate_name)) {
+        throw std::invalid_argument{"parameter name must be unique within a function type"};
+    }
+    std::vector<ParameterName> names;
+    names.reserve(type.genome_parameters.size() + type.derived_parameters.size());
+    for (const GenomeParameterDefinition& parameter : type.genome_parameters) {
+        names.push_back({.parameter = parameter.id, .name = parameter.name});
+    }
+    for (const DerivedParameterDefinition& parameter : type.derived_parameters) {
+        names.push_back({.parameter = parameter.id, .name = parameter.name});
+    }
+    Expression expression = compile_expression(expression_source, names);
+    if (next_parameter_id_ == 0) {
+        throw std::overflow_error{"ParameterId space exhausted"};
+    }
+    const ParameterId id{next_parameter_id_++};
+    type.derived_parameters.push_back({.id = id, .name = std::move(name), .expression = std::move(expression)});
+    return id;
+}
+
+void WorldDefinition::rename_parameter(FunctionTypeId type_id, ParameterId parameter_id, std::string name)
+{
+    require_name(name, "parameter");
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    const auto duplicate_name = [parameter_id, &name](const auto& parameter) {
+        return parameter.id != parameter_id && parameter.name == name;
+    };
+    if (std::ranges::any_of(type.genome_parameters, duplicate_name) ||
+        std::ranges::any_of(type.derived_parameters, duplicate_name)) {
+        throw std::invalid_argument{"parameter name must be unique within a function type"};
+    }
+    const auto genome = std::ranges::find(type.genome_parameters, parameter_id, &GenomeParameterDefinition::id);
+    if (genome != type.genome_parameters.end()) {
+        genome->name = std::move(name);
+        return;
+    }
+    const auto derived = std::ranges::find(type.derived_parameters, parameter_id, &DerivedParameterDefinition::id);
+    if (derived == type.derived_parameters.end()) {
+        throw std::invalid_argument{"unknown ParameterId for function type"};
+    }
+    derived->name = std::move(name);
+}
+
+void WorldDefinition::set_function_process(FunctionTypeId type_id, FunctionProcessDefinition process)
+{
+    (void)value(process.input);
+    (void)value(process.output);
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    if (!parameter_belongs_to(type, process.throughput) || !parameter_belongs_to(type, process.result_per_input)) {
+        throw std::invalid_argument{"process parameter does not belong to function type"};
+    }
+    type.process = process;
+}
+
+std::size_t WorldDefinition::add_genome_function(TemplateId id, FunctionTypeId type_id)
+{
+    const FunctionTypeDefinition& type = function_type(type_id);
+    GenomeFunctionInstance function{.type = type_id};
+    function.parameters.reserve(type.genome_parameters.size());
+    for (const GenomeParameterDefinition& parameter : type.genome_parameters) {
+        function.parameters.push_back({.parameter = parameter.id, .value = parameter.default_value});
+    }
     ObjectTemplate& object = mutable_template(id);
-    object.genome.push_back(function);
+    object.genome.push_back(std::move(function));
     return object.genome.size() - 1;
 }
 
-void WorldDefinition::change_genome_function(TemplateId id, std::size_t index, GenomeFunctionDefinition function)
+void WorldDefinition::set_genome_parameter(TemplateId id, std::size_t index, ParameterId parameter, Amount value)
 {
-    validate_function(function);
+    if (!std::isfinite(value)) {
+        throw std::invalid_argument{"genome parameter value must be finite"};
+    }
     ObjectTemplate& object = mutable_template(id);
     if (index >= object.genome.size()) {
         throw std::out_of_range{"genome function index is out of range"};
     }
-    object.genome[index] = function;
+    GenomeFunctionInstance& function = object.genome[index];
+    const FunctionTypeDefinition& type = function_type(function.type);
+    if (std::ranges::none_of(type.genome_parameters, [parameter](const GenomeParameterDefinition& definition) {
+            return definition.id == parameter;
+        })) {
+        throw std::invalid_argument{"ParameterId is not an independent genome parameter for this function"};
+    }
+    const auto found = std::ranges::find(function.parameters, parameter, &ParameterValue::parameter);
+    if (found == function.parameters.end()) {
+        throw std::invalid_argument{"genome parameter value is missing"};
+    }
+    found->value = value;
 }
 
 void WorldDefinition::remove_genome_function(TemplateId id, std::size_t index)
@@ -221,6 +352,7 @@ void WorldDefinition::remove_host_binding(TemplateId id, std::size_t index)
 
 const std::vector<ValueDefinition>& WorldDefinition::values() const noexcept { return values_; }
 const std::vector<ObjectTemplate>& WorldDefinition::templates() const noexcept { return templates_; }
+const std::vector<FunctionTypeDefinition>& WorldDefinition::function_types() const noexcept { return function_types_; }
 const std::vector<WorldRuleDefinition>& WorldDefinition::world_rules() const noexcept { return world_rules_; }
 
 const ValueDefinition& WorldDefinition::value(ValueKey key) const
@@ -241,21 +373,31 @@ const ObjectTemplate& WorldDefinition::object_template(TemplateId id) const
     return *found;
 }
 
+const FunctionTypeDefinition& WorldDefinition::function_type(FunctionTypeId id) const
+{
+    const auto found = std::ranges::find(function_types_, id, &FunctionTypeDefinition::id);
+    if (found == function_types_.end()) {
+        throw std::invalid_argument{"unknown FunctionTypeId"};
+    }
+    return *found;
+}
+
 ObjectTemplate& WorldDefinition::mutable_template(TemplateId id)
 {
     return const_cast<ObjectTemplate&>(std::as_const(*this).object_template(id));
 }
 
-void WorldDefinition::validate_function(const GenomeFunctionDefinition& function) const
+FunctionTypeDefinition& WorldDefinition::mutable_function_type(FunctionTypeId id)
 {
-    (void)value(function.input);
-    (void)value(function.output);
-    if (!std::isfinite(function.throughput) || function.throughput <= 0.0) {
-        throw std::invalid_argument{"genome throughput must be finite and positive"};
-    }
-    if (!std::isfinite(function.result_per_input) || function.result_per_input < 0.0) {
-        throw std::invalid_argument{"genome result_per_input must be finite and non-negative"};
-    }
+    return const_cast<FunctionTypeDefinition&>(std::as_const(*this).function_type(id));
+}
+
+bool WorldDefinition::parameter_belongs_to(const FunctionTypeDefinition& type, ParameterId parameter) const noexcept
+{
+    return std::ranges::any_of(type.genome_parameters,
+                               [parameter](const GenomeParameterDefinition& item) { return item.id == parameter; }) ||
+           std::ranges::any_of(type.derived_parameters,
+                               [parameter](const DerivedParameterDefinition& item) { return item.id == parameter; });
 }
 
 void WorldDefinition::validate_rule(const WorldRuleDefinition& rule, std::size_t ignored_index) const

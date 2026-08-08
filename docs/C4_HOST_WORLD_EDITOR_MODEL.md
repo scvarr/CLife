@@ -30,7 +30,7 @@ clife_core <- clife_world <- host applications / future engine adapters
 
 ## 2. `ValueKey` и `ValueId`
 
-`ValueKey` — стабильная идентичность значения в `WorldDefinition`. Ключ не зависит от позиции в контейнере, а удалённый ключ не переиспользуется. Поэтому ссылки из genome, правил, initial values и bindings переживают переупорядочивание данных.
+`ValueKey` — стабильная идентичность значения в `WorldDefinition`. Ключ не зависит от позиции в контейнере, а удалённый ключ не переиспользуется. Поэтому ссылки из function process definitions, правил, initial values и bindings переживают переупорядочивание данных.
 
 `ValueId` — плотный индекс `Calculator`. При компиляции существующие `ValueKey` сортируются и детерминированно отображаются в диапазон `[0, value_count)`. Хост и редактор адресуют значения через `ValueKey`; доступ к `Calculator` наружу не требуется.
 
@@ -40,17 +40,18 @@ clife_core <- clife_world <- host applications / future engine adapters
 
 `WorldDefinition` — источник человекочитаемых и редактируемых данных. Он предоставляет явные операции добавления, переименования, изменения и удаления определений и сразу отвергает неизвестные ключи, пустые/дублирующиеся имена, некорректные числа и конфликтующие bindings/rules.
 
-`Program` не является editable world model. Это компактное скомпилированное представление одного `ObjectTemplate`, передаваемое в `Calculator`. Компиляция переводит stable keys в dense IDs, genome — в `Function`, initial values — в `ValueAmount`, world rules — в `EndRule`.
+`Program` не является editable world model. Это компактное скомпилированное представление одного `ObjectTemplate`, передаваемое в `Calculator`. Начиная с C7 компиляция сначала строит phenotype из function types и независимых genome parameters, затем переводит процессные функции phenotype в `Function`, stable value keys — в dense IDs, initial values — в `ValueAmount`, world rules — в `EndRule`.
 
 ## 4. Genome и world rules
 
-Genome хранится внутри `ObjectTemplate` и описывает способности объекта:
+Genome хранится внутри `ObjectTemplate` как экземпляры world-defined function types. Он содержит только независимые наследуемые значения:
 
 ```text
-input ValueKey -> output ValueKey
-throughput
-result_per_input
+FunctionTypeId
+ParameterId -> independent Amount
 ```
+
+Входы/выходы процесса, формулы производных параметров и их calculator-мэппинг принадлежат `FunctionTypeDefinition` на уровне мира. Производные параметры вычисляются при сборке immutable phenotype и не дублируются в genome. Подробная C7-модель описана в `C7_GENOTYPE_PHENOTYPE.md`.
 
 World rules принадлежат миру и описывают неизбежные последствия после genome pipeline:
 

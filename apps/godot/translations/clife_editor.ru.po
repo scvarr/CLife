@@ -31,6 +31,9 @@ msgstr "Значения"
 msgid "ui.templates"
 msgstr "Шаблоны"
 
+msgid "ui.function_types"
+msgstr "Типы функций"
+
 msgid "ui.world_rules"
 msgstr "Правила мира"
 
@@ -39,6 +42,18 @@ msgstr "Начальные значения"
 
 msgid "ui.genome"
 msgstr "Геном"
+
+msgid "ui.genome_parameters"
+msgstr "Параметры генома"
+
+msgid "ui.derived_parameters"
+msgstr "Производные параметры"
+
+msgid "ui.derived_parameters_read_only"
+msgstr "Производные параметры (только чтение)"
+
+msgid "ui.function_type"
+msgstr "Тип функции"
 
 msgid "ui.host_bindings"
 msgstr "Привязки хоста"
@@ -154,6 +169,9 @@ msgstr "Имя нового значения или шаблона"
 msgid "ui.new_function"
 msgstr "Новая функция"
 
+msgid "ui.new_function_instance"
+msgstr "Новый экземпляр функции генома"
+
 msgid "ui.new_binding"
 msgstr "Новая привязка"
 
@@ -168,6 +186,18 @@ msgstr "Стабильный ValueKey: %d"
 
 msgid "ui.stable_template_id"
 msgstr "Стабильный TemplateId: %d"
+
+msgid "ui.stable_function_type_id"
+msgstr "Стабильный FunctionTypeId: %d"
+
+msgid "ui.parameter_default_format"
+msgstr "%s [№%d], значение по умолчанию %.6f"
+
+msgid "ui.parameter_identity_format"
+msgstr "%s [№%d]"
+
+msgid "ui.function_instance_format"
+msgstr "Функция №%d — %s"
 
 msgid "ui.function_format"
 msgstr "Функция №%d"
@@ -198,6 +228,9 @@ msgstr "Текущие значения RuntimeWorld, адресуемые ст�
 
 msgid "help.click_runtime_object"
 msgstr "Щёлкните сферу, чтобы просмотреть её текущие значения."
+
+msgid "help.function_type_process"
+msgstr "Этот тип функции компилируется в численный процесс Runtime."
 
 msgid "capability.world_light"
 msgstr "Освещение мира"
@@ -237,6 +270,9 @@ msgstr "Начальное значение задано"
 
 msgid "status.genome_function_updated"
 msgstr "Функция генома обновлена"
+
+msgid "status.genome_parameter_updated"
+msgstr "Параметр генома обновлён; фенотип пересобран"
 
 msgid "status.genome_function_removed"
 msgstr "Функция генома удалена"

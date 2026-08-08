@@ -12,15 +12,14 @@ inline constexpr std::string_view kTemperatureOutputChannel{"cell.temperature"};
 inline constexpr std::string_view kGeometryVolumeOutputChannel{"geometry.volume"};
 
 inline constexpr std::string_view kValuesSummary{"Light\nEnergy\nUsedEnergy\nTemperature\nOrganic"};
-inline constexpr std::string_view kGenomeSummary{
-    "Light -> Energy (throughput 1.0, result 1.0)\n"
-    "Energy -> UsedEnergy (throughput 0.25, result 1.0)"};
+inline constexpr std::string_view kGenomeSummary{"Light Absorption: Throughput 1.0 -> Light to Energy\n"
+                                                 "Energy Use: Throughput 0.25 -> Energy to UsedEnergy\n"
+                                                 "Energy Storage: Capacity 5.0 -> Organic size 1.0"};
 inline constexpr std::string_view kWorldRuleSummary{"remaining Energy -> Temperature * 0.1"};
-inline constexpr std::string_view kBindingSummary{
-    "world.light -> Light\n"
-    "UsedEnergy -> cell.used_energy\n"
-    "Temperature -> cell.temperature\n"
-    "Organic -> geometry.volume"};
+inline constexpr std::string_view kBindingSummary{"world.light -> Light\n"
+                                                  "UsedEnergy -> cell.used_energy\n"
+                                                  "Temperature -> cell.temperature\n"
+                                                  "Organic -> geometry.volume"};
 
 struct FirstWorldPreset final {
     world::WorldDefinition definition;
@@ -30,6 +29,11 @@ struct FirstWorldPreset final {
     world::ValueKey temperature;
     world::ValueKey organic;
     world::TemplateId cell;
+    world::FunctionTypeId light_absorption;
+    world::FunctionTypeId energy_use;
+    world::FunctionTypeId energy_storage;
+    world::ParameterId storage_capacity;
+    world::ParameterId storage_organic_size;
 };
 
 [[nodiscard]] FirstWorldPreset make_first_world_preset();

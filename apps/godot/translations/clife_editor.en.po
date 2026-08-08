@@ -30,6 +30,9 @@ msgstr "Values"
 msgid "ui.templates"
 msgstr "Templates"
 
+msgid "ui.function_types"
+msgstr "Function Types"
+
 msgid "ui.world_rules"
 msgstr "World Rules"
 
@@ -38,6 +41,18 @@ msgstr "Initial Values"
 
 msgid "ui.genome"
 msgstr "Genome"
+
+msgid "ui.genome_parameters"
+msgstr "Genome parameters"
+
+msgid "ui.derived_parameters"
+msgstr "Derived parameters"
+
+msgid "ui.derived_parameters_read_only"
+msgstr "Derived parameters (read-only)"
+
+msgid "ui.function_type"
+msgstr "Function type"
 
 msgid "ui.host_bindings"
 msgstr "Host Bindings"
@@ -153,6 +168,9 @@ msgstr "New value or template name"
 msgid "ui.new_function"
 msgstr "New function"
 
+msgid "ui.new_function_instance"
+msgstr "New genome function instance"
+
 msgid "ui.new_binding"
 msgstr "New binding"
 
@@ -167,6 +185,18 @@ msgstr "Stable ValueKey: %d"
 
 msgid "ui.stable_template_id"
 msgstr "Stable TemplateId: %d"
+
+msgid "ui.stable_function_type_id"
+msgstr "Stable FunctionTypeId: %d"
+
+msgid "ui.parameter_default_format"
+msgstr "%s [#%d], default %.6f"
+
+msgid "ui.parameter_identity_format"
+msgstr "%s [#%d]"
+
+msgid "ui.function_instance_format"
+msgstr "Function #%d — %s"
 
 msgid "ui.function_format"
 msgstr "Function #%d"
@@ -197,6 +227,9 @@ msgstr "Live values from RuntimeWorld, addressed by stable ValueKey."
 
 msgid "help.click_runtime_object"
 msgstr "Click the sphere to inspect its live values."
+
+msgid "help.function_type_process"
+msgstr "This function type compiles into a numeric runtime process."
 
 msgid "capability.world_light"
 msgstr "World Light"
@@ -236,6 +269,9 @@ msgstr "Initial value set"
 
 msgid "status.genome_function_updated"
 msgstr "Genome function updated"
+
+msgid "status.genome_parameter_updated"
+msgstr "Genome parameter updated; phenotype recompiled"
 
 msgid "status.genome_function_removed"
 msgstr "Genome function removed"

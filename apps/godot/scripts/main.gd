@@ -304,6 +304,15 @@ func _rebuild_world_tree() -> void:
 		item.set_metadata(0, {"kind": "template", "id": int(object_template.id)})
 	templates_root.collapsed = false
 
+	var function_types_root := world_tree.create_item(root)
+	function_types_root.set_text(0, tr("ui.function_types"))
+	function_types_root.set_metadata(0, {"kind": "section"})
+	for function_type in editor.get_function_types():
+		var item := world_tree.create_item(function_types_root)
+		item.set_text(0, "%s  [#%d]" % [function_type.name, function_type.id])
+		item.set_metadata(0, {"kind": "function_type", "id": int(function_type.id)})
+	function_types_root.collapsed = false
+
 	var rules_root := world_tree.create_item(root)
 	rules_root.set_text(0, tr("ui.world_rules"))
 	rules_root.set_metadata(0, {"kind": "section"})
@@ -335,6 +344,8 @@ func _on_world_item_selected() -> void:
 				_show_template_inspector(selected_identity)
 			else:
 				_show_facade_error_if_any()
+		"function_type":
+			_show_function_type_inspector(selected_identity)
 		"rule":
 			_show_rule_inspector(selected_identity, false)
 		_:
@@ -392,6 +403,26 @@ func _show_template_inspector(template_id: int) -> void:
 	_build_bindings_editor(template_id)
 
 
+func _show_function_type_inspector(function_type_id: int) -> void:
+	var function_type := _find_by(editor.get_function_types(), "id", function_type_id)
+	if function_type.is_empty():
+		_show_welcome_inspector()
+		return
+	_clear_children(inspector)
+	_add_heading(inspector, str(function_type.name))
+	_add_wrapped_label(inspector, tr("ui.stable_function_type_id") % function_type_id)
+	_add_heading(inspector, tr("ui.genome_parameters"))
+	for parameter in function_type.genome_parameters:
+		_add_wrapped_label(inspector, tr("ui.parameter_default_format") % [
+			parameter.name, parameter.id, float(parameter.default_value),
+		])
+	_add_heading(inspector, tr("ui.derived_parameters"))
+	for parameter in function_type.derived_parameters:
+		_add_wrapped_label(inspector, tr("ui.parameter_identity_format") % [parameter.name, parameter.id])
+	if bool(function_type.has_process):
+		_add_wrapped_label(inspector, tr("help.function_type_process"))
+
+
 func _build_initial_values_editor(template_id: int) -> void:
 	_add_heading(inspector, tr("ui.initial_values"))
 	for initial in editor.get_initial_values(template_id):
@@ -426,36 +457,31 @@ func _build_genome_editor(template_id: int) -> void:
 	_add_heading(inspector, tr("ui.genome"))
 	for function in editor.get_genome(template_id):
 		var index := int(function.index)
-		var input_option := _value_option(int(function.input_key))
-		var output_option := _value_option(int(function.output_key))
-		var throughput := _positive_spin(float(function.throughput))
-		var result_factor := _amount_spin(float(function.result_per_input))
-		_add_wrapped_label(inspector, tr("ui.function_format") % index)
-		inspector.add_child(_labeled_control(tr("ui.input"), input_option))
-		inspector.add_child(_labeled_control(tr("ui.output"), output_option))
-		inspector.add_child(_labeled_control(tr("ui.throughput"), throughput))
-		inspector.add_child(_labeled_control(tr("ui.result_per_input"), result_factor))
-		var actions := HBoxContainer.new()
-		actions.add_child(_button(tr("ui.update"), func() -> void:
-			_finish_edit(editor.change_genome_function(template_id, index, _selected_option_id(input_option),
-				_selected_option_id(output_option), throughput.value, result_factor.value), "status.genome_function_updated")
-		))
-		actions.add_child(_button(tr("ui.remove"), func() -> void:
+		_add_wrapped_label(inspector, tr("ui.function_instance_format") % [index, function.function_type_name])
+		_add_wrapped_label(inspector, tr("ui.genome_parameters"))
+		for parameter in function.genome_parameters:
+			var amount := _amount_spin(float(parameter.amount))
+			var row := _labeled_control("%s [#%d]" % [parameter.name, parameter.parameter_id], amount)
+			var controls := row as HBoxContainer
+			controls.add_child(_button(tr("ui.update"), func() -> void:
+				_finish_edit(editor.set_genome_parameter(template_id, index, int(parameter.parameter_id), amount.value),
+					"status.genome_parameter_updated")
+			))
+			inspector.add_child(row)
+		_add_wrapped_label(inspector, tr("ui.derived_parameters_read_only"))
+		for parameter in function.derived_parameters:
+			_add_wrapped_label(inspector, "%s [#%d]: %.6f" % [
+				parameter.name, parameter.parameter_id, float(parameter.amount),
+			])
+		inspector.add_child(_button(tr("ui.remove"), func() -> void:
 			_finish_edit(editor.remove_genome_function(template_id, index), "status.genome_function_removed")
 		))
-		inspector.add_child(actions)
-	var new_input := _value_option()
-	var new_output := _value_option()
-	var new_throughput := _positive_spin(1.0)
-	var new_result := _amount_spin(1.0)
-	_add_wrapped_label(inspector, tr("ui.new_function"))
-	inspector.add_child(_labeled_control(tr("ui.input"), new_input))
-	inspector.add_child(_labeled_control(tr("ui.output"), new_output))
-	inspector.add_child(_labeled_control(tr("ui.throughput"), new_throughput))
-	inspector.add_child(_labeled_control(tr("ui.result_per_input"), new_result))
+	var new_type := _function_type_option()
+	_add_wrapped_label(inspector, tr("ui.new_function_instance"))
+	inspector.add_child(_labeled_control(tr("ui.function_type"), new_type))
 	inspector.add_child(_button(tr("ui.add_function"), func() -> void:
-		_finish_edit(editor.add_genome_function(template_id, _selected_option_id(new_input),
-			_selected_option_id(new_output), new_throughput.value, new_result.value), "status.genome_function_added")
+		_finish_edit(editor.add_genome_function(template_id, _selected_option_id(new_type)),
+			"status.genome_function_added")
 	))
 
 
@@ -692,6 +718,8 @@ func _restore_edit_inspector() -> void:
 			_show_value_inspector(selected_identity)
 		"template":
 			_show_template_inspector(selected_identity)
+		"function_type":
+			_show_function_type_inspector(selected_identity)
 		"rule":
 			_show_rule_inspector(selected_identity, false)
 		_:
@@ -778,6 +806,16 @@ func _value_option(selected_key: int = 0) -> OptionButton:
 		option.add_item("%s [#%d]" % [value.name, value.key])
 		option.set_item_metadata(option.item_count - 1, int(value.key))
 		if int(value.key) == selected_key:
+			option.select(option.item_count - 1)
+	return option
+
+
+func _function_type_option(selected_id: int = 0) -> OptionButton:
+	var option := OptionButton.new()
+	for function_type in editor.get_function_types():
+		option.add_item("%s [#%d]" % [function_type.name, function_type.id])
+		option.set_item_metadata(option.item_count - 1, int(function_type.id))
+		if int(function_type.id) == selected_id:
 			option.select(option.item_count - 1)
 	return option
 

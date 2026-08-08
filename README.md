@@ -6,7 +6,7 @@ CLife — проект искусственной жизни с переноси
 
 ## Текущий этап
 
-**C6.1 — Godot World Editor host capabilities and material cell volume over editable `WorldDefinition`.**
+**C7 — genotype → phenotype foundation with world-defined function laws and compiled derived parameters.**
 
 Концептуальная база C0 зафиксирована как рабочий baseline: [`docs/C0_CONCEPT.md`](docs/C0_CONCEPT.md).
 Архитектурные правила реализации: [`docs/C1_ARCHITECTURE.md`](docs/C1_ARCHITECTURE.md).
@@ -14,6 +14,7 @@ CLife — проект искусственной жизни с переноси
 Текущая модель world/runtime и host-интеграции: [`docs/C4_HOST_WORLD_EDITOR_MODEL.md`](docs/C4_HOST_WORLD_EDITOR_MODEL.md).
 Dual-engine integration: [`docs/C5_DUAL_ENGINE_ADAPTERS.md`](docs/C5_DUAL_ENGINE_ADAPTERS.md).
 Current Godot editor model: [`docs/C6_GODOT_WORLD_EDITOR.md`](docs/C6_GODOT_WORLD_EDITOR.md).
+Genotype / phenotype model: [`docs/C7_GENOTYPE_PHENOTYPE.md`](docs/C7_GENOTYPE_PHENOTYPE.md).
 
 Первый клеточный мир остаётся основным тестовым preset и предметным языком разработки, но универсальный core больше не строится вокруг специальных категорий `Field / Resource / State / Matter`.
 

@@ -37,6 +37,7 @@ Definition mutations are rejected while RUN is active. `Reset` remains in RUN, r
 Queries return Godot `Array` values containing `Dictionary` records:
 
 - `get_values()` and `get_templates()`;
+- `get_function_types()`;
 - `get_initial_values(template_id)`;
 - `get_genome(template_id)`;
 - `get_world_rules()`;

@@ -65,6 +65,22 @@ world::TemplateId template_id(std::int64_t raw)
     return {static_cast<std::uint32_t>(raw)};
 }
 
+world::FunctionTypeId function_type_id(std::int64_t raw)
+{
+    if (raw <= 0 || raw > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::invalid_argument{"invalid FunctionTypeId"};
+    }
+    return {static_cast<std::uint32_t>(raw)};
+}
+
+world::ParameterId parameter_id(std::int64_t raw)
+{
+    if (raw <= 0 || raw > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::invalid_argument{"invalid ParameterId"};
+    }
+    return {static_cast<std::uint32_t>(raw)};
+}
+
 std::size_t item_index(std::int64_t raw)
 {
     if (raw < 0) {
@@ -138,6 +154,42 @@ godot::Array CLifeWorldEditor::get_templates()
     return result;
 }
 
+godot::Array CLifeWorldEditor::get_function_types()
+{
+    godot::Array result;
+    try {
+        for (const world::FunctionTypeDefinition& type : definition_.function_types()) {
+            godot::Dictionary item;
+            item["id"] = static_cast<std::int64_t>(type.id.value);
+            item["name"] = to_godot_string(type.name);
+            godot::Array genome_parameters;
+            for (const world::GenomeParameterDefinition& parameter : type.genome_parameters) {
+                godot::Dictionary entry;
+                entry["id"] = static_cast<std::int64_t>(parameter.id.value);
+                entry["name"] = to_godot_string(parameter.name);
+                entry["default_value"] = parameter.default_value;
+                genome_parameters.push_back(entry);
+            }
+            godot::Array derived_parameters;
+            for (const world::DerivedParameterDefinition& parameter : type.derived_parameters) {
+                godot::Dictionary entry;
+                entry["id"] = static_cast<std::int64_t>(parameter.id.value);
+                entry["name"] = to_godot_string(parameter.name);
+                derived_parameters.push_back(entry);
+            }
+            item["genome_parameters"] = genome_parameters;
+            item["derived_parameters"] = derived_parameters;
+            item["has_process"] = type.process.has_value();
+            result.push_back(item);
+        }
+        clear_error();
+    } catch (...) {
+        capture_current_error();
+        result.clear();
+    }
+    return result;
+}
+
 godot::Array CLifeWorldEditor::get_initial_values(std::int64_t raw_template_id)
 {
     godot::Array result;
@@ -161,15 +213,35 @@ godot::Array CLifeWorldEditor::get_genome(std::int64_t raw_template_id)
 {
     godot::Array result;
     try {
-        const world::ObjectTemplate& object = definition_.object_template(template_id(raw_template_id));
+        const world::TemplateId id = template_id(raw_template_id);
+        const world::ObjectTemplate& object = definition_.object_template(id);
+        const world::CompiledPhenotype phenotype = world::compile_phenotype(definition_, id);
         for (std::size_t index = 0; index < object.genome.size(); ++index) {
-            const world::GenomeFunctionDefinition& function = object.genome[index];
+            const world::GenomeFunctionInstance& function = object.genome[index];
+            const world::FunctionTypeDefinition& type = definition_.function_type(function.type);
+            const world::CompiledFunctionPhenotype& compiled = phenotype.function(index);
             godot::Dictionary item;
             item["index"] = static_cast<std::int64_t>(index);
-            item["input_key"] = static_cast<std::int64_t>(function.input.value);
-            item["output_key"] = static_cast<std::int64_t>(function.output.value);
-            item["throughput"] = function.throughput;
-            item["result_per_input"] = function.result_per_input;
+            item["function_type_id"] = static_cast<std::int64_t>(type.id.value);
+            item["function_type_name"] = to_godot_string(type.name);
+            godot::Array genome_parameters;
+            for (const world::GenomeParameterDefinition& parameter : type.genome_parameters) {
+                godot::Dictionary entry;
+                entry["parameter_id"] = static_cast<std::int64_t>(parameter.id.value);
+                entry["name"] = to_godot_string(parameter.name);
+                entry["amount"] = compiled.parameter(parameter.id);
+                genome_parameters.push_back(entry);
+            }
+            godot::Array derived_parameters;
+            for (const world::DerivedParameterDefinition& parameter : type.derived_parameters) {
+                godot::Dictionary entry;
+                entry["parameter_id"] = static_cast<std::int64_t>(parameter.id.value);
+                entry["name"] = to_godot_string(parameter.name);
+                entry["amount"] = compiled.parameter(parameter.id);
+                derived_parameters.push_back(entry);
+            }
+            item["genome_parameters"] = genome_parameters;
+            item["derived_parameters"] = derived_parameters;
             result.push_back(item);
         }
         clear_error();
@@ -213,8 +285,8 @@ godot::Array CLifeWorldEditor::get_bindings(std::int64_t raw_template_id)
             item["index"] = static_cast<std::int64_t>(index);
             item["channel"] = to_godot_string(binding.channel);
             item["direction"] = direction_name(binding.direction);
-            item["direction_id"] = binding.direction == world::HostChannelDirection::input ? kInputDirection
-                                                                                            : kOutputDirection;
+            item["direction_id"] =
+                binding.direction == world::HostChannelDirection::input ? kInputDirection : kOutputDirection;
             item["value_key"] = static_cast<std::int64_t>(binding.value.value);
             result.push_back(item);
         }
@@ -234,8 +306,8 @@ godot::Array CLifeWorldEditor::get_host_capabilities()
             godot::Dictionary item;
             item["channel"] = to_godot_string(capability.channel);
             item["direction"] = direction_name(capability.direction);
-            item["direction_id"] = capability.direction == world::HostChannelDirection::input ? kInputDirection
-                                                                                               : kOutputDirection;
+            item["direction_id"] =
+                capability.direction == world::HostChannelDirection::input ? kInputDirection : kOutputDirection;
             item["display_key"] = to_godot_string(capability.display_key);
             result.push_back(item);
         }
@@ -312,30 +384,19 @@ bool CLifeWorldEditor::remove_initial_value(std::int64_t raw_template_id, std::i
     return edit([&] { definition_.remove_initial_value(template_id(raw_template_id), value_key(raw_value_key)); });
 }
 
-bool CLifeWorldEditor::add_genome_function(std::int64_t raw_template_id, std::int64_t input_key,
-                                           std::int64_t output_key, double throughput, double result_per_input)
+bool CLifeWorldEditor::add_genome_function(std::int64_t raw_template_id, std::int64_t raw_function_type_id)
 {
     return edit([&] {
-        (void)definition_.add_genome_function(template_id(raw_template_id), {
-                                                                                 .input = value_key(input_key),
-                                                                                 .output = value_key(output_key),
-                                                                                 .throughput = throughput,
-                                                                                 .result_per_input = result_per_input,
-                                                                             });
+        (void)definition_.add_genome_function(template_id(raw_template_id), function_type_id(raw_function_type_id));
     });
 }
 
-bool CLifeWorldEditor::change_genome_function(std::int64_t raw_template_id, std::int64_t index,
-                                              std::int64_t input_key, std::int64_t output_key, double throughput,
-                                              double result_per_input)
+bool CLifeWorldEditor::set_genome_parameter(std::int64_t raw_template_id, std::int64_t index,
+                                            std::int64_t raw_parameter_id, double value)
 {
     return edit([&] {
-        definition_.change_genome_function(template_id(raw_template_id), item_index(index), {
-                                                                                                 .input = value_key(input_key),
-                                                                                                 .output = value_key(output_key),
-                                                                                                 .throughput = throughput,
-                                                                                                 .result_per_input = result_per_input,
-                                                                                             });
+        definition_.set_genome_parameter(template_id(raw_template_id), item_index(index),
+                                         parameter_id(raw_parameter_id), value);
     });
 }
 
@@ -360,10 +421,10 @@ bool CLifeWorldEditor::change_world_rule(std::int64_t index, std::int64_t source
 {
     return edit([&] {
         definition_.change_world_rule(item_index(index), {
-                                                               .source = value_key(source_key),
-                                                               .target = value_key(target_key),
-                                                               .target_per_source = target_per_source,
-                                                           });
+                                                             .source = value_key(source_key),
+                                                             .target = value_key(target_key),
+                                                             .target_per_source = target_per_source,
+                                                         });
     });
 }
 
@@ -378,10 +439,10 @@ bool CLifeWorldEditor::add_host_binding(std::int64_t raw_template_id, const godo
     return edit([&] {
         const world::TemplateId id = template_id(raw_template_id);
         (void)definition_.add_host_binding(id, {
-                                                  .channel = to_std_string(channel),
-                                                  .direction = host_direction(direction),
-                                                  .value = value_key(raw_value_key),
-                                              });
+                                                   .channel = to_std_string(channel),
+                                                   .direction = host_direction(direction),
+                                                   .value = value_key(raw_value_key),
+                                               });
         ensure_host_inputs(definition_, id);
     });
 }
@@ -392,11 +453,12 @@ bool CLifeWorldEditor::change_host_binding(std::int64_t raw_template_id, std::in
 {
     return edit([&] {
         const world::TemplateId id = template_id(raw_template_id);
-        definition_.change_host_binding(id, item_index(index), {
-                                                                   .channel = to_std_string(channel),
-                                                                   .direction = host_direction(direction),
-                                                                   .value = value_key(raw_value_key),
-                                                               });
+        definition_.change_host_binding(id, item_index(index),
+                                        {
+                                            .channel = to_std_string(channel),
+                                            .direction = host_direction(direction),
+                                            .value = value_key(raw_value_key),
+                                        });
         ensure_host_inputs(definition_, id);
     });
 }
@@ -719,12 +781,13 @@ void CLifeWorldEditor::_bind_methods()
 {
     godot::ClassDB::bind_method(godot::D_METHOD("get_values"), &CLifeWorldEditor::get_values);
     godot::ClassDB::bind_method(godot::D_METHOD("get_templates"), &CLifeWorldEditor::get_templates);
-    godot::ClassDB::bind_method(godot::D_METHOD("get_initial_values", "template_id"), &CLifeWorldEditor::get_initial_values);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_function_types"), &CLifeWorldEditor::get_function_types);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_initial_values", "template_id"),
+                                &CLifeWorldEditor::get_initial_values);
     godot::ClassDB::bind_method(godot::D_METHOD("get_genome", "template_id"), &CLifeWorldEditor::get_genome);
     godot::ClassDB::bind_method(godot::D_METHOD("get_world_rules"), &CLifeWorldEditor::get_world_rules);
     godot::ClassDB::bind_method(godot::D_METHOD("get_bindings", "template_id"), &CLifeWorldEditor::get_bindings);
-    godot::ClassDB::bind_method(godot::D_METHOD("get_host_capabilities"),
-                                &CLifeWorldEditor::get_host_capabilities);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_host_capabilities"), &CLifeWorldEditor::get_host_capabilities);
     godot::ClassDB::bind_method(godot::D_METHOD("add_value", "name"), &CLifeWorldEditor::add_value);
     godot::ClassDB::bind_method(godot::D_METHOD("rename_value", "key", "name"), &CLifeWorldEditor::rename_value);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_value", "key"), &CLifeWorldEditor::remove_value);
@@ -735,30 +798,29 @@ void CLifeWorldEditor::_bind_methods()
                                 &CLifeWorldEditor::set_initial_value);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_initial_value", "template_id", "value_key"),
                                 &CLifeWorldEditor::remove_initial_value);
-    godot::ClassDB::bind_method(godot::D_METHOD("add_genome_function", "template_id", "input_key", "output_key",
-                                                "throughput", "result_per_input"),
+    godot::ClassDB::bind_method(godot::D_METHOD("add_genome_function", "template_id", "function_type_id"),
                                 &CLifeWorldEditor::add_genome_function);
-    godot::ClassDB::bind_method(godot::D_METHOD("change_genome_function", "template_id", "index", "input_key",
-                                                "output_key", "throughput", "result_per_input"),
-                                &CLifeWorldEditor::change_genome_function);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("set_genome_parameter", "template_id", "index", "parameter_id", "value"),
+        &CLifeWorldEditor::set_genome_parameter);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_genome_function", "template_id", "index"),
                                 &CLifeWorldEditor::remove_genome_function);
     godot::ClassDB::bind_method(godot::D_METHOD("add_world_rule", "source_key", "target_key", "target_per_source"),
                                 &CLifeWorldEditor::add_world_rule);
-    godot::ClassDB::bind_method(godot::D_METHOD("change_world_rule", "index", "source_key", "target_key",
-                                                "target_per_source"),
-                                &CLifeWorldEditor::change_world_rule);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("change_world_rule", "index", "source_key", "target_key", "target_per_source"),
+        &CLifeWorldEditor::change_world_rule);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_world_rule", "index"), &CLifeWorldEditor::remove_world_rule);
-    godot::ClassDB::bind_method(godot::D_METHOD("add_host_binding", "template_id", "channel", "direction",
-                                                "value_key"),
+    godot::ClassDB::bind_method(godot::D_METHOD("add_host_binding", "template_id", "channel", "direction", "value_key"),
                                 &CLifeWorldEditor::add_host_binding);
-    godot::ClassDB::bind_method(godot::D_METHOD("change_host_binding", "template_id", "index", "channel",
-                                                "direction", "value_key"),
-                                &CLifeWorldEditor::change_host_binding);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("change_host_binding", "template_id", "index", "channel", "direction", "value_key"),
+        &CLifeWorldEditor::change_host_binding);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_host_binding", "template_id", "index"),
                                 &CLifeWorldEditor::remove_host_binding);
     godot::ClassDB::bind_method(godot::D_METHOD("select_template", "template_id"), &CLifeWorldEditor::select_template);
-    godot::ClassDB::bind_method(godot::D_METHOD("get_selected_template_id"), &CLifeWorldEditor::get_selected_template_id);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_selected_template_id"),
+                                &CLifeWorldEditor::get_selected_template_id);
     godot::ClassDB::bind_method(godot::D_METHOD("run"), &CLifeWorldEditor::run);
     godot::ClassDB::bind_method(godot::D_METHOD("stop"), &CLifeWorldEditor::stop);
     godot::ClassDB::bind_method(godot::D_METHOD("reset_runtime"), &CLifeWorldEditor::reset_runtime);
