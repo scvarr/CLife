@@ -2,7 +2,7 @@ add_executable(clife_headless
     calculator_main.cpp
 )
 
-target_link_libraries(clife_headless PRIVATE clife::core)
+target_link_libraries(clife_headless PRIVATE clife::presets)
 target_compile_features(clife_headless PRIVATE cxx_std_20)
 clife_enable_warnings(clife_headless)
 

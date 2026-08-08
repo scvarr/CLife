@@ -92,3 +92,29 @@ Input staging является однотактовым. На каждом `Runt
 Godot и Unreal adapters должны зависеть от `clife_world`, переводить lifecycle и engine values в описанный push/read контракт и не создавать альтернативную модель мира. Смысл доменных полей и операций редактора должен быть общим; сцены, assets, widgets, inspectors и другие UI-детали будут engine-specific.
 
 C4 намеренно не вводит renderer interface, serialization, reflection, undo framework, scheduler или общий cross-engine UI toolkit.
+
+## 8. Зарезервированный structural lifecycle
+
+Будущие операции структуры (`CreateObject`, `RemoveObject`, `ConnectObjects`, `DisconnectObjects`) не являются немедленными побочными эффектами calculator-функций. Зарезервирован следующий порядок:
+
+```text
+calculator phase
+    -> numeric state / structural intent
+end of tick
+    -> runtime collects structural operations
+tick boundary
+    -> RuntimeWorld applies structural mutations
+next tick
+    -> new objects participate normally
+```
+
+Инварианты будущего расширения:
+
+1. `Calculator` не создаёт runtime objects напрямую.
+2. Объекты и topology изменяются только на границе tick.
+3. Новый объект не исполняет genome в tick своего создания.
+4. Host adapters обязаны поддерживать динамический набор `ObjectId`, даже если текущий demo содержит одну клетку.
+5. Structural changes будут передаваться host через явные deltas/events, а не engine callbacks.
+6. Godot/Unreal создают и уничтожают визуальные representations в ответ на изменения CLife.
+
+Текущий C5 slice не реализует сами операции или `WorldDelta`; раздел фиксирует только границу для последующего reproduction/topology этапа.

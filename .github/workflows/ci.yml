@@ -34,3 +34,14 @@ jobs:
 
       - name: Test
         run: ctest --preset vs2022-${{ matrix.configuration }}
+
+  godot-native:
+    name: Godot native adapter (debug)
+    runs-on: windows-2022
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Build pinned GDExtension
+        run: .\scripts\build_godot.ps1 -Configuration Debug

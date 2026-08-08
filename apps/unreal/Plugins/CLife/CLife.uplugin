@@ -1,0 +1,17 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0",
+  "FriendlyName": "CLife Runtime Adapter",
+  "Description": "Unreal host adapter for the engine-independent CLife runtime.",
+  "Category": "Simulation",
+  "CanContainContent": false,
+  "Installed": false,
+  "Modules": [
+    {
+      "Name": "CLifeAdapter",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ]
+}

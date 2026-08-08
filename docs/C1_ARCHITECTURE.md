@@ -9,7 +9,7 @@ C1 фиксирует архитектурные правила реализац
 CLife строится как **переносимое C++-ядро симуляции**, которое не зависит от конкретного renderer/game engine.
 
 ```text
-clife_core <- clife_world <- headless / future Godot / future Unreal
+clife_core <- clife_world <- clife_presets <- headless / Godot / Unreal
 ```
 
 `clife_core`:
@@ -142,15 +142,17 @@ Core не завершает процесс через `exit()` и не упра
 
 ## 7. Сборочные targets
 
-Минимальная структура C1:
+Текущая структура targets:
 
 ```text
 clife_core      static library
+clife_world     static library
+clife_presets   static library
 clife_headless  executable host
 clife_tests     test executable
 ```
 
-Будущие engine adapters подключаются к `clife_core`, не меняя его точку входа или главный цикл.
+Engine adapters подключаются через `clife_presets`/`clife_world`, не меняя точку входа calculator core или главный цикл.
 
 ## 8. Структура каталогов
 

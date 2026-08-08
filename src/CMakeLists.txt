@@ -35,3 +35,22 @@ clife_enable_warnings(clife_world)
 set_target_properties(clife_world PROPERTIES
     FOLDER "CLife"
 )
+
+add_library(clife_presets STATIC
+    presets/demo_session.cpp
+    presets/first_world.cpp
+)
+
+add_library(clife::presets ALIAS clife_presets)
+
+target_link_libraries(clife_presets PUBLIC clife::world)
+target_include_directories(clife_presets
+    PUBLIC
+        ${PROJECT_SOURCE_DIR}/include
+)
+target_compile_features(clife_presets PUBLIC cxx_std_20)
+clife_enable_warnings(clife_presets)
+
+set_target_properties(clife_presets PROPERTIES
+    FOLDER "CLife"
+)

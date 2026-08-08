@@ -8,6 +8,7 @@ project(
 )
 
 option(CLIFE_BUILD_TESTS "Build CLife tests" ON)
+option(CLIFE_BUILD_GODOT "Build the optional Godot GDExtension adapter" OFF)
 
 set(CMAKE_CXX_EXTENSIONS OFF)
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
@@ -16,6 +17,10 @@ include(cmake/CLifeWarnings.cmake)
 
 add_subdirectory(src)
 add_subdirectory(apps/headless)
+
+if(CLIFE_BUILD_GODOT)
+    add_subdirectory(apps/godot/native)
+endif()
 
 if(CLIFE_BUILD_TESTS)
     include(CTest)

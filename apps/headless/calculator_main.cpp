@@ -1,5 +1,6 @@
 #include <clife/core/calculator.hpp>
 #include <clife/core/simulation.hpp>
+#include <clife/presets/demo_session.hpp>
 
 #include <algorithm>
 #include <cerrno>
@@ -38,38 +39,6 @@ struct CommandLine final {
     LabConfig config;
     bool show_help{false};
 };
-
-[[nodiscard]] LabConfig make_default_config()
-{
-    constexpr clife::ValueId light{0};
-    constexpr clife::ValueId energy{1};
-    constexpr clife::ValueId used_energy{2};
-    constexpr clife::ValueId temperature{3};
-
-    LabConfig config;
-    config.program.value_count = 4;
-    config.program.functions = {
-        {.input = light, .output = energy, .throughput = 1.0},
-        {.input = energy, .output = used_energy, .throughput = 0.25},
-    };
-    config.program.end_rules = {
-        {.source = energy, .target = temperature, .target_per_source = 0.1},
-    };
-    config.program.initial_values = {
-        {.value = temperature, .amount = 0.2},
-    };
-    config.external_values = {
-        {.value = light, .amount = 1.0},
-    };
-    config.observed_values = {used_energy, temperature};
-    config.names = {
-        {.id = light, .name = "Light"},
-        {.id = energy, .name = "Energy"},
-        {.id = used_energy, .name = "UsedEnergy"},
-        {.id = temperature, .name = "Temperature"},
-    };
-    return config;
-}
 
 [[nodiscard]] bool is_structural_option(std::string_view argument) noexcept
 {
@@ -258,7 +227,7 @@ void add_end_rule(LabConfig& config, std::string_view text)
 
 [[nodiscard]] CommandLine parse_command_line(int argc, char* argv[])
 {
-    CommandLine command{.config = has_custom_program(argc, argv) ? LabConfig{} : make_default_config()};
+    CommandLine command;
 
     for (int index = 1; index < argc; ++index) {
         const std::string_view argument = argv[index];
@@ -302,7 +271,7 @@ void add_end_rule(LabConfig& config, std::string_view text)
 
 void print_help()
 {
-    std::cout << "CLife headless genome calculator\n\n"
+    std::cout << "CLife headless host\n\n"
               << "Usage:\n"
               << "  clife_headless [options]\n\n"
               << "Options:\n"
@@ -318,8 +287,8 @@ void print_help()
               << "Functions compete proportionally when they take the same input. FACTOR is the current minimal\n"
               << "result formula: output = actually_taken * FACTOR. End rules consume their remaining source\n"
               << "simultaneously after the genome pipeline. A custom program must specify --values.\n\n"
-              << "Default cell-world slice:\n"
-              << "  Light=1 -> Energy; genome uses up to 0.25 Energy; remaining Energy adds 0.1 Temperature per unit.\n";
+              << "Without structural options, the shared clife_presets first world runs with Light=1.\n"
+              << "A custom calculator program must specify --values.\n";
 }
 
 void print_configuration(const LabConfig& config)
@@ -370,7 +339,7 @@ void print_row(const LabConfig& config, const clife::Simulation& simulation, con
     std::cout << '\n';
 }
 
-int run_headless(int argc, char* argv[])
+int run_custom_program(int argc, char* argv[])
 {
     const CommandLine command = parse_command_line(argc, argv);
     if (command.show_help) {
@@ -394,12 +363,46 @@ int run_headless(int argc, char* argv[])
     return EXIT_SUCCESS;
 }
 
+int run_first_world_preset(int argc, char* argv[])
+{
+    clife::Tick ticks{kDefaultTicks};
+    for (int index = 1; index < argc; ++index) {
+        const std::string_view argument = argv[index];
+        if (argument == "--help" || argument == "-h") {
+            print_help();
+            return EXIT_SUCCESS;
+        }
+        if (argument == "--ticks") {
+            ticks = parse_tick_count(require_value(argc, argv, index, argument));
+            continue;
+        }
+        throw std::invalid_argument{"default preset accepts only --ticks or --help"};
+    }
+
+    clife::presets::DemoSession session;
+    std::cout << "CLife shared first-world preset\n\n"
+              << "ticks = " << ticks << '\n'
+              << "simulation frequency = " << clife::presets::DemoSession::simulation_ticks_per_second << " Hz\n"
+              << "Initial Temperature = " << session.temperature() << '\n'
+              << "External Light = " << session.light() << " / tick\n\n";
+    std::cout << std::fixed << std::setprecision(3)
+              << std::setw(8) << "tick" << std::setw(kValueWidth) << "input:Light"
+              << std::setw(kValueWidth) << "UsedEnergy" << std::setw(kValueWidth) << "Temperature" << '\n';
+    for (clife::Tick tick = 0; tick < ticks; ++tick) {
+        session.step();
+        std::cout << std::setw(8) << session.tick() << std::setw(kValueWidth) << session.light()
+                  << std::setw(kValueWidth) << session.used_energy() << std::setw(kValueWidth) << session.temperature()
+                  << '\n';
+    }
+    return EXIT_SUCCESS;
+}
+
 } // namespace
 
 int main(int argc, char* argv[])
 {
     try {
-        return run_headless(argc, argv);
+        return has_custom_program(argc, argv) ? run_custom_program(argc, argv) : run_first_world_preset(argc, argv);
     } catch (const std::exception& error) {
         std::cerr << "CLife headless fatal error: " << error.what() << '\n';
     } catch (...) {
