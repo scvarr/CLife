@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and test (${{ matrix.configuration }})
+    runs-on: windows-2022
+
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration:
+          - debug
+          - release
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake --preset vs2022
+
+      - name: Build
+        run: cmake --build --preset vs2022-${{ matrix.configuration }}
+
+      - name: Test
+        run: ctest --preset vs2022-${{ matrix.configuration }}
