@@ -18,6 +18,7 @@ set_target_properties(clife_core PROPERTIES
 )
 
 add_library(clife_world STATIC
+    world/calculation.cpp
     world/definition.cpp
     world/expression.cpp
     world/phenotype.cpp

@@ -29,4 +29,16 @@ struct ParameterId final {
     friend constexpr auto operator<=>(ParameterId, ParameterId) noexcept = default;
 };
 
+struct CalculationId final {
+    std::uint32_t value{};
+
+    friend constexpr auto operator<=>(CalculationId, CalculationId) noexcept = default;
+};
+
+struct CalculationPortId final {
+    std::uint32_t value{};
+
+    friend constexpr auto operator<=>(CalculationPortId, CalculationPortId) noexcept = default;
+};
+
 } // namespace clife::world

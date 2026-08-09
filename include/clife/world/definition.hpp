@@ -52,6 +52,25 @@ struct MaterialContributionDefinition final {
     Expression amount;
 };
 
+struct CalculationInputDefinition final {
+    CalculationPortId id;
+    std::string name;
+};
+
+struct CalculationOutputDefinition final {
+    CalculationPortId id;
+    std::string name;
+    std::string expression_source;
+    Expression expression;
+};
+
+struct CalculationDefinition final {
+    CalculationId id;
+    std::string name;
+    std::vector<CalculationInputDefinition> inputs;
+    std::vector<CalculationOutputDefinition> outputs;
+};
+
 struct FunctionTypeDefinition final {
     FunctionTypeId id;
     std::string name;
@@ -130,6 +149,11 @@ public:
     void set_function_material_contribution(FunctionTypeId type, ValueKey value, std::string_view expression);
     void remove_function_material_contribution(FunctionTypeId type, ValueKey value);
 
+    [[nodiscard]] CalculationId add_calculation(std::string name);
+    [[nodiscard]] CalculationPortId add_calculation_input(CalculationId calculation, std::string name);
+    [[nodiscard]] CalculationPortId add_calculation_output(CalculationId calculation, std::string name,
+                                                           std::string_view expression);
+
     [[nodiscard]] std::size_t add_genome_function(TemplateId id, FunctionTypeId type);
     void set_genome_parameter(TemplateId id, std::size_t index, ParameterId parameter, Amount value);
     void remove_genome_function(TemplateId id, std::size_t index);
@@ -145,14 +169,17 @@ public:
     [[nodiscard]] const std::vector<ValueDefinition>& values() const noexcept;
     [[nodiscard]] const std::vector<ObjectTemplate>& templates() const noexcept;
     [[nodiscard]] const std::vector<FunctionTypeDefinition>& function_types() const noexcept;
+    [[nodiscard]] const std::vector<CalculationDefinition>& calculations() const noexcept;
     [[nodiscard]] const std::vector<WorldRuleDefinition>& world_rules() const noexcept;
     [[nodiscard]] const ValueDefinition& value(ValueKey key) const;
     [[nodiscard]] const ObjectTemplate& object_template(TemplateId id) const;
     [[nodiscard]] const FunctionTypeDefinition& function_type(FunctionTypeId id) const;
+    [[nodiscard]] const CalculationDefinition& calculation(CalculationId id) const;
 
 private:
     [[nodiscard]] ObjectTemplate& mutable_template(TemplateId id);
     [[nodiscard]] FunctionTypeDefinition& mutable_function_type(FunctionTypeId id);
+    [[nodiscard]] CalculationDefinition& mutable_calculation(CalculationId id);
     [[nodiscard]] bool parameter_belongs_to(const FunctionTypeDefinition& type, ParameterId parameter) const noexcept;
     void validate_rule(const WorldRuleDefinition& rule, std::size_t ignored_index) const;
     void validate_binding(const ObjectTemplate& object, const HostBinding& binding, std::size_t ignored_index) const;
@@ -160,11 +187,14 @@ private:
     std::vector<ValueDefinition> values_;
     std::vector<ObjectTemplate> templates_;
     std::vector<FunctionTypeDefinition> function_types_;
+    std::vector<CalculationDefinition> calculations_;
     std::vector<WorldRuleDefinition> world_rules_;
     std::uint32_t next_value_key_{1};
     std::uint32_t next_template_id_{1};
     std::uint32_t next_function_type_id_{1};
     std::uint32_t next_parameter_id_{1};
+    std::uint32_t next_calculation_id_{1};
+    std::uint32_t next_calculation_port_id_{1};
 };
 
 } // namespace clife::world

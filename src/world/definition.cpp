@@ -33,6 +33,27 @@ void require_name(std::string_view name, const char* context)
     return names;
 }
 
+[[nodiscard]] std::vector<ParameterName> calculation_expression_names(const CalculationDefinition& calculation)
+{
+    std::vector<ParameterName> names;
+    names.reserve(calculation.inputs.size() + calculation.outputs.size());
+    for (const CalculationInputDefinition& input : calculation.inputs) {
+        names.push_back({.parameter = ParameterId{input.id.value}, .name = input.name});
+    }
+    for (const CalculationOutputDefinition& output : calculation.outputs) {
+        names.push_back({.parameter = ParameterId{output.id.value}, .name = output.name});
+    }
+    return names;
+}
+
+[[nodiscard]] bool calculation_port_name_exists(const CalculationDefinition& calculation, std::string_view name)
+{
+    return std::ranges::any_of(calculation.inputs,
+                               [name](const CalculationInputDefinition& input) { return input.name == name; }) ||
+           std::ranges::any_of(calculation.outputs,
+                               [name](const CalculationOutputDefinition& output) { return output.name == name; });
+}
+
 } // namespace
 
 ValueKey WorldDefinition::add_value(std::string name)
@@ -372,6 +393,60 @@ void WorldDefinition::remove_function_material_contribution(FunctionTypeId type_
     }
 }
 
+CalculationId WorldDefinition::add_calculation(std::string name)
+{
+    require_name(name, "calculation");
+    if (std::ranges::any_of(calculations_, [&name](const CalculationDefinition& calculation) {
+            return calculation.name == name;
+        })) {
+        throw std::invalid_argument{"calculation name must be unique"};
+    }
+    if (next_calculation_id_ == 0) {
+        throw std::overflow_error{"CalculationId space exhausted"};
+    }
+    const CalculationId id{next_calculation_id_++};
+    calculations_.push_back({.id = id, .name = std::move(name)});
+    return id;
+}
+
+CalculationPortId WorldDefinition::add_calculation_input(CalculationId calculation_id, std::string name)
+{
+    require_name(name, "calculation port");
+    CalculationDefinition& calculation = mutable_calculation(calculation_id);
+    if (calculation_port_name_exists(calculation, name)) {
+        throw std::invalid_argument{"calculation port name must be unique within a calculation"};
+    }
+    if (next_calculation_port_id_ == 0) {
+        throw std::overflow_error{"CalculationPortId space exhausted"};
+    }
+    const CalculationPortId id{next_calculation_port_id_++};
+    calculation.inputs.push_back({.id = id, .name = std::move(name)});
+    return id;
+}
+
+CalculationPortId WorldDefinition::add_calculation_output(CalculationId calculation_id, std::string name,
+                                                           std::string_view expression_source)
+{
+    require_name(name, "calculation port");
+    CalculationDefinition& calculation = mutable_calculation(calculation_id);
+    if (calculation_port_name_exists(calculation, name)) {
+        throw std::invalid_argument{"calculation port name must be unique within a calculation"};
+    }
+    const std::vector<ParameterName> names = calculation_expression_names(calculation);
+    Expression expression = compile_expression(expression_source, names);
+    if (next_calculation_port_id_ == 0) {
+        throw std::overflow_error{"CalculationPortId space exhausted"};
+    }
+    const CalculationPortId id{next_calculation_port_id_++};
+    calculation.outputs.push_back({
+        .id = id,
+        .name = std::move(name),
+        .expression_source = std::string{expression_source},
+        .expression = std::move(expression),
+    });
+    return id;
+}
+
 std::size_t WorldDefinition::add_genome_function(TemplateId id, FunctionTypeId type_id)
 {
     const FunctionTypeDefinition& type = function_type(type_id);
@@ -471,6 +546,8 @@ void WorldDefinition::remove_host_binding(TemplateId id, std::size_t index)
 const std::vector<ValueDefinition>& WorldDefinition::values() const noexcept { return values_; }
 const std::vector<ObjectTemplate>& WorldDefinition::templates() const noexcept { return templates_; }
 const std::vector<FunctionTypeDefinition>& WorldDefinition::function_types() const noexcept { return function_types_; }
+
+const std::vector<CalculationDefinition>& WorldDefinition::calculations() const noexcept { return calculations_; }
 const std::vector<WorldRuleDefinition>& WorldDefinition::world_rules() const noexcept { return world_rules_; }
 
 const ValueDefinition& WorldDefinition::value(ValueKey key) const
@@ -500,6 +577,15 @@ const FunctionTypeDefinition& WorldDefinition::function_type(FunctionTypeId id) 
     return *found;
 }
 
+const CalculationDefinition& WorldDefinition::calculation(CalculationId id) const
+{
+    const auto found = std::ranges::find(calculations_, id, &CalculationDefinition::id);
+    if (found == calculations_.end()) {
+        throw std::out_of_range{"CalculationId is out of range"};
+    }
+    return *found;
+}
+
 ObjectTemplate& WorldDefinition::mutable_template(TemplateId id)
 {
     return const_cast<ObjectTemplate&>(std::as_const(*this).object_template(id));
@@ -508,6 +594,11 @@ ObjectTemplate& WorldDefinition::mutable_template(TemplateId id)
 FunctionTypeDefinition& WorldDefinition::mutable_function_type(FunctionTypeId id)
 {
     return const_cast<FunctionTypeDefinition&>(std::as_const(*this).function_type(id));
+}
+
+CalculationDefinition& WorldDefinition::mutable_calculation(CalculationId id)
+{
+    return const_cast<CalculationDefinition&>(std::as_const(*this).calculation(id));
 }
 
 bool WorldDefinition::parameter_belongs_to(const FunctionTypeDefinition& type, ParameterId parameter) const noexcept

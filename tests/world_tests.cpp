@@ -1,4 +1,5 @@
 #include <clife/world/definition.hpp>
+#include <clife/world/calculation.hpp>
 #include <clife/world/phenotype.hpp>
 #include <clife/world/runtime.hpp>
 
@@ -512,6 +513,78 @@ bool test_editable_phenotype_formula_definitions()
                          "removing a missing material contribution is rejected");
 }
 
+bool test_reusable_calculation_definitions()
+{
+    WorldDefinition definition;
+    const clife::world::CalculationId convert = definition.add_calculation("Convert");
+    const clife::world::CalculationId another = definition.add_calculation("Another");
+    const clife::world::CalculationPortId input = definition.add_calculation_input(convert, "a");
+    const clife::world::CalculationPortId output_b = definition.add_calculation_output(convert, "b", "a * 0.8");
+    const clife::world::CalculationPortId output_c = definition.add_calculation_output(convert, "c", "a - b");
+
+    if (!expect_true(convert.value != another.value && input.value != output_b.value && output_b.value != output_c.value,
+                     "calculations and ports have stable distinct identities") ||
+        !expect_true(definition.calculations().size() == 2 && definition.calculation(convert).inputs.size() == 1 &&
+                         definition.calculation(convert).outputs[1].expression_source == "a - b",
+                     "calculation definition keeps ports and expression source")) {
+        return false;
+    }
+
+    const std::array inputs{clife::world::CalculationPortAmount{.port = input, .amount = 1.0}};
+    const auto results = clife::world::evaluate_calculation(definition.calculation(convert), inputs);
+    const auto b = std::ranges::find(results, output_b, &clife::world::CalculationPortAmount::port);
+    const auto c = std::ranges::find(results, output_c, &clife::world::CalculationPortAmount::port);
+    if (!expect_true(b != results.end() && c != results.end(), "calculation returns outputs by stable port id") ||
+        !expect_near(b->amount, 0.8, "first output is evaluated") ||
+        !expect_near(c->amount, 0.2, "later output can reference earlier output") ||
+        !expect_throws([&] { (void)definition.add_calculation_input(convert, "a"); },
+                       "calculation input names are unique") ||
+        !expect_throws([&] { (void)definition.add_calculation_output(convert, "a", "1"); },
+                       "input and output names share one namespace") ||
+        !expect_throws([&] { (void)definition.add_calculation_output(convert, "b", "1"); },
+                       "calculation output names are unique")) {
+        return false;
+    }
+
+    const clife::world::CalculationId invalid = definition.add_calculation("Invalid");
+    (void)definition.add_calculation_input(invalid, "a");
+    if (!expect_throws([&] { (void)definition.add_calculation_output(invalid, "b", "a - c"); },
+                       "calculation output cannot reference a future output") ||
+        !expect_throws([&] { (void)definition.add_calculation_output(invalid, "b", "missing"); },
+                       "calculation output cannot reference an unknown name")) {
+        return false;
+    }
+
+    const clife::world::CalculationId two_inputs = definition.add_calculation("Two inputs");
+    const clife::world::CalculationPortId a = definition.add_calculation_input(two_inputs, "a");
+    const clife::world::CalculationPortId x = definition.add_calculation_input(two_inputs, "x");
+    const clife::world::CalculationPortId sum = definition.add_calculation_output(two_inputs, "sum", "a + x");
+    const std::array complete_inputs{
+        clife::world::CalculationPortAmount{.port = a, .amount = 2.0},
+        clife::world::CalculationPortAmount{.port = x, .amount = 3.0},
+    };
+    if (!expect_near(clife::world::evaluate_calculation(definition.calculation(two_inputs), complete_inputs)[0].amount,
+                     5.0, "two calculation inputs are available to expressions") ||
+        !expect_true(clife::world::evaluate_calculation(definition.calculation(two_inputs), complete_inputs)[0].port == sum,
+                     "calculation output keeps its stable port id")) {
+        return false;
+    }
+
+    const std::array missing_input{clife::world::CalculationPortAmount{.port = a, .amount = 2.0}};
+    const std::array duplicate_input{
+        clife::world::CalculationPortAmount{.port = a, .amount = 2.0},
+        clife::world::CalculationPortAmount{.port = a, .amount = 3.0},
+    };
+    const std::array unknown_input{clife::world::CalculationPortAmount{
+        .port = clife::world::CalculationPortId{9999}, .amount = 1.0}};
+    return expect_throws([&] { (void)clife::world::evaluate_calculation(definition.calculation(two_inputs), missing_input); },
+                         "missing calculation input is rejected") &&
+           expect_throws([&] { (void)clife::world::evaluate_calculation(definition.calculation(two_inputs), duplicate_input); },
+                         "duplicate calculation input is rejected") &&
+           expect_throws([&] { (void)clife::world::evaluate_calculation(definition.calculation(convert), unknown_input); },
+                         "unknown calculation input port is rejected");
+}
+
 bool test_expression_operations_and_validation()
 {
     const ParameterId input{42};
@@ -563,6 +636,7 @@ int main()
                    test_world_rules_are_distinct_and_compile() && test_removed_template_ids_are_not_reused() &&
                    test_value_storage_order_does_not_define_semantics() && test_mutation_api_and_runtime_validation() &&
                    test_genotype_compiles_to_derived_phenotype() && test_editable_phenotype_formula_definitions() &&
+                   test_reusable_calculation_definitions() &&
                    test_expression_operations_and_validation() &&
                    test_invalid_derived_results_are_rejected()
                ? 0
