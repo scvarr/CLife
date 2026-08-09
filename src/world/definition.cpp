@@ -18,6 +18,21 @@ void require_name(std::string_view name, const char* context)
     }
 }
 
+[[nodiscard]] std::vector<ParameterName> expression_parameter_names(const FunctionTypeDefinition& type,
+                                                                     std::size_t derived_count)
+{
+    std::vector<ParameterName> names;
+    names.reserve(type.genome_parameters.size() + derived_count);
+    for (const GenomeParameterDefinition& parameter : type.genome_parameters) {
+        names.push_back({.parameter = parameter.id, .name = parameter.name});
+    }
+    for (std::size_t index = 0; index < derived_count; ++index) {
+        const DerivedParameterDefinition& parameter = type.derived_parameters[index];
+        names.push_back({.parameter = parameter.id, .name = parameter.name});
+    }
+    return names;
+}
+
 } // namespace
 
 ValueKey WorldDefinition::add_value(std::string name)
@@ -228,21 +243,34 @@ ParameterId WorldDefinition::add_derived_parameter(FunctionTypeId type_id, std::
         std::ranges::any_of(type.derived_parameters, duplicate_name)) {
         throw std::invalid_argument{"parameter name must be unique within a function type"};
     }
-    std::vector<ParameterName> names;
-    names.reserve(type.genome_parameters.size() + type.derived_parameters.size());
-    for (const GenomeParameterDefinition& parameter : type.genome_parameters) {
-        names.push_back({.parameter = parameter.id, .name = parameter.name});
-    }
-    for (const DerivedParameterDefinition& parameter : type.derived_parameters) {
-        names.push_back({.parameter = parameter.id, .name = parameter.name});
-    }
+    const std::vector<ParameterName> names = expression_parameter_names(type, type.derived_parameters.size());
     Expression expression = compile_expression(expression_source, names);
     if (next_parameter_id_ == 0) {
         throw std::overflow_error{"ParameterId space exhausted"};
     }
     const ParameterId id{next_parameter_id_++};
-    type.derived_parameters.push_back({.id = id, .name = std::move(name), .expression = std::move(expression)});
+    type.derived_parameters.push_back({
+        .id = id,
+        .name = std::move(name),
+        .expression_source = std::string{expression_source},
+        .expression = std::move(expression),
+    });
     return id;
+}
+
+void WorldDefinition::set_derived_parameter_expression(FunctionTypeId type_id, ParameterId parameter_id,
+                                                        std::string_view expression_source)
+{
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    const auto parameter = std::ranges::find(type.derived_parameters, parameter_id, &DerivedParameterDefinition::id);
+    if (parameter == type.derived_parameters.end()) {
+        throw std::invalid_argument{"ParameterId is not a derived parameter for this function type"};
+    }
+    const std::size_t index = static_cast<std::size_t>(parameter - type.derived_parameters.begin());
+    const std::vector<ParameterName> names = expression_parameter_names(type, index);
+    Expression expression = compile_expression(expression_source, names);
+    parameter->expression_source = std::string{expression_source};
+    parameter->expression = std::move(expression);
 }
 
 void WorldDefinition::rename_parameter(FunctionTypeId type_id, ParameterId parameter_id, std::string name)
@@ -305,18 +333,43 @@ void WorldDefinition::add_function_material_contribution(FunctionTypeId type_id,
                             [key](const MaterialContributionDefinition& item) { return item.value == key; })) {
         throw std::invalid_argument{"function type has more than one contribution for a material value"};
     }
-    std::vector<ParameterName> names;
-    names.reserve(type.genome_parameters.size() + type.derived_parameters.size());
-    for (const GenomeParameterDefinition& parameter : type.genome_parameters) {
-        names.push_back({.parameter = parameter.id, .name = parameter.name});
-    }
-    for (const DerivedParameterDefinition& parameter : type.derived_parameters) {
-        names.push_back({.parameter = parameter.id, .name = parameter.name});
-    }
+    const std::vector<ParameterName> names = expression_parameter_names(type, type.derived_parameters.size());
+    Expression expression = compile_expression(expression_source, names);
     type.material_contributions.push_back({
         .value = key,
-        .amount = compile_expression(expression_source, names),
+        .expression_source = std::string{expression_source},
+        .amount = std::move(expression),
     });
+}
+
+void WorldDefinition::set_function_material_contribution(FunctionTypeId type_id, ValueKey key,
+                                                          std::string_view expression_source)
+{
+    (void)value(key);
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    const std::vector<ParameterName> names = expression_parameter_names(type, type.derived_parameters.size());
+    Expression expression = compile_expression(expression_source, names);
+    const auto contribution =
+        std::ranges::find(type.material_contributions, key, &MaterialContributionDefinition::value);
+    if (contribution == type.material_contributions.end()) {
+        type.material_contributions.push_back({
+            .value = key,
+            .expression_source = std::string{expression_source},
+            .amount = std::move(expression),
+        });
+        return;
+    }
+    contribution->expression_source = std::string{expression_source};
+    contribution->amount = std::move(expression);
+}
+
+void WorldDefinition::remove_function_material_contribution(FunctionTypeId type_id, ValueKey key)
+{
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    if (std::erase_if(type.material_contributions,
+                      [key](const MaterialContributionDefinition& item) { return item.value == key; }) == 0) {
+        throw std::invalid_argument{"function material contribution does not exist"};
+    }
 }
 
 std::size_t WorldDefinition::add_genome_function(TemplateId id, FunctionTypeId type_id)

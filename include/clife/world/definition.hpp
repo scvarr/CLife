@@ -28,6 +28,7 @@ struct GenomeParameterDefinition final {
 struct DerivedParameterDefinition final {
     ParameterId id;
     std::string name;
+    std::string expression_source;
     Expression expression;
 };
 
@@ -47,6 +48,7 @@ struct BufferProcessDefinition final {
 
 struct MaterialContributionDefinition final {
     ValueKey value;
+    std::string expression_source;
     Expression amount;
 };
 
@@ -120,10 +122,13 @@ public:
     void rename_function_type(FunctionTypeId id, std::string name);
     [[nodiscard]] ParameterId add_genome_parameter(FunctionTypeId type, std::string name, Amount default_value);
     [[nodiscard]] ParameterId add_derived_parameter(FunctionTypeId type, std::string name, std::string_view expression);
+    void set_derived_parameter_expression(FunctionTypeId type, ParameterId parameter, std::string_view expression);
     void rename_parameter(FunctionTypeId type, ParameterId parameter, std::string name);
     void set_function_process(FunctionTypeId type, FunctionProcessDefinition process);
     void set_buffer_process(FunctionTypeId type, BufferProcessDefinition process);
     void add_function_material_contribution(FunctionTypeId type, ValueKey value, std::string_view expression);
+    void set_function_material_contribution(FunctionTypeId type, ValueKey value, std::string_view expression);
+    void remove_function_material_contribution(FunctionTypeId type, ValueKey value);
 
     [[nodiscard]] std::size_t add_genome_function(TemplateId id, FunctionTypeId type);
     void set_genome_parameter(TemplateId id, std::size_t index, ParameterId parameter, Amount value);

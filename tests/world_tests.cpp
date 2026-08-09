@@ -438,6 +438,80 @@ bool test_genotype_compiles_to_derived_phenotype()
            expect_true(another.value > storage.value, "FunctionTypeId is not rebound after rename");
 }
 
+bool test_editable_phenotype_formula_definitions()
+{
+    WorldDefinition definition;
+    const ValueKey material = definition.add_value("Material");
+    const TemplateId object = definition.add_template("Object");
+    const FunctionTypeId type = definition.add_function_type("Function");
+    (void)definition.add_genome_parameter(type, "input", 2.0);
+    const ParameterId size = definition.add_derived_parameter(type, "size", "input");
+    (void)definition.add_derived_parameter(type, "later", "size + 1");
+    const std::size_t instance = definition.add_genome_function(object, type);
+
+    if (!expect_true(definition.function_type(type).derived_parameters[0].expression_source == "input",
+                     "derived parameter keeps expression source") ||
+        !expect_throws([&] { definition.set_derived_parameter_expression(type, size, "size"); },
+                       "derived parameter cannot reference itself") ||
+        !expect_throws([&] { definition.set_derived_parameter_expression(type, size, "later"); },
+                       "derived parameter cannot reference a later parameter") ||
+        !expect_throws([&] { definition.set_derived_parameter_expression(type, size, "missing"); },
+                       "invalid derived replacement is rejected")) {
+        return false;
+    }
+
+    const auto initial = clife::world::compile_phenotype(definition, object);
+    if (!expect_near(initial.function(instance).parameter(size), 2.0, "initial derived formula compiles") ||
+        !expect_true(definition.function_type(type).derived_parameters[0].expression_source == "input",
+                     "invalid derived replacement keeps source")) {
+        return false;
+    }
+
+    definition.set_derived_parameter_expression(type, size, "input * 3");
+    if (!expect_near(clife::world::compile_phenotype(definition, object).function(instance).parameter(size), 6.0,
+                     "replaced derived formula changes phenotype") ||
+        !expect_throws([&] { definition.set_derived_parameter_expression(type, size, "unknown + 1"); },
+                       "invalid derived formula keeps prior behavior") ||
+        !expect_true(definition.function_type(type).derived_parameters[0].expression_source == "input * 3",
+                     "replaced derived formula keeps source") ||
+        !expect_near(clife::world::compile_phenotype(definition, object).function(instance).parameter(size), 6.0,
+                     "invalid derived formula leaves phenotype unchanged")) {
+        return false;
+    }
+
+    definition.set_function_material_contribution(type, material, "size");
+    if (!expect_true(definition.function_type(type).material_contributions.size() == 1 &&
+                         definition.function_type(type).material_contributions[0].expression_source == "size",
+                     "material contribution is created with source") ||
+        !expect_near(clife::world::compile_phenotype(definition, object).material_amount(material), 6.0,
+                     "created material expression affects phenotype")) {
+        return false;
+    }
+
+    definition.set_function_material_contribution(type, material, "size * 2");
+    if (!expect_true(definition.function_type(type).material_contributions.size() == 1 &&
+                         definition.function_type(type).material_contributions[0].expression_source == "size * 2",
+                     "material contribution is replaced without duplication") ||
+        !expect_near(clife::world::compile_phenotype(definition, object).material_amount(material), 12.0,
+                     "replaced material expression affects phenotype") ||
+        !expect_throws([&] { definition.set_function_material_contribution(type, material, "missing"); },
+                       "invalid material formula is rejected") ||
+        !expect_true(definition.function_type(type).material_contributions[0].expression_source == "size * 2",
+                     "invalid material formula keeps source") ||
+        !expect_near(clife::world::compile_phenotype(definition, object).material_amount(material), 12.0,
+                     "invalid material formula leaves phenotype unchanged")) {
+        return false;
+    }
+
+    definition.remove_function_material_contribution(type, material);
+    return expect_true(definition.function_type(type).material_contributions.empty(),
+                       "material contribution is removed") &&
+           expect_near(clife::world::compile_phenotype(definition, object).material_amount(material), 0.0,
+                       "removed material contribution leaves no phenotype material") &&
+           expect_throws([&] { definition.remove_function_material_contribution(type, material); },
+                         "removing a missing material contribution is rejected");
+}
+
 bool test_expression_operations_and_validation()
 {
     const ParameterId input{42};
@@ -488,7 +562,8 @@ int main()
                    test_runtime_objects_are_independent() && test_invalid_references_and_definitions_are_rejected() &&
                    test_world_rules_are_distinct_and_compile() && test_removed_template_ids_are_not_reused() &&
                    test_value_storage_order_does_not_define_semantics() && test_mutation_api_and_runtime_validation() &&
-                   test_genotype_compiles_to_derived_phenotype() && test_expression_operations_and_validation() &&
+                   test_genotype_compiles_to_derived_phenotype() && test_editable_phenotype_formula_definitions() &&
+                   test_expression_operations_and_validation() &&
                    test_invalid_derived_results_are_rejected()
                ? 0
                : 1;
