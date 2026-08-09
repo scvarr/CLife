@@ -585,6 +585,147 @@ bool test_reusable_calculation_definitions()
                          "unknown calculation input port is rejected");
 }
 
+bool test_world_definition_snapshot_round_trip()
+{
+    WorldDefinition definition;
+    const ValueKey light = definition.add_value("Light");
+    const ValueKey energy = definition.add_value("Energy");
+    const ValueKey organic = definition.add_value("Organic");
+    const ValueKey heat = definition.add_value("Heat");
+    const FunctionTypeId absorption = definition.add_function_type("Absorption");
+    const ParameterId throughput = definition.add_genome_parameter(absorption, "throughput", 1.0);
+    const ParameterId size = definition.add_derived_parameter(absorption, "size", "throughput * 2");
+    definition.set_function_process(absorption, {
+                                                  .input = light,
+                                                  .output = energy,
+                                                  .throughput = throughput,
+                                                  .result_per_input = size,
+                                              });
+    definition.add_function_material_contribution(absorption, organic, "1 + size");
+
+    const FunctionTypeId storage = definition.add_function_type("Storage");
+    const ParameterId capacity = definition.add_genome_parameter(storage, "capacity", 5.0);
+    const ParameterId storage_throughput = definition.add_genome_parameter(storage, "throughput", 1.5);
+    const ParameterId leakage = definition.add_genome_parameter(storage, "leakage", 0.1);
+    definition.set_buffer_process(storage, {
+                                            .value = energy,
+                                            .capacity = capacity,
+                                            .throughput = storage_throughput,
+                                            .leakage = leakage,
+                                        });
+
+    const clife::world::CalculationId calculation = definition.add_calculation("Convert");
+    const clife::world::CalculationPortId input = definition.add_calculation_input(calculation, "a");
+    const clife::world::CalculationPortId output_b = definition.add_calculation_output(calculation, "b", "a * 0.8");
+    const clife::world::CalculationPortId output_c = definition.add_calculation_output(calculation, "c", "a - b");
+
+    const TemplateId cell = definition.add_template("Cell");
+    definition.set_initial_value(cell, energy, 3.0);
+    definition.set_template_material_contribution(cell, organic, 2.0);
+    const std::size_t absorption_instance = definition.add_genome_function(cell, absorption);
+    definition.set_genome_parameter(cell, absorption_instance, throughput, 3.0);
+    (void)definition.add_genome_function(cell, storage);
+    (void)definition.add_host_binding(cell, {
+                                               .channel = "world.light",
+                                               .direction = HostChannelDirection::input,
+                                               .value = light,
+                                           });
+    (void)definition.add_host_binding(cell, {
+                                               .channel = "geometry.volume",
+                                               .direction = HostChannelDirection::output,
+                                               .value = organic,
+                                           });
+    (void)definition.add_world_rule({.source = energy, .end_buffer = heat, .target = heat, .target_per_source = 0.5});
+
+    const clife::world::WorldDefinitionSnapshot snapshot = definition.snapshot();
+    const WorldDefinition restored = WorldDefinition::from_snapshot(snapshot);
+    const auto& restored_type = restored.function_type(absorption);
+    const auto& restored_calculation = restored.calculation(calculation);
+    const auto& restored_cell = restored.object_template(cell);
+    if (!expect_true(restored.values().size() == 4 && restored.values()[0].key == light &&
+                         restored.function_types().size() == 2 && restored_type.id == absorption &&
+                         restored_type.genome_parameters[0].id == throughput &&
+                         restored_type.derived_parameters[0].id == size &&
+                         restored_type.derived_parameters[0].expression_source == "throughput * 2" &&
+                         restored_type.material_contributions[0].expression_source == "1 + size" &&
+                         restored.function_type(storage).buffer_process.has_value() &&
+                         restored.calculations().size() == 1 && restored_calculation.inputs[0].id == input &&
+                         restored_calculation.outputs[0].id == output_b && restored_calculation.outputs[1].id == output_c &&
+                         restored_calculation.outputs[1].expression_source == "a - b" &&
+                         restored.templates().size() == 1 && restored_cell.id == cell &&
+                         restored_cell.initial_values[0].value == energy && restored_cell.initial_values[0].amount == 3.0 &&
+                         restored_cell.material_contributions[0].value == organic &&
+                         restored_cell.genome[0].parameters[0].value == 3.0 && restored_cell.host_bindings.size() == 2 &&
+                         restored.world_rules().size() == 1 && restored.world_rules()[0].source == energy,
+                     "snapshot restores definition IDs, references, and source text")) {
+        return false;
+    }
+
+    const auto original_phenotype = clife::world::compile_phenotype(definition, cell);
+    const auto restored_phenotype = clife::world::compile_phenotype(restored, cell);
+    const std::array calculation_inputs{clife::world::CalculationPortAmount{.port = input, .amount = 1.0}};
+    const auto original_results = clife::world::evaluate_calculation(definition.calculation(calculation), calculation_inputs);
+    const auto restored_results = clife::world::evaluate_calculation(restored_calculation, calculation_inputs);
+    return expect_near(restored_phenotype.function(absorption_instance).parameter(size),
+                       original_phenotype.function(absorption_instance).parameter(size),
+                       "snapshot rebuilds derived expression behavior") &&
+           expect_near(restored_phenotype.material_amount(organic), original_phenotype.material_amount(organic),
+                       "snapshot rebuilds material expression behavior") &&
+           expect_near(restored_results[0].amount, original_results[0].amount,
+                       "snapshot rebuilds first calculation output") &&
+           expect_near(restored_results[1].amount, original_results[1].amount,
+                       "snapshot rebuilds dependent calculation output");
+}
+
+bool test_snapshot_preserves_next_ids_and_rejects_invalid_data()
+{
+    WorldDefinition definition;
+    (void)definition.add_value("One");
+    (void)definition.add_value("Two");
+    const ValueKey removed_value = definition.add_value("Removed");
+    definition.remove_value(removed_value);
+    (void)definition.add_template("One");
+    (void)definition.add_template("Two");
+    const TemplateId removed_template = definition.add_template("Removed");
+    definition.remove_template(removed_template);
+    const auto snapshot = definition.snapshot();
+    WorldDefinition restored = WorldDefinition::from_snapshot(snapshot);
+    if (!expect_true(restored.add_value("After restore").value == 4,
+                     "snapshot preserves next ValueKey after a deletion") ||
+        !expect_true(restored.add_template("After restore").value == 4,
+                     "snapshot preserves next TemplateId after a deletion")) {
+        return false;
+    }
+
+    auto duplicate_id = snapshot;
+    duplicate_id.values.push_back(duplicate_id.values.front());
+    auto unknown_value = snapshot;
+    unknown_value.world_rules.push_back({
+        .source = unknown_value.values.front().key,
+        .end_buffer = ValueKey{999},
+        .target = unknown_value.values.front().key,
+        .target_per_source = 1.0,
+    });
+    auto invalid_counter = snapshot;
+    invalid_counter.next_value_key = 1;
+
+    WorldDefinition formulas;
+    const FunctionTypeId type = formulas.add_function_type("Type");
+    (void)formulas.add_genome_parameter(type, "input", 1.0);
+    (void)formulas.add_derived_parameter(type, "output", "input");
+    auto invalid_expression = formulas.snapshot();
+    invalid_expression.function_types[0].derived_parameters[0].expression_source = "missing";
+
+    return expect_throws([&] { (void)WorldDefinition::from_snapshot(duplicate_id); },
+                         "snapshot rejects duplicate stable IDs") &&
+           expect_throws([&] { (void)WorldDefinition::from_snapshot(unknown_value); },
+                         "snapshot rejects unknown ValueKey references") &&
+           expect_throws([&] { (void)WorldDefinition::from_snapshot(invalid_expression); },
+                         "snapshot rejects invalid expressions") &&
+           expect_throws([&] { (void)WorldDefinition::from_snapshot(invalid_counter); },
+                         "snapshot rejects reusable next IDs");
+}
+
 bool test_expression_operations_and_validation()
 {
     const ParameterId input{42};
@@ -636,7 +777,8 @@ int main()
                    test_world_rules_are_distinct_and_compile() && test_removed_template_ids_are_not_reused() &&
                    test_value_storage_order_does_not_define_semantics() && test_mutation_api_and_runtime_validation() &&
                    test_genotype_compiles_to_derived_phenotype() && test_editable_phenotype_formula_definitions() &&
-                   test_reusable_calculation_definitions() &&
+                   test_reusable_calculation_definitions() && test_world_definition_snapshot_round_trip() &&
+                   test_snapshot_preserves_next_ids_and_rejects_invalid_data() &&
                    test_expression_operations_and_validation() &&
                    test_invalid_derived_results_are_rejected()
                ? 0

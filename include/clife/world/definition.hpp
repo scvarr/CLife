@@ -123,6 +123,55 @@ struct WorldRuleDefinition final {
     Amount target_per_source;
 };
 
+struct DerivedParameterSnapshot final {
+    ParameterId id;
+    std::string name;
+    std::string expression_source;
+};
+
+struct MaterialContributionSnapshot final {
+    ValueKey value;
+    std::string expression_source;
+};
+
+struct FunctionTypeSnapshot final {
+    FunctionTypeId id;
+    std::string name;
+    std::vector<GenomeParameterDefinition> genome_parameters;
+    std::vector<DerivedParameterSnapshot> derived_parameters;
+    std::optional<FunctionProcessDefinition> process;
+    std::optional<BufferProcessDefinition> buffer_process;
+    std::vector<MaterialContributionSnapshot> material_contributions;
+};
+
+struct CalculationOutputSnapshot final {
+    CalculationPortId id;
+    std::string name;
+    std::string expression_source;
+};
+
+struct CalculationSnapshot final {
+    CalculationId id;
+    std::string name;
+    std::vector<CalculationInputDefinition> inputs;
+    std::vector<CalculationOutputSnapshot> outputs;
+};
+
+struct WorldDefinitionSnapshot final {
+    std::uint32_t schema_version{1};
+    std::vector<ValueDefinition> values;
+    std::vector<CalculationSnapshot> calculations;
+    std::vector<FunctionTypeSnapshot> function_types;
+    std::vector<ObjectTemplate> templates;
+    std::vector<WorldRuleDefinition> world_rules;
+    std::uint32_t next_value_key{1};
+    std::uint32_t next_template_id{1};
+    std::uint32_t next_function_type_id{1};
+    std::uint32_t next_parameter_id{1};
+    std::uint32_t next_calculation_id{1};
+    std::uint32_t next_calculation_port_id{1};
+};
+
 class WorldDefinition final {
 public:
     [[nodiscard]] ValueKey add_value(std::string name);
@@ -175,6 +224,8 @@ public:
     [[nodiscard]] const ObjectTemplate& object_template(TemplateId id) const;
     [[nodiscard]] const FunctionTypeDefinition& function_type(FunctionTypeId id) const;
     [[nodiscard]] const CalculationDefinition& calculation(CalculationId id) const;
+    [[nodiscard]] WorldDefinitionSnapshot snapshot() const;
+    [[nodiscard]] static WorldDefinition from_snapshot(const WorldDefinitionSnapshot& snapshot);
 
 private:
     [[nodiscard]] ObjectTemplate& mutable_template(TemplateId id);

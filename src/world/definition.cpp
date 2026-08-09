@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <limits>
 #include <stdexcept>
 #include <utility>
@@ -52,6 +53,48 @@ void require_name(std::string_view name, const char* context)
                                [name](const CalculationInputDefinition& input) { return input.name == name; }) ||
            std::ranges::any_of(calculation.outputs,
                                [name](const CalculationOutputDefinition& output) { return output.name == name; });
+}
+
+template <typename Entries, typename Project>
+void require_unique_snapshot_ids(const Entries& entries, Project project, const char* context)
+{
+    for (std::size_t index = 0; index < entries.size(); ++index) {
+        const auto id = std::invoke(project, entries[index]);
+        if (id.value == 0) {
+            throw std::invalid_argument{std::string{context} + " ID must not be zero"};
+        }
+        for (std::size_t other = 0; other < index; ++other) {
+            if (std::invoke(project, entries[other]) == id) {
+                throw std::invalid_argument{std::string{context} + " IDs must be unique"};
+            }
+        }
+    }
+}
+
+template <typename Entries>
+void require_unique_snapshot_names(const Entries& entries, const char* context)
+{
+    for (std::size_t index = 0; index < entries.size(); ++index) {
+        require_name(entries[index].name, context);
+        for (std::size_t other = 0; other < index; ++other) {
+            if (entries[other].name == entries[index].name) {
+                throw std::invalid_argument{std::string{context} + " names must be unique"};
+            }
+        }
+    }
+}
+
+template <typename Entries, typename Project>
+void require_next_id_is_unused(std::uint32_t next, const Entries& entries, Project project, const char* context)
+{
+    if (next == 0) {
+        return;
+    }
+    for (const auto& entry : entries) {
+        if (std::invoke(project, entry).value >= next) {
+            throw std::invalid_argument{std::string{"next "} + context + " ID would reuse an existing ID"};
+        }
+    }
 }
 
 } // namespace
@@ -584,6 +627,241 @@ const CalculationDefinition& WorldDefinition::calculation(CalculationId id) cons
         throw std::out_of_range{"CalculationId is out of range"};
     }
     return *found;
+}
+
+WorldDefinitionSnapshot WorldDefinition::snapshot() const
+{
+    WorldDefinitionSnapshot result{
+        .values = values_,
+        .templates = templates_,
+        .world_rules = world_rules_,
+        .next_value_key = next_value_key_,
+        .next_template_id = next_template_id_,
+        .next_function_type_id = next_function_type_id_,
+        .next_parameter_id = next_parameter_id_,
+        .next_calculation_id = next_calculation_id_,
+        .next_calculation_port_id = next_calculation_port_id_,
+    };
+    result.calculations.reserve(calculations_.size());
+    for (const CalculationDefinition& calculation : calculations_) {
+        CalculationSnapshot stored{.id = calculation.id, .name = calculation.name, .inputs = calculation.inputs};
+        for (const CalculationOutputDefinition& output : calculation.outputs) {
+            stored.outputs.push_back({.id = output.id, .name = output.name, .expression_source = output.expression_source});
+        }
+        result.calculations.push_back(std::move(stored));
+    }
+    result.function_types.reserve(function_types_.size());
+    for (const FunctionTypeDefinition& type : function_types_) {
+        FunctionTypeSnapshot stored{
+            .id = type.id,
+            .name = type.name,
+            .genome_parameters = type.genome_parameters,
+            .process = type.process,
+            .buffer_process = type.buffer_process,
+        };
+        for (const DerivedParameterDefinition& parameter : type.derived_parameters) {
+            stored.derived_parameters.push_back(
+                {.id = parameter.id, .name = parameter.name, .expression_source = parameter.expression_source});
+        }
+        for (const MaterialContributionDefinition& contribution : type.material_contributions) {
+            stored.material_contributions.push_back(
+                {.value = contribution.value, .expression_source = contribution.expression_source});
+        }
+        result.function_types.push_back(std::move(stored));
+    }
+    return result;
+}
+
+WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& source)
+{
+    if (source.schema_version != 1) {
+        throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version"};
+    }
+    require_unique_snapshot_ids(source.values, &ValueDefinition::key, "ValueKey");
+    require_unique_snapshot_names(source.values, "value");
+    require_unique_snapshot_ids(source.templates, &ObjectTemplate::id, "TemplateId");
+    require_unique_snapshot_names(source.templates, "template");
+    require_unique_snapshot_ids(source.function_types, &FunctionTypeSnapshot::id, "FunctionTypeId");
+    require_unique_snapshot_names(source.function_types, "function type");
+    require_unique_snapshot_ids(source.calculations, &CalculationSnapshot::id, "CalculationId");
+    require_unique_snapshot_names(source.calculations, "calculation");
+
+    WorldDefinition restored;
+    restored.values_ = source.values;
+
+    std::vector<ParameterId> parameter_ids;
+    for (const FunctionTypeSnapshot& stored : source.function_types) {
+        FunctionTypeDefinition type{.id = stored.id, .name = stored.name};
+        require_unique_snapshot_ids(stored.genome_parameters, &GenomeParameterDefinition::id, "ParameterId");
+        require_unique_snapshot_names(stored.genome_parameters, "parameter");
+        for (const GenomeParameterDefinition& parameter : stored.genome_parameters) {
+            if (!std::isfinite(parameter.default_value)) {
+                throw std::invalid_argument{"genome parameter default must be finite"};
+            }
+            if (std::ranges::find(parameter_ids, parameter.id) != parameter_ids.end()) {
+                throw std::invalid_argument{"ParameterId IDs must be globally unique"};
+            }
+            parameter_ids.push_back(parameter.id);
+            type.genome_parameters.push_back(parameter);
+        }
+        for (const DerivedParameterSnapshot& stored_parameter : stored.derived_parameters) {
+            require_name(stored_parameter.name, "parameter");
+            if (stored_parameter.id.value == 0 ||
+                std::ranges::find(parameter_ids, stored_parameter.id) != parameter_ids.end()) {
+                throw std::invalid_argument{"ParameterId IDs must be globally unique"};
+            }
+            if (std::ranges::any_of(type.genome_parameters, [&stored_parameter](const auto& parameter) {
+                    return parameter.name == stored_parameter.name;
+                }) || std::ranges::any_of(type.derived_parameters, [&stored_parameter](const auto& parameter) {
+                    return parameter.name == stored_parameter.name;
+                })) {
+                throw std::invalid_argument{"parameter name must be unique within a function type"};
+            }
+            const Expression expression = compile_expression(
+                stored_parameter.expression_source, expression_parameter_names(type, type.derived_parameters.size()));
+            parameter_ids.push_back(stored_parameter.id);
+            type.derived_parameters.push_back({
+                .id = stored_parameter.id,
+                .name = stored_parameter.name,
+                .expression_source = stored_parameter.expression_source,
+                .expression = expression,
+            });
+        }
+        if (stored.process && stored.buffer_process) {
+            throw std::invalid_argument{"function type cannot have both conversion and buffer processes"};
+        }
+        if (stored.process) {
+            (void)restored.value(stored.process->input);
+            (void)restored.value(stored.process->output);
+            if (!restored.parameter_belongs_to(type, stored.process->throughput) ||
+                !restored.parameter_belongs_to(type, stored.process->result_per_input)) {
+                throw std::invalid_argument{"process parameter does not belong to function type"};
+            }
+            type.process = stored.process;
+        }
+        if (stored.buffer_process) {
+            (void)restored.value(stored.buffer_process->value);
+            if (!restored.parameter_belongs_to(type, stored.buffer_process->capacity) ||
+                !restored.parameter_belongs_to(type, stored.buffer_process->throughput) ||
+                !restored.parameter_belongs_to(type, stored.buffer_process->leakage)) {
+                throw std::invalid_argument{"buffer parameter does not belong to function type"};
+            }
+            type.buffer_process = stored.buffer_process;
+        }
+        for (const MaterialContributionSnapshot& contribution : stored.material_contributions) {
+            (void)restored.value(contribution.value);
+            if (std::ranges::any_of(type.material_contributions, [&contribution](const auto& existing) {
+                    return existing.value == contribution.value;
+                })) {
+                throw std::invalid_argument{"function type has more than one contribution for a material value"};
+            }
+            type.material_contributions.push_back({
+                .value = contribution.value,
+                .expression_source = contribution.expression_source,
+                .amount = compile_expression(contribution.expression_source,
+                                             expression_parameter_names(type, type.derived_parameters.size())),
+            });
+        }
+        restored.function_types_.push_back(std::move(type));
+    }
+
+    std::vector<CalculationPortId> port_ids;
+    for (const CalculationSnapshot& stored : source.calculations) {
+        CalculationDefinition calculation{.id = stored.id, .name = stored.name};
+        for (const CalculationInputDefinition& input : stored.inputs) {
+            require_name(input.name, "calculation port");
+            if (input.id.value == 0 || std::ranges::find(port_ids, input.id) != port_ids.end() ||
+                calculation_port_name_exists(calculation, input.name)) {
+                throw std::invalid_argument{"CalculationPortId or name is not unique"};
+            }
+            port_ids.push_back(input.id);
+            calculation.inputs.push_back(input);
+        }
+        for (const CalculationOutputSnapshot& output : stored.outputs) {
+            require_name(output.name, "calculation port");
+            if (output.id.value == 0 || std::ranges::find(port_ids, output.id) != port_ids.end() ||
+                calculation_port_name_exists(calculation, output.name)) {
+                throw std::invalid_argument{"CalculationPortId or name is not unique"};
+            }
+            const Expression expression = compile_expression(output.expression_source, calculation_expression_names(calculation));
+            port_ids.push_back(output.id);
+            calculation.outputs.push_back({
+                .id = output.id,
+                .name = output.name,
+                .expression_source = output.expression_source,
+                .expression = expression,
+            });
+        }
+        restored.calculations_.push_back(std::move(calculation));
+    }
+
+    for (const ObjectTemplate& stored : source.templates) {
+        ObjectTemplate object{.id = stored.id, .name = stored.name};
+        for (const InitialValueDefinition& initial : stored.initial_values) {
+            (void)restored.value(initial.value);
+            if (!std::isfinite(initial.amount) ||
+                std::ranges::any_of(object.initial_values, [&initial](const auto& existing) {
+                    return existing.value == initial.value;
+                })) {
+                throw std::invalid_argument{"initial value must be finite and unique"};
+            }
+            object.initial_values.push_back(initial);
+        }
+        for (const TemplateMaterialContributionDefinition& contribution : stored.material_contributions) {
+            (void)restored.value(contribution.value);
+            if (!std::isfinite(contribution.amount) || contribution.amount < 0.0 ||
+                std::ranges::any_of(object.material_contributions, [&contribution](const auto& existing) {
+                    return existing.value == contribution.value;
+                })) {
+                throw std::invalid_argument{"template material contribution must be finite, non-negative, and unique"};
+            }
+            object.material_contributions.push_back(contribution);
+        }
+        for (const GenomeFunctionInstance& function : stored.genome) {
+            const FunctionTypeDefinition& type = restored.function_type(function.type);
+            if (function.parameters.size() != type.genome_parameters.size()) {
+                throw std::invalid_argument{"genome function parameters do not match its function type"};
+            }
+            for (const GenomeParameterDefinition& parameter : type.genome_parameters) {
+                const auto found = std::ranges::find(function.parameters, parameter.id, &ParameterValue::parameter);
+                if (found == function.parameters.end() || !std::isfinite(found->value) ||
+                    std::ranges::count(function.parameters, parameter.id, &ParameterValue::parameter) != 1) {
+                    throw std::invalid_argument{"genome function parameter is invalid"};
+                }
+            }
+            object.genome.push_back(function);
+        }
+        for (const HostBinding& binding : stored.host_bindings) {
+            if (binding.direction != HostChannelDirection::input && binding.direction != HostChannelDirection::output) {
+                throw std::invalid_argument{"host binding direction is invalid"};
+            }
+            restored.validate_binding(object, binding, kNoIndex);
+            object.host_bindings.push_back(binding);
+        }
+        restored.templates_.push_back(std::move(object));
+    }
+    for (const WorldRuleDefinition& rule : source.world_rules) {
+        restored.validate_rule(rule, kNoIndex);
+        restored.world_rules_.push_back(rule);
+    }
+
+    require_next_id_is_unused(source.next_value_key, source.values, &ValueDefinition::key, "ValueKey");
+    require_next_id_is_unused(source.next_template_id, source.templates, &ObjectTemplate::id, "TemplateId");
+    require_next_id_is_unused(source.next_function_type_id, source.function_types, &FunctionTypeSnapshot::id,
+                              "FunctionTypeId");
+    require_next_id_is_unused(source.next_parameter_id, parameter_ids, [](ParameterId id) { return id; },
+                              "ParameterId");
+    require_next_id_is_unused(source.next_calculation_id, source.calculations, &CalculationSnapshot::id,
+                              "CalculationId");
+    require_next_id_is_unused(source.next_calculation_port_id, port_ids, [](CalculationPortId id) { return id; },
+                              "CalculationPortId");
+    restored.next_value_key_ = source.next_value_key;
+    restored.next_template_id_ = source.next_template_id;
+    restored.next_function_type_id_ = source.next_function_type_id;
+    restored.next_parameter_id_ = source.next_parameter_id;
+    restored.next_calculation_id_ = source.next_calculation_id;
+    restored.next_calculation_port_id_ = source.next_calculation_port_id;
+    return restored;
 }
 
 ObjectTemplate& WorldDefinition::mutable_template(TemplateId id)
