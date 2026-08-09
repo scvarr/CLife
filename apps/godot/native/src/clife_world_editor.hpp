@@ -1,6 +1,5 @@
 #pragma once
 
-#include <clife/presets/first_world.hpp>
 #include <clife/world/runtime.hpp>
 
 #include <godot_cpp/classes/ref_counted.hpp>

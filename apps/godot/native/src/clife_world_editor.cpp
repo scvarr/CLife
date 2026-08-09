@@ -108,14 +108,7 @@ godot::String direction_name(world::HostChannelDirection direction)
 
 } // namespace
 
-CLifeWorldEditor::CLifeWorldEditor()
-{
-    presets::FirstWorldPreset preset = presets::make_first_world_preset();
-    selected_template_ = preset.cell;
-    definition_ = std::move(preset.definition);
-    host_inputs_.emplace(std::string{presets::kLightInputChannel}, 1.0);
-    ensure_host_inputs(definition_, *selected_template_);
-}
+CLifeWorldEditor::CLifeWorldEditor() = default;
 
 CLifeWorldEditor::~CLifeWorldEditor() = default;
 

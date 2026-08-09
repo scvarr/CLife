@@ -16,7 +16,7 @@ FetchContent_MakeAvailable(godot_cpp)
 if(MSVC)
     # Keep the adapter warning policy while isolating one warning emitted by pinned generated godot-cpp code.
     target_compile_options(godot-cpp PRIVATE "$<$<CXX_COMPILER_ID:MSVC>:/wd4146>")
-    foreach(clife_target IN ITEMS clife_core clife_world clife_presets)
+    foreach(clife_target IN ITEMS clife_core clife_world)
         set_property(TARGET ${clife_target} PROPERTY MSVC_RUNTIME_LIBRARY MultiThreaded)
         target_compile_definitions(${clife_target} PRIVATE _ITERATOR_DEBUG_LEVEL=0)
     endforeach()
@@ -33,7 +33,7 @@ target_include_directories(clife_godot SYSTEM PRIVATE
     "${godot_cpp_BINARY_DIR}/gen/include"
     "${godot_cpp_SOURCE_DIR}/gdextension"
 )
-target_link_libraries(clife_godot PRIVATE clife::presets godot-cpp)
+target_link_libraries(clife_godot PRIVATE clife::world godot-cpp)
 target_compile_features(clife_godot PRIVATE cxx_std_20)
 clife_enable_warnings(clife_godot)
 
