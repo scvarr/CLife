@@ -858,6 +858,7 @@ func _on_reset() -> void:
 func _select_preview_runtime_object() -> void:
 	object_views.clear()
 	$Cell.scale = Vector3.ONE
+	_refresh_preview_visibility()
 	object_views[editor.get_preview_object_id()] = $Cell
 	runtime_object_selected = true
 	_show_runtime_inspector()
@@ -913,7 +914,7 @@ func _refresh_mode() -> void:
 
 
 func _refresh_preview_visibility() -> void:
-	$Cell.visible = editor.get_selected_template_id() != 0
+	$Cell.visible = editor.is_run_active()
 
 
 func _apply_runtime_to_views() -> void:
