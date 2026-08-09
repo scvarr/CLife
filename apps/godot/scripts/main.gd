@@ -45,6 +45,7 @@ func _ready() -> void:
 	current_locale = _load_locale_preference()
 	TranslationServer.set_locale(current_locale)
 	editor = CLifeWorldEditor.new()
+	_refresh_preview_visibility()
 	_build_editor_ui()
 	_rebuild_world_tree()
 	_refresh_mode()
@@ -357,6 +358,7 @@ func _on_world_item_selected() -> void:
 			_show_value_inspector(selected_identity)
 		"template":
 			if editor.select_template(selected_identity):
+				_refresh_preview_visibility()
 				_show_template_inspector(selected_identity)
 			else:
 				_show_facade_error_if_any()
@@ -781,6 +783,7 @@ func _on_add_template() -> void:
 	selected_kind = "template"
 	selected_identity = template_id
 	_set_status("status.template_added", [template_id])
+	_refresh_preview_visibility()
 	_rebuild_world_tree()
 	_show_template_inspector(template_id)
 
@@ -798,6 +801,7 @@ func _on_back_to_editor() -> void:
 	runtime_object_selected = false
 	$Cell.scale = Vector3.ONE
 	_set_status("status.runtime_stopped")
+	_refresh_preview_visibility()
 	_rebuild_host_inputs()
 	_refresh_mode()
 	_restore_edit_inspector()
@@ -872,6 +876,7 @@ func _finish_edit(success: bool, message_key: String, arguments: Array = []) -> 
 		_show_facade_error_if_any()
 		return
 	_set_status(message_key, arguments)
+	_refresh_preview_visibility()
 	_rebuild_world_tree()
 	_restore_edit_inspector()
 
@@ -905,6 +910,10 @@ func _refresh_mode() -> void:
 	world_tree.mouse_filter = Control.MOUSE_FILTER_IGNORE if running else Control.MOUSE_FILTER_STOP
 	world_tree.modulate = Color(0.65, 0.65, 0.65, 1.0) if running else Color.WHITE
 	tick_label.text = tr("ui.tick_format") % editor.get_tick()
+
+
+func _refresh_preview_visibility() -> void:
+	$Cell.visible = editor.get_selected_template_id() != 0
 
 
 func _apply_runtime_to_views() -> void:
