@@ -726,6 +726,36 @@ bool test_snapshot_preserves_next_ids_and_rejects_invalid_data()
                          "snapshot rejects reusable next IDs");
 }
 
+bool test_utf8_expression_names()
+{
+    const ParameterId light{1};
+    const ParameterId efficiency{2};
+    const ParameterId throughput{3};
+    const ParameterId losses{4};
+    const std::array names{
+        clife::world::ParameterName{.parameter = light, .name = "Свет"},
+        clife::world::ParameterName{.parameter = efficiency, .name = "КПД"},
+        clife::world::ParameterName{.parameter = throughput, .name = "ПропускнаяСпособность"},
+        clife::world::ParameterName{.parameter = losses, .name = "Потери_Энергии"},
+    };
+    const std::array values{
+        clife::world::ParameterValue{.parameter = light, .value = 2.0},
+        clife::world::ParameterValue{.parameter = efficiency, .value = 0.5},
+        clife::world::ParameterValue{.parameter = throughput, .value = 3.0},
+        clife::world::ParameterValue{.parameter = losses, .value = 4.0},
+    };
+    return expect_near(clife::world::compile_expression("Свет*0.8", names).evaluate(values), 1.6,
+                       "UTF-8 parameter name evaluates") &&
+           expect_near(clife::world::compile_expression("Свет * КПД", names).evaluate(values), 1.0,
+                       "multiple UTF-8 parameter names evaluate") &&
+           expect_near(clife::world::compile_expression("min(Свет, ПропускнаяСпособность)", names).evaluate(values),
+                       2.0, "min accepts UTF-8 parameter names") &&
+           expect_near(clife::world::compile_expression("Потери_Энергии", names).evaluate(values), 4.0,
+                       "UTF-8 parameter name with underscore evaluates") &&
+           expect_throws([&] { (void)clife::world::compile_expression("НесуществующийПараметр", names); },
+                         "unknown UTF-8 parameter is rejected");
+}
+
 bool test_expression_operations_and_validation()
 {
     const ParameterId input{42};
@@ -779,6 +809,7 @@ int main()
                    test_genotype_compiles_to_derived_phenotype() && test_editable_phenotype_formula_definitions() &&
                    test_reusable_calculation_definitions() && test_world_definition_snapshot_round_trip() &&
                    test_snapshot_preserves_next_ids_and_rejects_invalid_data() &&
+                   test_utf8_expression_names() &&
                    test_expression_operations_and_validation() &&
                    test_invalid_derived_results_are_rejected()
                ? 0

@@ -124,16 +124,48 @@ private:
     {
         skip_space();
         const std::size_t begin = position_;
-        if (position_ >= source_.size() ||
-            (std::isalpha(static_cast<unsigned char>(source_[position_])) == 0 && source_[position_] != '_')) {
+        if (position_ >= source_.size()) {
             throw std::invalid_argument{"expected expression value"};
         }
-        ++position_;
-        while (position_ < source_.size() &&
-               (std::isalnum(static_cast<unsigned char>(source_[position_])) != 0 || source_[position_] == '_')) {
+
+        const std::string_view remaining = source_.substr(position_);
+        for (const std::string_view builtin : {std::string_view{"min"}, std::string_view{"max"}}) {
+            if (remaining.starts_with(builtin) && is_identifier_boundary(position_ + builtin.size())) {
+                position_ += builtin.size();
+                return builtin;
+            }
+        }
+
+        const ParameterName* matched = nullptr;
+        for (const ParameterName& parameter : parameters_) {
+            if (!parameter.name.empty() && remaining.starts_with(parameter.name) &&
+                is_identifier_boundary(position_ + parameter.name.size()) &&
+                (matched == nullptr || parameter.name.size() > matched->name.size())) {
+                matched = &parameter;
+            }
+        }
+        if (matched != nullptr) {
+            position_ += matched->name.size();
+            return matched->name;
+        }
+
+        while (position_ < source_.size() && !is_identifier_boundary(position_)) {
             ++position_;
         }
+        if (position_ == begin) {
+            throw std::invalid_argument{"expected expression value"};
+        }
         return source_.substr(begin, position_ - begin);
+    }
+
+    [[nodiscard]] bool is_identifier_boundary(std::size_t position) const
+    {
+        if (position >= source_.size()) {
+            return true;
+        }
+        const char character = source_[position];
+        return std::isspace(static_cast<unsigned char>(character)) != 0 || character == '+' || character == '-' ||
+               character == '*' || character == '/' || character == '(' || character == ')' || character == ',';
     }
 
     void emit(Expression::Operation operation) { instructions_.push_back({.operation = operation}); }
