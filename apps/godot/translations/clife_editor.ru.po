@@ -40,6 +40,24 @@ msgstr "ИНСПЕКТОР"
 msgid "ui.values"
 msgstr "Значения"
 
+msgid "ui.units"
+msgstr "Единицы"
+
+msgid "ui.unit"
+msgstr "Единица"
+
+msgid "ui.unit_not_set"
+msgstr "не задана"
+
+msgid "ui.value_unit_format"
+msgstr "Единица: %s"
+
+msgid "ui.add_unit"
+msgstr "+ Единица"
+
+msgid "ui.set_value_unit"
+msgstr "Назначить единицу"
+
 msgid "ui.calculations"
 msgstr "Формулы"
 
@@ -72,6 +90,12 @@ msgstr "Доступные значения: %s"
 
 msgid "status.calculation_added"
 msgstr "Формула добавлена со стабильным ID #%d"
+
+msgid "status.unit_added"
+msgstr "Единица добавлена со стабильным ID #%d"
+
+msgid "status.value_unit_set"
+msgstr "Единица значения назначена"
 
 msgid "status.calculation_input_added"
 msgstr "Вход формулы добавлен"
@@ -248,7 +272,7 @@ msgid "ui.remove_legacy_binding"
 msgstr "Удалить устаревшую привязку"
 
 msgid "ui.new_name_placeholder"
-msgstr "Имя нового значения, формулы, шаблона или типа функции"
+msgstr "Имя нового значения, единицы, формулы, шаблона или типа функции"
 
 msgid "ui.new_function"
 msgstr "Новая функция"

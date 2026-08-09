@@ -41,4 +41,10 @@ struct CalculationPortId final {
     friend constexpr auto operator<=>(CalculationPortId, CalculationPortId) noexcept = default;
 };
 
+struct UnitId final {
+    std::uint32_t value{};
+
+    friend constexpr auto operator<=>(UnitId, UnitId) noexcept = default;
+};
+
 } // namespace clife::world

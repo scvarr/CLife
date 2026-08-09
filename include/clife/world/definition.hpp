@@ -14,9 +14,24 @@
 
 namespace clife::world {
 
+struct UnitDefinition final {
+    UnitId id;
+    std::string symbol;
+};
+
+struct UnitComponent final {
+    UnitId unit;
+    std::int32_t exponent;
+};
+
+struct UnitExpression final {
+    std::vector<UnitComponent> components;
+};
+
 struct ValueDefinition final {
     ValueKey key;
     std::string name;
+    std::optional<UnitExpression> unit;
 };
 
 struct GenomeParameterDefinition final {
@@ -158,8 +173,9 @@ struct CalculationSnapshot final {
 };
 
 struct WorldDefinitionSnapshot final {
-    std::uint32_t schema_version{1};
+    std::uint32_t schema_version{2};
     std::vector<ValueDefinition> values;
+    std::vector<UnitDefinition> units;
     std::vector<CalculationSnapshot> calculations;
     std::vector<FunctionTypeSnapshot> function_types;
     std::vector<ObjectTemplate> templates;
@@ -170,11 +186,14 @@ struct WorldDefinitionSnapshot final {
     std::uint32_t next_parameter_id{1};
     std::uint32_t next_calculation_id{1};
     std::uint32_t next_calculation_port_id{1};
+    std::uint32_t next_unit_id{1};
 };
 
 class WorldDefinition final {
 public:
     [[nodiscard]] ValueKey add_value(std::string name);
+    [[nodiscard]] UnitId add_unit(std::string symbol);
+    void set_value_unit(ValueKey value, UnitExpression unit);
     void rename_value(ValueKey key, std::string name);
     void remove_value(ValueKey key);
     void reorder_values(std::span<const ValueKey> order);
@@ -216,11 +235,13 @@ public:
     void remove_host_binding(TemplateId id, std::size_t index);
 
     [[nodiscard]] const std::vector<ValueDefinition>& values() const noexcept;
+    [[nodiscard]] const std::vector<UnitDefinition>& units() const noexcept;
     [[nodiscard]] const std::vector<ObjectTemplate>& templates() const noexcept;
     [[nodiscard]] const std::vector<FunctionTypeDefinition>& function_types() const noexcept;
     [[nodiscard]] const std::vector<CalculationDefinition>& calculations() const noexcept;
     [[nodiscard]] const std::vector<WorldRuleDefinition>& world_rules() const noexcept;
     [[nodiscard]] const ValueDefinition& value(ValueKey key) const;
+    [[nodiscard]] const UnitDefinition& unit(UnitId id) const;
     [[nodiscard]] const ObjectTemplate& object_template(TemplateId id) const;
     [[nodiscard]] const FunctionTypeDefinition& function_type(FunctionTypeId id) const;
     [[nodiscard]] const CalculationDefinition& calculation(CalculationId id) const;
@@ -232,10 +253,12 @@ private:
     [[nodiscard]] FunctionTypeDefinition& mutable_function_type(FunctionTypeId id);
     [[nodiscard]] CalculationDefinition& mutable_calculation(CalculationId id);
     [[nodiscard]] bool parameter_belongs_to(const FunctionTypeDefinition& type, ParameterId parameter) const noexcept;
+    void validate_unit_expression(const UnitExpression& expression) const;
     void validate_rule(const WorldRuleDefinition& rule, std::size_t ignored_index) const;
     void validate_binding(const ObjectTemplate& object, const HostBinding& binding, std::size_t ignored_index) const;
 
     std::vector<ValueDefinition> values_;
+    std::vector<UnitDefinition> units_;
     std::vector<ObjectTemplate> templates_;
     std::vector<FunctionTypeDefinition> function_types_;
     std::vector<CalculationDefinition> calculations_;
@@ -246,6 +269,7 @@ private:
     std::uint32_t next_parameter_id_{1};
     std::uint32_t next_calculation_id_{1};
     std::uint32_t next_calculation_port_id_{1};
+    std::uint32_t next_unit_id_{1};
 };
 
 } // namespace clife::world

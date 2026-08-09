@@ -29,6 +29,7 @@ var back_to_editor_button: Button
 var save_world_button: Button
 var new_name: LineEdit
 var add_value_button: Button
+var add_unit_button: Button
 var add_template_button: Button
 var add_function_type_button: Button
 var add_calculation_button: Button
@@ -273,11 +274,13 @@ func _build_world_panel() -> Control:
 	column.add_child(new_name)
 	var buttons := HBoxContainer.new()
 	add_value_button = _button(tr("ui.add_value"), _on_add_value)
+	add_unit_button = _button(tr("ui.add_unit"), _on_add_unit)
 	add_function_type_button = _button(tr("ui.add_function_type"), _on_add_function_type)
 	add_calculation_button = _button(tr("ui.add_calculation"), _on_add_calculation)
 	add_template_button = _button(tr("ui.add_template"), _on_add_template)
 	add_rule_button = _button(tr("ui.add_rule"), _on_add_rule)
 	buttons.add_child(add_value_button)
+	buttons.add_child(add_unit_button)
 	buttons.add_child(add_function_type_button)
 	buttons.add_child(add_calculation_button)
 	buttons.add_child(add_template_button)
@@ -346,12 +349,21 @@ func _build_status_area() -> Control:
 func _rebuild_world_tree() -> void:
 	world_tree.clear()
 	var root := world_tree.create_item()
+	var units_root := world_tree.create_item(root)
+	units_root.set_text(0, tr("ui.units"))
+	units_root.set_metadata(0, {"kind": "section"})
+	for unit in editor.get_units():
+		var item := world_tree.create_item(units_root)
+		item.set_text(0, "%s  [#%d]" % [unit.symbol, unit.id])
+		item.set_metadata(0, {"kind": "unit", "id": int(unit.id)})
+	units_root.collapsed = false
+
 	var values_root := world_tree.create_item(root)
 	values_root.set_text(0, tr("ui.values"))
 	values_root.set_metadata(0, {"kind": "section"})
 	for value in editor.get_values():
 		var item := world_tree.create_item(values_root)
-		item.set_text(0, "%s  [#%d]" % [value.name, value.key])
+		item.set_text(0, "%s%s  [#%d]" % [value.name, _value_unit_suffix(value), value.key])
 		item.set_metadata(0, {"kind": "value", "id": int(value.key)})
 	values_root.collapsed = false
 
@@ -445,6 +457,15 @@ func _show_value_inspector(key: int) -> void:
 	inspector.add_child(_button(tr("ui.rename"), func() -> void:
 		_finish_edit(editor.rename_value(key, name_edit.text), "status.value_renamed")
 	))
+	var unit_components: Array = value.unit_components
+	_add_wrapped_label(inspector, tr("ui.value_unit_format") % _unit_expression_text(unit_components))
+	var unit_option := _unit_option(_atomic_unit_id(unit_components))
+	inspector.add_child(_labeled_control(tr("ui.unit"), unit_option))
+	var set_unit_button := _button(tr("ui.set_value_unit"), func() -> void:
+		_finish_edit(editor.set_value_unit(key, _selected_option_id(unit_option)), "status.value_unit_set")
+	)
+	set_unit_button.disabled = unit_option.item_count == 0
+	inspector.add_child(set_unit_button)
 	var delete_button := _button(tr("ui.delete_value"), func() -> void:
 		_finish_deletion(editor.remove_value(key), "status.value_deleted")
 	)
@@ -879,6 +900,19 @@ func _on_add_value() -> void:
 	_show_value_inspector(key)
 
 
+func _on_add_unit() -> void:
+	var unit_id := editor.add_unit(new_name.text)
+	if unit_id == 0:
+		_show_facade_error_if_any()
+		return
+	new_name.clear()
+	selected_kind = "unit"
+	selected_identity = unit_id
+	_set_status("status.unit_added", [unit_id])
+	_rebuild_world_tree()
+	_show_welcome_inspector()
+
+
 func _on_add_function_type() -> void:
 	var function_type_id := editor.add_function_type(new_name.text)
 	if function_type_id == 0:
@@ -1052,6 +1086,7 @@ func _refresh_mode() -> void:
 	save_world_button.disabled = running
 	new_name.editable = not running
 	add_value_button.disabled = running
+	add_unit_button.disabled = running
 	add_function_type_button.disabled = running
 	add_calculation_button.disabled = running
 	add_template_button.disabled = running
@@ -1114,6 +1149,30 @@ func _value_name(key: int) -> String:
 	return tr("ui.unknown") if value.is_empty() else str(value.name)
 
 
+func _value_unit_suffix(value: Dictionary) -> String:
+	var text := _unit_expression_text(value.get("unit_components", []))
+	return "" if text == tr("ui.unit_not_set") else " [%s]" % text
+
+
+func _atomic_unit_id(components: Array) -> int:
+	if components.size() != 1:
+		return 0
+	var component: Dictionary = components[0]
+	return int(component.get("id", 0)) if int(component.get("exponent", 0)) == 1 else 0
+
+
+func _unit_expression_text(components: Array) -> String:
+	if components.is_empty():
+		return tr("ui.unit_not_set")
+	var terms := PackedStringArray()
+	for component in components:
+		var unit := _find_by(editor.get_units(), "id", int(component.get("id", 0)))
+		var symbol := tr("ui.unknown") if unit.is_empty() else str(unit.symbol)
+		var exponent := int(component.get("exponent", 0))
+		terms.append(symbol if exponent == 1 else "%s^%d" % [symbol, exponent])
+	return " * ".join(terms)
+
+
 func _find_by(items: Array, field: String, identity: int) -> Dictionary:
 	for item in items:
 		if int(item.get(field, -1)) == identity:
@@ -1127,6 +1186,16 @@ func _value_option(selected_key: int = 0) -> OptionButton:
 		option.add_item("%s [#%d]" % [value.name, value.key])
 		option.set_item_metadata(option.item_count - 1, int(value.key))
 		if int(value.key) == selected_key:
+			option.select(option.item_count - 1)
+	return option
+
+
+func _unit_option(selected_id: int = 0) -> OptionButton:
+	var option := OptionButton.new()
+	for unit in editor.get_units():
+		option.add_item("%s [#%d]" % [unit.symbol, unit.id])
+		option.set_item_metadata(option.item_count - 1, int(unit.id))
+		if int(unit.id) == selected_id:
 			option.select(option.item_count - 1)
 	return option
 

@@ -23,6 +23,7 @@ public:
     ~CLifeWorldEditor() override;
 
     [[nodiscard]] godot::Array get_values();
+    [[nodiscard]] godot::Array get_units();
     [[nodiscard]] godot::Array get_templates();
     [[nodiscard]] godot::Array get_function_types();
     [[nodiscard]] godot::Array get_calculations();
@@ -34,6 +35,8 @@ public:
     [[nodiscard]] godot::Array get_host_capabilities();
 
     [[nodiscard]] std::int64_t add_value(const godot::String& name);
+    [[nodiscard]] std::int64_t add_unit(const godot::String& symbol);
+    bool set_value_unit(std::int64_t value_key, std::int64_t unit_id);
     bool rename_value(std::int64_t key, const godot::String& name);
     bool remove_value(std::int64_t key);
     [[nodiscard]] std::int64_t add_template(const godot::String& name);

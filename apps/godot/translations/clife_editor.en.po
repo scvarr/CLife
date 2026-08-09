@@ -39,6 +39,24 @@ msgstr "INSPECTOR"
 msgid "ui.values"
 msgstr "Values"
 
+msgid "ui.units"
+msgstr "Units"
+
+msgid "ui.unit"
+msgstr "Unit"
+
+msgid "ui.unit_not_set"
+msgstr "not set"
+
+msgid "ui.value_unit_format"
+msgstr "Unit: %s"
+
+msgid "ui.add_unit"
+msgstr "+ Unit"
+
+msgid "ui.set_value_unit"
+msgstr "Set unit"
+
 msgid "ui.calculations"
 msgstr "Calculations"
 
@@ -71,6 +89,12 @@ msgstr "Available values: %s"
 
 msgid "status.calculation_added"
 msgstr "Calculation added with stable id #%d"
+
+msgid "status.unit_added"
+msgstr "Unit added with stable id #%d"
+
+msgid "status.value_unit_set"
+msgstr "Value unit assigned"
 
 msgid "status.calculation_input_added"
 msgstr "Calculation input added"
@@ -247,7 +271,7 @@ msgid "ui.remove_legacy_binding"
 msgstr "Remove Legacy Binding"
 
 msgid "ui.new_name_placeholder"
-msgstr "New value, calculation, template, or function type name"
+msgstr "New value, unit, calculation, template, or function type name"
 
 msgid "ui.new_function"
 msgstr "New function"

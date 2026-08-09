@@ -726,6 +726,55 @@ bool test_snapshot_preserves_next_ids_and_rejects_invalid_data()
                          "snapshot rejects reusable next IDs");
 }
 
+bool test_world_units_and_snapshot_compatibility()
+{
+    WorldDefinition definition;
+    const ValueKey light = definition.add_value("Light");
+    const auto light_unit = definition.add_unit("L");
+    const auto energy_unit = definition.add_unit("E");
+    definition.set_value_unit(light, {.components = {{.unit = light_unit, .exponent = 1}}});
+
+    const auto snapshot = definition.snapshot();
+    WorldDefinition restored = WorldDefinition::from_snapshot(snapshot);
+    if (!expect_true(light_unit.value == 1 && energy_unit.value == 2 && restored.units().size() == 2 &&
+                         restored.units()[0].id == light_unit && restored.units()[0].symbol == "L" &&
+                         restored.value(light).unit.has_value() &&
+                         restored.value(light).unit->components.size() == 1 &&
+                         restored.value(light).unit->components[0].unit == light_unit &&
+                         restored.value(light).unit->components[0].exponent == 1 &&
+                         restored.add_unit("O").value == 3,
+                     "units and their next stable ID survive snapshot round trip")) {
+        return false;
+    }
+
+    auto legacy_snapshot = snapshot;
+    legacy_snapshot.schema_version = 1;
+    legacy_snapshot.units.clear();
+    legacy_snapshot.next_unit_id = 1;
+    WorldDefinition legacy_restored = WorldDefinition::from_snapshot(legacy_snapshot);
+    if (!expect_true(!legacy_restored.value(light).unit.has_value() && legacy_restored.units().empty() &&
+                         legacy_restored.add_unit("L").value == 1,
+                     "schema version 1 snapshot restores values without units")) {
+        return false;
+    }
+
+    auto unknown_unit = snapshot;
+    unknown_unit.values[0].unit = {.components = {{.unit = {999}, .exponent = 1}}};
+    return expect_throws([&] { definition.set_value_unit(light, {.components = {{.unit = {999}, .exponent = 1}}}); },
+                         "setting a value unit rejects an unknown UnitId") &&
+           expect_throws(
+               [&] { definition.set_value_unit(light, {.components = {{.unit = light_unit, .exponent = 0}}}); },
+               "setting a value unit rejects a zero exponent") &&
+           expect_throws(
+               [&] {
+                   definition.set_value_unit(
+                       light, {.components = {{.unit = light_unit, .exponent = 1}, {.unit = light_unit, .exponent = -1}}});
+               },
+               "setting a value unit rejects a duplicate UnitId") &&
+           expect_throws([&] { (void)WorldDefinition::from_snapshot(unknown_unit); },
+                         "snapshot rejects an unknown UnitId");
+}
+
 bool test_utf8_expression_names()
 {
     const ParameterId light{1};
@@ -809,6 +858,7 @@ int main()
                    test_genotype_compiles_to_derived_phenotype() && test_editable_phenotype_formula_definitions() &&
                    test_reusable_calculation_definitions() && test_world_definition_snapshot_round_trip() &&
                    test_snapshot_preserves_next_ids_and_rejects_invalid_data() &&
+                   test_world_units_and_snapshot_compatibility() &&
                    test_utf8_expression_names() &&
                    test_expression_operations_and_validation() &&
                    test_invalid_derived_results_are_rejected()

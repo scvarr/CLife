@@ -113,6 +113,27 @@ ValueKey WorldDefinition::add_value(std::string name)
     return key;
 }
 
+UnitId WorldDefinition::add_unit(std::string symbol)
+{
+    require_name(symbol, "unit");
+    if (std::ranges::any_of(units_, [&symbol](const UnitDefinition& entry) { return entry.symbol == symbol; })) {
+        throw std::invalid_argument{"unit symbol must be unique"};
+    }
+    if (next_unit_id_ == 0) {
+        throw std::overflow_error{"UnitId space exhausted"};
+    }
+    const UnitId id{next_unit_id_++};
+    units_.push_back({.id = id, .symbol = std::move(symbol)});
+    return id;
+}
+
+void WorldDefinition::set_value_unit(ValueKey key, UnitExpression expression)
+{
+    validate_unit_expression(expression);
+    auto& entry = const_cast<ValueDefinition&>(value(key));
+    entry.unit = std::move(expression);
+}
+
 void WorldDefinition::rename_value(ValueKey key, std::string name)
 {
     require_name(name, "value");
@@ -587,6 +608,7 @@ void WorldDefinition::remove_host_binding(TemplateId id, std::size_t index)
 }
 
 const std::vector<ValueDefinition>& WorldDefinition::values() const noexcept { return values_; }
+const std::vector<UnitDefinition>& WorldDefinition::units() const noexcept { return units_; }
 const std::vector<ObjectTemplate>& WorldDefinition::templates() const noexcept { return templates_; }
 const std::vector<FunctionTypeDefinition>& WorldDefinition::function_types() const noexcept { return function_types_; }
 
@@ -598,6 +620,15 @@ const ValueDefinition& WorldDefinition::value(ValueKey key) const
     const auto found = std::ranges::find(values_, key, &ValueDefinition::key);
     if (found == values_.end()) {
         throw std::invalid_argument{"unknown ValueKey"};
+    }
+    return *found;
+}
+
+const UnitDefinition& WorldDefinition::unit(UnitId id) const
+{
+    const auto found = std::ranges::find(units_, id, &UnitDefinition::id);
+    if (found == units_.end()) {
+        throw std::invalid_argument{"unknown UnitId"};
     }
     return *found;
 }
@@ -633,6 +664,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
 {
     WorldDefinitionSnapshot result{
         .values = values_,
+        .units = units_,
         .templates = templates_,
         .world_rules = world_rules_,
         .next_value_key = next_value_key_,
@@ -641,6 +673,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
         .next_parameter_id = next_parameter_id_,
         .next_calculation_id = next_calculation_id_,
         .next_calculation_port_id = next_calculation_port_id_,
+        .next_unit_id = next_unit_id_,
     };
     result.calculations.reserve(calculations_.size());
     for (const CalculationDefinition& calculation : calculations_) {
@@ -674,11 +707,22 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
 
 WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& source)
 {
-    if (source.schema_version != 1) {
+    if (source.schema_version != 1 && source.schema_version != 2) {
         throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version"};
     }
     require_unique_snapshot_ids(source.values, &ValueDefinition::key, "ValueKey");
     require_unique_snapshot_names(source.values, "value");
+    if (source.schema_version == 2) {
+        require_unique_snapshot_ids(source.units, &UnitDefinition::id, "UnitId");
+        for (std::size_t index = 0; index < source.units.size(); ++index) {
+            require_name(source.units[index].symbol, "unit");
+            for (std::size_t other = 0; other < index; ++other) {
+                if (source.units[other].symbol == source.units[index].symbol) {
+                    throw std::invalid_argument{"unit symbols must be unique"};
+                }
+            }
+        }
+    }
     require_unique_snapshot_ids(source.templates, &ObjectTemplate::id, "TemplateId");
     require_unique_snapshot_names(source.templates, "template");
     require_unique_snapshot_ids(source.function_types, &FunctionTypeSnapshot::id, "FunctionTypeId");
@@ -688,6 +732,18 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
 
     WorldDefinition restored;
     restored.values_ = source.values;
+    if (source.schema_version == 2) {
+        restored.units_ = source.units;
+        for (const ValueDefinition& value : restored.values_) {
+            if (value.unit) {
+                restored.validate_unit_expression(*value.unit);
+            }
+        }
+    } else {
+        for (ValueDefinition& value : restored.values_) {
+            value.unit.reset();
+        }
+    }
 
     std::vector<ParameterId> parameter_ids;
     for (const FunctionTypeSnapshot& stored : source.function_types) {
@@ -855,12 +911,16 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
                               "CalculationId");
     require_next_id_is_unused(source.next_calculation_port_id, port_ids, [](CalculationPortId id) { return id; },
                               "CalculationPortId");
+    if (source.schema_version == 2) {
+        require_next_id_is_unused(source.next_unit_id, source.units, &UnitDefinition::id, "UnitId");
+    }
     restored.next_value_key_ = source.next_value_key;
     restored.next_template_id_ = source.next_template_id;
     restored.next_function_type_id_ = source.next_function_type_id;
     restored.next_parameter_id_ = source.next_parameter_id;
     restored.next_calculation_id_ = source.next_calculation_id;
     restored.next_calculation_port_id_ = source.next_calculation_port_id;
+    restored.next_unit_id_ = source.schema_version == 2 ? source.next_unit_id : 1;
     return restored;
 }
 
@@ -885,6 +945,22 @@ bool WorldDefinition::parameter_belongs_to(const FunctionTypeDefinition& type, P
                                [parameter](const GenomeParameterDefinition& item) { return item.id == parameter; }) ||
            std::ranges::any_of(type.derived_parameters,
                                [parameter](const DerivedParameterDefinition& item) { return item.id == parameter; });
+}
+
+void WorldDefinition::validate_unit_expression(const UnitExpression& expression) const
+{
+    for (std::size_t index = 0; index < expression.components.size(); ++index) {
+        const UnitComponent& component = expression.components[index];
+        (void)unit(component.unit);
+        if (component.exponent == 0) {
+            throw std::invalid_argument{"unit expression exponent must not be zero"};
+        }
+        for (std::size_t other = 0; other < index; ++other) {
+            if (expression.components[other].unit == component.unit) {
+                throw std::invalid_argument{"unit expression must not contain a duplicate UnitId"};
+            }
+        }
+    }
 }
 
 void WorldDefinition::validate_rule(const WorldRuleDefinition& rule, std::size_t ignored_index) const

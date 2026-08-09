@@ -58,6 +58,14 @@ world::ValueKey value_key(std::int64_t raw)
     return {static_cast<std::uint32_t>(raw)};
 }
 
+world::UnitId unit_id(std::int64_t raw)
+{
+    if (raw <= 0 || raw > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::invalid_argument{"invalid UnitId"};
+    }
+    return {static_cast<std::uint32_t>(raw)};
+}
+
 world::TemplateId template_id(std::int64_t raw)
 {
     if (raw <= 0 || raw > std::numeric_limits<std::uint32_t>::max()) {
@@ -172,6 +180,29 @@ std::uint32_t required_uint32(const godot::Variant& value, const char* context)
     return static_cast<std::uint32_t>(result);
 }
 
+std::int32_t required_int32(const godot::Variant& value, const char* context)
+{
+    if (value.get_type() == godot::Variant::INT) {
+        const std::int64_t result = value;
+        if (result < std::numeric_limits<std::int32_t>::min() || result > std::numeric_limits<std::int32_t>::max()) {
+            throw std::invalid_argument{std::string{context} + " is out of range"};
+        }
+        return static_cast<std::int32_t>(result);
+    }
+    if (value.get_type() != godot::Variant::FLOAT) {
+        throw std::invalid_argument{std::string{context} + " must be an integer"};
+    }
+    const double result = value;
+    if (!std::isfinite(result) || result < std::numeric_limits<std::int32_t>::min() ||
+        result > std::numeric_limits<std::int32_t>::max()) {
+        throw std::invalid_argument{std::string{context} + " is out of range"};
+    }
+    if (std::floor(result) != result) {
+        throw std::invalid_argument{std::string{context} + " must be an integer"};
+    }
+    return static_cast<std::int32_t>(result);
+}
+
 world::HostChannelDirection snapshot_direction(const godot::Variant& value)
 {
     const std::string direction = required_string(value, "host binding direction");
@@ -203,6 +234,34 @@ godot::Array CLifeWorldEditor::get_values()
             godot::Dictionary item;
             item["key"] = static_cast<std::int64_t>(value.key.value);
             item["name"] = to_godot_string(value.name);
+            godot::Array unit_components;
+            if (value.unit) {
+                for (const world::UnitComponent& component : value.unit->components) {
+                    godot::Dictionary unit;
+                    unit["id"] = static_cast<std::int64_t>(component.unit.value);
+                    unit["exponent"] = component.exponent;
+                    unit_components.push_back(unit);
+                }
+            }
+            item["unit_components"] = unit_components;
+            result.push_back(item);
+        }
+        clear_error();
+    } catch (...) {
+        capture_current_error();
+        result.clear();
+    }
+    return result;
+}
+
+godot::Array CLifeWorldEditor::get_units()
+{
+    godot::Array result;
+    try {
+        for (const world::UnitDefinition& unit : definition_.units()) {
+            godot::Dictionary item;
+            item["id"] = static_cast<std::int64_t>(unit.id.value);
+            item["symbol"] = to_godot_string(unit.symbol);
             result.push_back(item);
         }
         clear_error();
@@ -473,6 +532,28 @@ std::int64_t CLifeWorldEditor::add_value(const godot::String& name)
         capture_current_error();
         return 0;
     }
+}
+
+std::int64_t CLifeWorldEditor::add_unit(const godot::String& symbol)
+{
+    try {
+        require_edit_mode();
+        const world::UnitId id = definition_.add_unit(to_std_string(symbol));
+        clear_error();
+        return static_cast<std::int64_t>(id.value);
+    } catch (...) {
+        capture_current_error();
+        return 0;
+    }
+}
+
+bool CLifeWorldEditor::set_value_unit(std::int64_t raw_value_key, std::int64_t raw_unit_id)
+{
+    return edit([&] {
+        definition_.set_value_unit(value_key(raw_value_key), {
+                                                              .components = {{.unit = unit_id(raw_unit_id), .exponent = 1}},
+                                                          });
+    });
 }
 
 bool CLifeWorldEditor::rename_value(std::int64_t key, const godot::String& name)
@@ -1070,14 +1151,34 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
         result["next_parameter_id"] = static_cast<std::int64_t>(snapshot.next_parameter_id);
         result["next_calculation_id"] = static_cast<std::int64_t>(snapshot.next_calculation_id);
         result["next_calculation_port_id"] = static_cast<std::int64_t>(snapshot.next_calculation_port_id);
+        result["next_unit_id"] = static_cast<std::int64_t>(snapshot.next_unit_id);
         godot::Array values;
         for (const auto& value : snapshot.values) {
             godot::Dictionary entry;
             entry["id"] = static_cast<std::int64_t>(value.key.value);
             entry["name"] = to_godot_string(value.name);
+            entry["unit"] = godot::Variant();
+            if (value.unit) {
+                godot::Array components;
+                for (const world::UnitComponent& component : value.unit->components) {
+                    godot::Dictionary stored;
+                    stored["unit_id"] = static_cast<std::int64_t>(component.unit.value);
+                    stored["exponent"] = component.exponent;
+                    components.push_back(stored);
+                }
+                entry["unit"] = components;
+            }
             values.push_back(entry);
         }
         result["values"] = values;
+        godot::Array units;
+        for (const world::UnitDefinition& unit : snapshot.units) {
+            godot::Dictionary entry;
+            entry["id"] = static_cast<std::int64_t>(unit.id.value);
+            entry["symbol"] = to_godot_string(unit.symbol);
+            units.push_back(entry);
+        }
+        result["units"] = units;
         godot::Array calculations;
         for (const auto& calculation : snapshot.calculations) {
             godot::Dictionary entry;
@@ -1227,6 +1328,9 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
         require_edit_mode();
         world::WorldDefinitionSnapshot snapshot;
         snapshot.schema_version = required_uint32(required_field(serialized, "schema_version"), "schema_version");
+        if (snapshot.schema_version != 1 && snapshot.schema_version != 2) {
+            throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version"};
+        }
         snapshot.next_value_key = required_uint32(required_field(serialized, "next_value_key"), "next_value_key");
         snapshot.next_template_id = required_uint32(required_field(serialized, "next_template_id"), "next_template_id");
         snapshot.next_function_type_id =
@@ -1236,12 +1340,37 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
             required_uint32(required_field(serialized, "next_calculation_id"), "next_calculation_id");
         snapshot.next_calculation_port_id =
             required_uint32(required_field(serialized, "next_calculation_port_id"), "next_calculation_port_id");
+        if (snapshot.schema_version == 2) {
+            snapshot.next_unit_id = required_uint32(required_field(serialized, "next_unit_id"), "next_unit_id");
+            for (const godot::Variant& value : required_array(required_field(serialized, "units"), "units")) {
+                const godot::Dictionary item = required_dictionary(value, "unit");
+                snapshot.units.push_back({
+                    .id = {required_uint32(required_field(item, "id"), "unit id")},
+                    .symbol = required_string(required_field(item, "symbol"), "unit symbol"),
+                });
+            }
+        }
         for (const godot::Variant& value : required_array(required_field(serialized, "values"), "values")) {
             const godot::Dictionary item = required_dictionary(value, "value");
-            snapshot.values.push_back({
+            world::ValueDefinition stored{
                 .key = {required_uint32(required_field(item, "id"), "value id")},
                 .name = required_string(required_field(item, "name"), "value name"),
-            });
+            };
+            if (snapshot.schema_version == 2) {
+                const godot::Variant unit_value = required_field(item, "unit");
+                if (unit_value.get_type() != godot::Variant::NIL) {
+                    world::UnitExpression expression;
+                    for (const godot::Variant& component_value : required_array(unit_value, "value unit")) {
+                        const godot::Dictionary component = required_dictionary(component_value, "unit component");
+                        expression.components.push_back({
+                            .unit = {required_uint32(required_field(component, "unit_id"), "unit component id")},
+                            .exponent = required_int32(required_field(component, "exponent"), "unit component exponent"),
+                        });
+                    }
+                    stored.unit = std::move(expression);
+                }
+            }
+            snapshot.values.push_back(std::move(stored));
         }
         for (const godot::Variant& value : required_array(required_field(serialized, "calculations"), "calculations")) {
             const godot::Dictionary item = required_dictionary(value, "calculation");
@@ -1462,6 +1591,7 @@ void CLifeWorldEditor::ensure_host_inputs(const world::WorldDefinition& definiti
 void CLifeWorldEditor::_bind_methods()
 {
     godot::ClassDB::bind_method(godot::D_METHOD("get_values"), &CLifeWorldEditor::get_values);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_units"), &CLifeWorldEditor::get_units);
     godot::ClassDB::bind_method(godot::D_METHOD("get_templates"), &CLifeWorldEditor::get_templates);
     godot::ClassDB::bind_method(godot::D_METHOD("get_function_types"), &CLifeWorldEditor::get_function_types);
     godot::ClassDB::bind_method(godot::D_METHOD("get_calculations"), &CLifeWorldEditor::get_calculations);
@@ -1474,6 +1604,9 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("get_bindings", "template_id"), &CLifeWorldEditor::get_bindings);
     godot::ClassDB::bind_method(godot::D_METHOD("get_host_capabilities"), &CLifeWorldEditor::get_host_capabilities);
     godot::ClassDB::bind_method(godot::D_METHOD("add_value", "name"), &CLifeWorldEditor::add_value);
+    godot::ClassDB::bind_method(godot::D_METHOD("add_unit", "symbol"), &CLifeWorldEditor::add_unit);
+    godot::ClassDB::bind_method(godot::D_METHOD("set_value_unit", "value_key", "unit_id"),
+                                &CLifeWorldEditor::set_value_unit);
     godot::ClassDB::bind_method(godot::D_METHOD("rename_value", "key", "name"), &CLifeWorldEditor::rename_value);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_value", "key"), &CLifeWorldEditor::remove_value);
     godot::ClassDB::bind_method(godot::D_METHOD("add_template", "name"), &CLifeWorldEditor::add_template);
