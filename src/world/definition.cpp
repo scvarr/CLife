@@ -459,6 +459,36 @@ void WorldDefinition::add_function_process_output(FunctionTypeId type_id, Functi
     set_function_process(type_id, std::move(process));
 }
 
+void WorldDefinition::change_function_process_settings(FunctionTypeId type_id, ValueKey input, ParameterId throughput,
+                                                        UnitConversionId conversion)
+{
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    if (!type.process) {
+        throw std::invalid_argument{"function type does not have a process"};
+    }
+    FunctionProcessDefinition process = *type.process;
+    process.input = input;
+    process.throughput = throughput;
+    process.conversion = conversion;
+    set_function_process(type_id, std::move(process));
+}
+
+void WorldDefinition::change_function_process_output(FunctionTypeId type_id, ValueKey existing_output,
+                                                      FunctionProcessOutputDefinition replacement)
+{
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    if (!type.process) {
+        throw std::invalid_argument{"function type does not have a process"};
+    }
+    FunctionProcessDefinition process = *type.process;
+    const auto found = std::ranges::find(process.outputs, existing_output, &FunctionProcessOutputDefinition::output);
+    if (found == process.outputs.end()) {
+        throw std::invalid_argument{"function process output does not exist"};
+    }
+    *found = replacement;
+    set_function_process(type_id, std::move(process));
+}
+
 void WorldDefinition::remove_function_process_output(FunctionTypeId type_id, ValueKey output)
 {
     FunctionTypeDefinition& type = mutable_function_type(type_id);
@@ -472,6 +502,15 @@ void WorldDefinition::remove_function_process_output(FunctionTypeId type_id, Val
     }
     process.outputs.erase(found);
     set_function_process(type_id, std::move(process));
+}
+
+void WorldDefinition::remove_function_process(FunctionTypeId type_id)
+{
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    if (!type.process) {
+        throw std::invalid_argument{"function type does not have a process"};
+    }
+    type.process.reset();
 }
 
 void WorldDefinition::set_buffer_process(FunctionTypeId type_id, BufferProcessDefinition process)

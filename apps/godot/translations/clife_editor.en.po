@@ -114,14 +114,29 @@ msgstr "Allocation"
 msgid "ui.set_process"
 msgstr "Set Process"
 
+msgid "ui.update_process"
+msgstr "Update Process"
+
+msgid "ui.remove_process"
+msgstr "Remove Process"
+
 msgid "ui.add_process_output"
 msgstr "Add Output"
 
 msgid "status.process_set"
 msgstr "Process configured"
 
+msgid "status.process_updated"
+msgstr "Process updated"
+
+msgid "status.process_removed"
+msgstr "Process removed"
+
 msgid "status.process_output_added"
 msgstr "Process output added"
+
+msgid "status.process_output_updated"
+msgstr "Process output updated"
 
 msgid "status.process_output_removed"
 msgstr "Process output removed"

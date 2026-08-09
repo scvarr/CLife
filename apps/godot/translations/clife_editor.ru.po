@@ -541,5 +541,20 @@ msgstr "Выход процесса добавлен"
 msgid "status.process_output_removed"
 msgstr "Выход процесса удалён"
 
+msgid "ui.update_process"
+msgstr "Обновить процесс"
+
+msgid "ui.remove_process"
+msgstr "Удалить процесс"
+
+msgid "status.process_updated"
+msgstr "Процесс обновлён"
+
+msgid "status.process_removed"
+msgstr "Процесс удалён"
+
+msgid "status.process_output_updated"
+msgstr "Выход процесса обновлён"
+
 msgid "help.function_type_buffer"
 msgstr "Этот тип функции участвует в потоке Value как накопитель с состоянием."

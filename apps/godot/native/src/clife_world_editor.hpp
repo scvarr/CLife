@@ -43,9 +43,14 @@ public:
     bool set_function_process(std::int64_t function_type_id, std::int64_t input_value_key,
                               std::int64_t throughput_parameter_id, std::int64_t conversion_id,
                               std::int64_t output_value_key, std::int64_t allocation_parameter_id);
+    bool change_function_process_settings(std::int64_t function_type_id, std::int64_t input_value_key,
+                                          std::int64_t throughput_parameter_id, std::int64_t conversion_id);
+    bool change_function_process_output(std::int64_t function_type_id, std::int64_t existing_output_value_key,
+                                        std::int64_t output_value_key, std::int64_t allocation_parameter_id);
     bool add_function_process_output(std::int64_t function_type_id, std::int64_t output_value_key,
                                      std::int64_t allocation_parameter_id);
     bool remove_function_process_output(std::int64_t function_type_id, std::int64_t output_value_key);
+    bool remove_function_process(std::int64_t function_type_id);
     bool rename_value(std::int64_t key, const godot::String& name);
     bool remove_value(std::int64_t key);
     [[nodiscard]] std::int64_t add_template(const godot::String& name);

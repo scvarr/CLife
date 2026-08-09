@@ -232,8 +232,13 @@ public:
     void set_derived_parameter_expression(FunctionTypeId type, ParameterId parameter, std::string_view expression);
     void rename_parameter(FunctionTypeId type, ParameterId parameter, std::string name);
     void set_function_process(FunctionTypeId type, FunctionProcessDefinition process);
+    void change_function_process_settings(FunctionTypeId type, ValueKey input, ParameterId throughput,
+                                          UnitConversionId conversion);
+    void change_function_process_output(FunctionTypeId type, ValueKey existing_output,
+                                        FunctionProcessOutputDefinition replacement);
     void add_function_process_output(FunctionTypeId type, FunctionProcessOutputDefinition output);
     void remove_function_process_output(FunctionTypeId type, ValueKey output);
+    void remove_function_process(FunctionTypeId type);
     void set_buffer_process(FunctionTypeId type, BufferProcessDefinition process);
     void add_function_material_contribution(FunctionTypeId type, ValueKey value, std::string_view expression);
     void set_function_material_contribution(FunctionTypeId type, ValueKey value, std::string_view expression);

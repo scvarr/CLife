@@ -698,13 +698,31 @@ func _build_function_process_editor(function_type_id: int, function_type: Dictio
 	inspector.add_child(_labeled_control(tr("ui.unit_conversion"), conversion_option))
 	var outputs: Array = process.get("outputs", [])
 	if not outputs.is_empty():
+		inspector.add_child(_button(tr("ui.update_process"), func() -> void:
+			_finish_edit(editor.change_function_process_settings(function_type_id, _selected_option_id(input_option),
+				_selected_option_id(throughput_option), _selected_option_id(conversion_option)), "status.process_updated")
+		))
+		inspector.add_child(_button(tr("ui.remove_process"), func() -> void:
+			_finish_edit(editor.remove_function_process(function_type_id), "status.process_removed")
+		))
 		_add_heading(inspector, tr("ui.process_outputs"))
 		for output in outputs:
 			var output_key := int(output.output_key)
-			_add_wrapped_label(inspector, "%s  ← %s" % [_value_name(output_key), _parameter_name(function_type, int(output.allocation_parameter_id))])
-			inspector.add_child(_button(tr("ui.remove"), func() -> void:
-				_finish_edit(editor.remove_function_process_output(function_type_id, output_key), "status.process_output_removed")
+			var current_output := _value_option(output_key)
+			var current_allocation := _parameter_option(function_type, int(output.allocation_parameter_id))
+			inspector.add_child(_labeled_control(tr("ui.output"), current_output))
+			inspector.add_child(_labeled_control(tr("ui.allocation"), current_allocation))
+			var output_actions := HBoxContainer.new()
+			output_actions.add_child(_button(tr("ui.update"), func() -> void:
+				_finish_edit(editor.change_function_process_output(function_type_id, output_key,
+					_selected_option_id(current_output), _selected_option_id(current_allocation)), "status.process_output_updated")
 			))
+			var remove_output := _button(tr("ui.remove"), func() -> void:
+				_finish_edit(editor.remove_function_process_output(function_type_id, output_key), "status.process_output_removed")
+			)
+			remove_output.disabled = outputs.size() == 1
+			output_actions.add_child(remove_output)
+			inspector.add_child(output_actions)
 	var output_option := _value_option()
 	var allocation_option := _parameter_option(function_type)
 	inspector.add_child(_labeled_control(tr("ui.output"), output_option))

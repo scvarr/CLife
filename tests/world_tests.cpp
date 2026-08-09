@@ -889,6 +889,56 @@ bool test_multi_output_conversion_process()
                          "non-finite process allocation is rejected");
 }
 
+bool test_function_process_authoring_lifecycle()
+{
+    WorldDefinition definition;
+    const ValueKey input = definition.add_value("Input");
+    const ValueKey alternate_input = definition.add_value("Alternate input");
+    const ValueKey first = definition.add_value("First");
+    const ValueKey second = definition.add_value("Second");
+    const ValueKey replacement_value = definition.add_value("Replacement");
+    const UnitId unit = definition.add_unit("u");
+    const UnitConversionId conversion = definition.add_unit_conversion(
+        {.components = {{.unit = unit, .exponent = 1}}}, 1.0, {.components = {{.unit = unit, .exponent = 1}}}, 1.0);
+    const FunctionTypeId type = definition.add_function_type("Process");
+    const ParameterId throughput = definition.add_genome_parameter(type, "Throughput", 1.0);
+    const ParameterId alternate_throughput = definition.add_genome_parameter(type, "Alternate throughput", 2.0);
+    const ParameterId first_allocation = definition.add_genome_parameter(type, "First allocation", 0.4);
+    const ParameterId second_allocation = definition.add_genome_parameter(type, "Second allocation", 0.6);
+    definition.set_function_process(type, {.input = input, .throughput = throughput, .conversion = conversion,
+                                            .outputs = {{.output = first, .allocation = first_allocation},
+                                                        {.output = second, .allocation = second_allocation}}});
+
+    definition.change_function_process_settings(type, alternate_input, alternate_throughput, conversion);
+    const auto& settings_changed = *definition.function_type(type).process;
+    if (!expect_true(settings_changed.input == alternate_input && settings_changed.throughput == alternate_throughput &&
+                         settings_changed.outputs.size() == 2,
+                     "changing process settings preserves outputs")) {
+        return false;
+    }
+    definition.change_function_process_output(type, first, {.output = replacement_value, .allocation = second_allocation});
+    const auto& output_changed = *definition.function_type(type).process;
+    if (!expect_true(output_changed.outputs[0].output == replacement_value &&
+                         output_changed.outputs[0].allocation == second_allocation,
+                     "changing process output is atomic")) {
+        return false;
+    }
+    if (!expect_throws([&] { definition.change_function_process_output(
+                            type, second, {.output = replacement_value, .allocation = first_allocation}); },
+                       "changing process output rejects duplicate ValueKey")) {
+        return false;
+    }
+    definition.remove_function_process_output(type, second);
+    if (!expect_true(definition.function_type(type).process->outputs.size() == 1,
+                     "removing one of two process outputs works")) {
+        return false;
+    }
+    return expect_throws([&] { definition.remove_function_process_output(type, replacement_value); },
+                         "removing final process output is rejected") &&
+           (definition.remove_function_process(type),
+            expect_true(!definition.function_type(type).process.has_value(), "removing process clears it"));
+}
+
 bool test_utf8_expression_names()
 {
     const ParameterId light{1};
@@ -975,6 +1025,7 @@ int main()
                    test_world_units_and_snapshot_compatibility() &&
                    test_unit_conversions_and_snapshot_compatibility() &&
                    test_multi_output_conversion_process() &&
+                   test_function_process_authoring_lifecycle() &&
                    test_utf8_expression_names() &&
                    test_expression_operations_and_validation() &&
                    test_invalid_derived_results_are_rejected()

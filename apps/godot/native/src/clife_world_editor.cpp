@@ -652,9 +652,29 @@ bool CLifeWorldEditor::add_function_process_output(std::int64_t raw_type, std::i
                                                                  {.output = value_key(raw_output), .allocation = parameter_id(raw_allocation)}); });
 }
 
+bool CLifeWorldEditor::change_function_process_settings(std::int64_t raw_type, std::int64_t raw_input,
+                                                        std::int64_t raw_throughput, std::int64_t raw_conversion)
+{
+    return edit([&] { definition_.change_function_process_settings(function_type_id(raw_type), value_key(raw_input),
+                                                                     parameter_id(raw_throughput), unit_conversion_id(raw_conversion)); });
+}
+
+bool CLifeWorldEditor::change_function_process_output(std::int64_t raw_type, std::int64_t raw_existing_output,
+                                                      std::int64_t raw_output, std::int64_t raw_allocation)
+{
+    return edit([&] { definition_.change_function_process_output(
+                          function_type_id(raw_type), value_key(raw_existing_output),
+                          {.output = value_key(raw_output), .allocation = parameter_id(raw_allocation)}); });
+}
+
 bool CLifeWorldEditor::remove_function_process_output(std::int64_t raw_type, std::int64_t raw_output)
 {
     return edit([&] { definition_.remove_function_process_output(function_type_id(raw_type), value_key(raw_output)); });
+}
+
+bool CLifeWorldEditor::remove_function_process(std::int64_t raw_type)
+{
+    return edit([&] { definition_.remove_function_process(function_type_id(raw_type)); });
 }
 
 bool CLifeWorldEditor::rename_value(std::int64_t key, const godot::String& name)
@@ -1795,8 +1815,18 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(
         godot::D_METHOD("add_function_process_output", "function_type_id", "output_value_key", "allocation_parameter_id"),
         &CLifeWorldEditor::add_function_process_output);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("change_function_process_settings", "function_type_id", "input_value_key",
+                        "throughput_parameter_id", "conversion_id"),
+        &CLifeWorldEditor::change_function_process_settings);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("change_function_process_output", "function_type_id", "existing_output_value_key",
+                        "output_value_key", "allocation_parameter_id"),
+        &CLifeWorldEditor::change_function_process_output);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_function_process_output", "function_type_id", "output_value_key"),
                                 &CLifeWorldEditor::remove_function_process_output);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_function_process", "function_type_id"),
+                                &CLifeWorldEditor::remove_function_process);
     godot::ClassDB::bind_method(godot::D_METHOD("rename_value", "key", "name"), &CLifeWorldEditor::rename_value);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_value", "key"), &CLifeWorldEditor::remove_value);
     godot::ClassDB::bind_method(godot::D_METHOD("add_template", "name"), &CLifeWorldEditor::add_template);
