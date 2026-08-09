@@ -106,6 +106,79 @@ godot::String direction_name(world::HostChannelDirection direction)
     return direction == world::HostChannelDirection::input ? godot::String{"Input"} : godot::String{"Output"};
 }
 
+godot::Variant required_field(const godot::Dictionary& object, const char* name)
+{
+    if (!object.has(name)) {
+        throw std::invalid_argument{std::string{"snapshot is missing required field: "} + name};
+    }
+    return object[name];
+}
+
+godot::Dictionary required_dictionary(const godot::Variant& value, const char* context)
+{
+    if (value.get_type() != godot::Variant::DICTIONARY) {
+        throw std::invalid_argument{std::string{context} + " must be an object"};
+    }
+    return value;
+}
+
+godot::Array required_array(const godot::Variant& value, const char* context)
+{
+    if (value.get_type() != godot::Variant::ARRAY) {
+        throw std::invalid_argument{std::string{context} + " must be an array"};
+    }
+    return value;
+}
+
+std::string required_string(const godot::Variant& value, const char* context)
+{
+    if (value.get_type() != godot::Variant::STRING) {
+        throw std::invalid_argument{std::string{context} + " must be a string"};
+    }
+    return to_std_string(value);
+}
+
+double required_number(const godot::Variant& value, const char* context)
+{
+    if (value.get_type() != godot::Variant::INT && value.get_type() != godot::Variant::FLOAT) {
+        throw std::invalid_argument{std::string{context} + " must be a number"};
+    }
+    const double result = value;
+    if (!std::isfinite(result)) {
+        throw std::invalid_argument{std::string{context} + " must be finite"};
+    }
+    return result;
+}
+
+std::uint32_t required_uint32(const godot::Variant& value, const char* context)
+{
+    if (value.get_type() != godot::Variant::INT) {
+        throw std::invalid_argument{std::string{context} + " must be an integer"};
+    }
+    const std::int64_t result = value;
+    if (result < 0 || result > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::invalid_argument{std::string{context} + " is out of range"};
+    }
+    return static_cast<std::uint32_t>(result);
+}
+
+world::HostChannelDirection snapshot_direction(const godot::Variant& value)
+{
+    const std::string direction = required_string(value, "host binding direction");
+    if (direction == "input") {
+        return world::HostChannelDirection::input;
+    }
+    if (direction == "output") {
+        return world::HostChannelDirection::output;
+    }
+    throw std::invalid_argument{"host binding direction must be input or output"};
+}
+
+godot::String snapshot_direction_name(world::HostChannelDirection direction)
+{
+    return direction == world::HostChannelDirection::input ? godot::String{"input"} : godot::String{"output"};
+}
+
 } // namespace
 
 CLifeWorldEditor::CLifeWorldEditor() = default;
@@ -865,6 +938,340 @@ bool CLifeWorldEditor::set_host_input(const godot::String& channel, double amoun
     }
 }
 
+godot::Dictionary CLifeWorldEditor::export_world_snapshot()
+{
+    godot::Dictionary result;
+    try {
+        const world::WorldDefinitionSnapshot snapshot = definition_.snapshot();
+        result["schema_version"] = static_cast<std::int64_t>(snapshot.schema_version);
+        result["next_value_key"] = static_cast<std::int64_t>(snapshot.next_value_key);
+        result["next_template_id"] = static_cast<std::int64_t>(snapshot.next_template_id);
+        result["next_function_type_id"] = static_cast<std::int64_t>(snapshot.next_function_type_id);
+        result["next_parameter_id"] = static_cast<std::int64_t>(snapshot.next_parameter_id);
+        result["next_calculation_id"] = static_cast<std::int64_t>(snapshot.next_calculation_id);
+        result["next_calculation_port_id"] = static_cast<std::int64_t>(snapshot.next_calculation_port_id);
+        godot::Array values;
+        for (const auto& value : snapshot.values) {
+            godot::Dictionary entry;
+            entry["id"] = static_cast<std::int64_t>(value.key.value);
+            entry["name"] = to_godot_string(value.name);
+            values.push_back(entry);
+        }
+        result["values"] = values;
+        godot::Array calculations;
+        for (const auto& calculation : snapshot.calculations) {
+            godot::Dictionary entry;
+            entry["id"] = static_cast<std::int64_t>(calculation.id.value);
+            entry["name"] = to_godot_string(calculation.name);
+            godot::Array inputs;
+            for (const auto& input : calculation.inputs) {
+                godot::Dictionary port;
+                port["id"] = static_cast<std::int64_t>(input.id.value);
+                port["name"] = to_godot_string(input.name);
+                inputs.push_back(port);
+            }
+            godot::Array outputs;
+            for (const auto& output : calculation.outputs) {
+                godot::Dictionary port;
+                port["id"] = static_cast<std::int64_t>(output.id.value);
+                port["name"] = to_godot_string(output.name);
+                port["expression_source"] = to_godot_string(output.expression_source);
+                outputs.push_back(port);
+            }
+            entry["inputs"] = inputs;
+            entry["outputs"] = outputs;
+            calculations.push_back(entry);
+        }
+        result["calculations"] = calculations;
+        godot::Array types;
+        for (const auto& type : snapshot.function_types) {
+            godot::Dictionary entry;
+            entry["id"] = static_cast<std::int64_t>(type.id.value);
+            entry["name"] = to_godot_string(type.name);
+            godot::Array genome_parameters;
+            for (const auto& parameter : type.genome_parameters) {
+                godot::Dictionary item;
+                item["id"] = static_cast<std::int64_t>(parameter.id.value);
+                item["name"] = to_godot_string(parameter.name);
+                item["default_value"] = parameter.default_value;
+                genome_parameters.push_back(item);
+            }
+            godot::Array derived_parameters;
+            for (const auto& parameter : type.derived_parameters) {
+                godot::Dictionary item;
+                item["id"] = static_cast<std::int64_t>(parameter.id.value);
+                item["name"] = to_godot_string(parameter.name);
+                item["expression_source"] = to_godot_string(parameter.expression_source);
+                derived_parameters.push_back(item);
+            }
+            godot::Array contributions;
+            for (const auto& contribution : type.material_contributions) {
+                godot::Dictionary item;
+                item["value_key"] = static_cast<std::int64_t>(contribution.value.value);
+                item["expression_source"] = to_godot_string(contribution.expression_source);
+                contributions.push_back(item);
+            }
+            entry["genome_parameters"] = genome_parameters;
+            entry["derived_parameters"] = derived_parameters;
+            entry["material_contributions"] = contributions;
+            entry["process"] = godot::Variant();
+            if (type.process) {
+                godot::Dictionary process;
+                process["input_key"] = static_cast<std::int64_t>(type.process->input.value);
+                process["output_key"] = static_cast<std::int64_t>(type.process->output.value);
+                process["throughput_parameter_id"] = static_cast<std::int64_t>(type.process->throughput.value);
+                process["result_per_input_parameter_id"] = static_cast<std::int64_t>(type.process->result_per_input.value);
+                entry["process"] = process;
+            }
+            entry["buffer_process"] = godot::Variant();
+            if (type.buffer_process) {
+                godot::Dictionary buffer;
+                buffer["value_key"] = static_cast<std::int64_t>(type.buffer_process->value.value);
+                buffer["capacity_parameter_id"] = static_cast<std::int64_t>(type.buffer_process->capacity.value);
+                buffer["throughput_parameter_id"] = static_cast<std::int64_t>(type.buffer_process->throughput.value);
+                buffer["leakage_parameter_id"] = static_cast<std::int64_t>(type.buffer_process->leakage.value);
+                entry["buffer_process"] = buffer;
+            }
+            types.push_back(entry);
+        }
+        result["function_types"] = types;
+        godot::Array templates;
+        for (const auto& object : snapshot.templates) {
+            godot::Dictionary entry;
+            entry["id"] = static_cast<std::int64_t>(object.id.value);
+            entry["name"] = to_godot_string(object.name);
+            godot::Array initials;
+            for (const auto& item : object.initial_values) {
+                godot::Dictionary stored;
+                stored["value_key"] = static_cast<std::int64_t>(item.value.value);
+                stored["amount"] = item.amount;
+                initials.push_back(stored);
+            }
+            godot::Array materials;
+            for (const auto& item : object.material_contributions) {
+                godot::Dictionary stored;
+                stored["value_key"] = static_cast<std::int64_t>(item.value.value);
+                stored["amount"] = item.amount;
+                materials.push_back(stored);
+            }
+            godot::Array genome;
+            for (const auto& function : object.genome) {
+                godot::Dictionary stored;
+                stored["function_type_id"] = static_cast<std::int64_t>(function.type.value);
+                godot::Array parameters;
+                for (const auto& parameter : function.parameters) {
+                    godot::Dictionary value;
+                    value["parameter_id"] = static_cast<std::int64_t>(parameter.parameter.value);
+                    value["amount"] = parameter.value;
+                    parameters.push_back(value);
+                }
+                stored["parameters"] = parameters;
+                genome.push_back(stored);
+            }
+            godot::Array bindings;
+            for (const auto& binding : object.host_bindings) {
+                godot::Dictionary stored;
+                stored["channel"] = to_godot_string(binding.channel);
+                stored["direction"] = snapshot_direction_name(binding.direction);
+                stored["value_key"] = static_cast<std::int64_t>(binding.value.value);
+                bindings.push_back(stored);
+            }
+            entry["initial_values"] = initials;
+            entry["material_contributions"] = materials;
+            entry["genome"] = genome;
+            entry["host_bindings"] = bindings;
+            templates.push_back(entry);
+        }
+        result["templates"] = templates;
+        godot::Array rules;
+        for (const auto& rule : snapshot.world_rules) {
+            godot::Dictionary entry;
+            entry["source_key"] = static_cast<std::int64_t>(rule.source.value);
+            entry["end_buffer_key"] = static_cast<std::int64_t>(rule.end_buffer.value);
+            entry["target_key"] = static_cast<std::int64_t>(rule.target.value);
+            entry["target_per_source"] = rule.target_per_source;
+            rules.push_back(entry);
+        }
+        result["world_rules"] = rules;
+        clear_error();
+    } catch (...) {
+        capture_current_error();
+        result.clear();
+    }
+    return result;
+}
+
+bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized)
+{
+    try {
+        require_edit_mode();
+        world::WorldDefinitionSnapshot snapshot;
+        snapshot.schema_version = required_uint32(required_field(serialized, "schema_version"), "schema_version");
+        snapshot.next_value_key = required_uint32(required_field(serialized, "next_value_key"), "next_value_key");
+        snapshot.next_template_id = required_uint32(required_field(serialized, "next_template_id"), "next_template_id");
+        snapshot.next_function_type_id =
+            required_uint32(required_field(serialized, "next_function_type_id"), "next_function_type_id");
+        snapshot.next_parameter_id = required_uint32(required_field(serialized, "next_parameter_id"), "next_parameter_id");
+        snapshot.next_calculation_id =
+            required_uint32(required_field(serialized, "next_calculation_id"), "next_calculation_id");
+        snapshot.next_calculation_port_id =
+            required_uint32(required_field(serialized, "next_calculation_port_id"), "next_calculation_port_id");
+        for (const godot::Variant& value : required_array(required_field(serialized, "values"), "values")) {
+            const godot::Dictionary item = required_dictionary(value, "value");
+            snapshot.values.push_back({
+                .key = {required_uint32(required_field(item, "id"), "value id")},
+                .name = required_string(required_field(item, "name"), "value name"),
+            });
+        }
+        for (const godot::Variant& value : required_array(required_field(serialized, "calculations"), "calculations")) {
+            const godot::Dictionary item = required_dictionary(value, "calculation");
+            world::CalculationSnapshot calculation{
+                .id = {required_uint32(required_field(item, "id"), "calculation id")},
+                .name = required_string(required_field(item, "name"), "calculation name"),
+            };
+            for (const godot::Variant& port_value : required_array(required_field(item, "inputs"), "calculation inputs")) {
+                const godot::Dictionary port = required_dictionary(port_value, "calculation input");
+                calculation.inputs.push_back({
+                    .id = {required_uint32(required_field(port, "id"), "calculation input id")},
+                    .name = required_string(required_field(port, "name"), "calculation input name"),
+                });
+            }
+            for (const godot::Variant& port_value : required_array(required_field(item, "outputs"), "calculation outputs")) {
+                const godot::Dictionary port = required_dictionary(port_value, "calculation output");
+                calculation.outputs.push_back({
+                    .id = {required_uint32(required_field(port, "id"), "calculation output id")},
+                    .name = required_string(required_field(port, "name"), "calculation output name"),
+                    .expression_source = required_string(required_field(port, "expression_source"), "calculation output expression"),
+                });
+            }
+            snapshot.calculations.push_back(std::move(calculation));
+        }
+        for (const godot::Variant& value : required_array(required_field(serialized, "function_types"), "function_types")) {
+            const godot::Dictionary item = required_dictionary(value, "function type");
+            world::FunctionTypeSnapshot type{
+                .id = {required_uint32(required_field(item, "id"), "function type id")},
+                .name = required_string(required_field(item, "name"), "function type name"),
+            };
+            for (const godot::Variant& parameter_value :
+                 required_array(required_field(item, "genome_parameters"), "genome parameters")) {
+                const godot::Dictionary parameter = required_dictionary(parameter_value, "genome parameter");
+                type.genome_parameters.push_back({
+                    .id = {required_uint32(required_field(parameter, "id"), "genome parameter id")},
+                    .name = required_string(required_field(parameter, "name"), "genome parameter name"),
+                    .default_value = required_number(required_field(parameter, "default_value"), "genome parameter default"),
+                });
+            }
+            for (const godot::Variant& parameter_value :
+                 required_array(required_field(item, "derived_parameters"), "derived parameters")) {
+                const godot::Dictionary parameter = required_dictionary(parameter_value, "derived parameter");
+                type.derived_parameters.push_back({
+                    .id = {required_uint32(required_field(parameter, "id"), "derived parameter id")},
+                    .name = required_string(required_field(parameter, "name"), "derived parameter name"),
+                    .expression_source = required_string(required_field(parameter, "expression_source"), "derived parameter expression"),
+                });
+            }
+            const godot::Variant process_value = required_field(item, "process");
+            if (process_value.get_type() != godot::Variant::NIL) {
+                const godot::Dictionary process = required_dictionary(process_value, "process");
+                type.process = {
+                    .input = {required_uint32(required_field(process, "input_key"), "process input key")},
+                    .output = {required_uint32(required_field(process, "output_key"), "process output key")},
+                    .throughput = {required_uint32(required_field(process, "throughput_parameter_id"), "process throughput")},
+                    .result_per_input = {required_uint32(required_field(process, "result_per_input_parameter_id"), "process result")},
+                };
+            }
+            const godot::Variant buffer_value = required_field(item, "buffer_process");
+            if (buffer_value.get_type() != godot::Variant::NIL) {
+                const godot::Dictionary buffer = required_dictionary(buffer_value, "buffer process");
+                type.buffer_process = {
+                    .value = {required_uint32(required_field(buffer, "value_key"), "buffer value key")},
+                    .capacity = {required_uint32(required_field(buffer, "capacity_parameter_id"), "buffer capacity")},
+                    .throughput = {required_uint32(required_field(buffer, "throughput_parameter_id"), "buffer throughput")},
+                    .leakage = {required_uint32(required_field(buffer, "leakage_parameter_id"), "buffer leakage")},
+                };
+            }
+            for (const godot::Variant& contribution_value :
+                 required_array(required_field(item, "material_contributions"), "function material contributions")) {
+                const godot::Dictionary contribution = required_dictionary(contribution_value, "function material contribution");
+                type.material_contributions.push_back({
+                    .value = {required_uint32(required_field(contribution, "value_key"), "material value key")},
+                    .expression_source = required_string(required_field(contribution, "expression_source"), "material expression"),
+                });
+            }
+            snapshot.function_types.push_back(std::move(type));
+        }
+        for (const godot::Variant& value : required_array(required_field(serialized, "templates"), "templates")) {
+            const godot::Dictionary item = required_dictionary(value, "template");
+            world::ObjectTemplate object{
+                .id = {required_uint32(required_field(item, "id"), "template id")},
+                .name = required_string(required_field(item, "name"), "template name"),
+            };
+            for (const godot::Variant& stored_value : required_array(required_field(item, "initial_values"), "initial values")) {
+                const godot::Dictionary stored = required_dictionary(stored_value, "initial value");
+                object.initial_values.push_back({
+                    .value = {required_uint32(required_field(stored, "value_key"), "initial value key")},
+                    .amount = required_number(required_field(stored, "amount"), "initial amount"),
+                });
+            }
+            for (const godot::Variant& stored_value : required_array(required_field(item, "material_contributions"), "template materials")) {
+                const godot::Dictionary stored = required_dictionary(stored_value, "template material contribution");
+                object.material_contributions.push_back({
+                    .value = {required_uint32(required_field(stored, "value_key"), "template material value key")},
+                    .amount = required_number(required_field(stored, "amount"), "template material amount"),
+                });
+            }
+            for (const godot::Variant& function_value : required_array(required_field(item, "genome"), "template genome")) {
+                const godot::Dictionary function = required_dictionary(function_value, "genome function");
+                world::GenomeFunctionInstance instance{
+                    .type = {required_uint32(required_field(function, "function_type_id"), "genome function type")},
+                };
+                for (const godot::Variant& parameter_value : required_array(required_field(function, "parameters"), "genome parameters")) {
+                    const godot::Dictionary parameter = required_dictionary(parameter_value, "genome parameter value");
+                    instance.parameters.push_back({
+                        .parameter = {required_uint32(required_field(parameter, "parameter_id"), "genome parameter id")},
+                        .value = required_number(required_field(parameter, "amount"), "genome parameter amount"),
+                    });
+                }
+                object.genome.push_back(std::move(instance));
+            }
+            for (const godot::Variant& binding_value : required_array(required_field(item, "host_bindings"), "host bindings")) {
+                const godot::Dictionary binding = required_dictionary(binding_value, "host binding");
+                object.host_bindings.push_back({
+                    .channel = required_string(required_field(binding, "channel"), "host binding channel"),
+                    .direction = snapshot_direction(required_field(binding, "direction")),
+                    .value = {required_uint32(required_field(binding, "value_key"), "host binding value key")},
+                });
+            }
+            snapshot.templates.push_back(std::move(object));
+        }
+        for (const godot::Variant& value : required_array(required_field(serialized, "world_rules"), "world rules")) {
+            const godot::Dictionary item = required_dictionary(value, "world rule");
+            snapshot.world_rules.push_back({
+                .source = {required_uint32(required_field(item, "source_key"), "world rule source")},
+                .end_buffer = {required_uint32(required_field(item, "end_buffer_key"), "world rule end buffer")},
+                .target = {required_uint32(required_field(item, "target_key"), "world rule target")},
+                .target_per_source = required_number(required_field(item, "target_per_source"), "world rule factor"),
+            });
+        }
+        world::WorldDefinition restored = world::WorldDefinition::from_snapshot(snapshot);
+        definition_ = std::move(restored);
+        selected_template_.reset();
+        host_inputs_.clear();
+        runtime_.reset();
+        preview_object_.reset();
+        run_definition_.reset();
+        run_template_.reset();
+        accumulator_ = 0.0;
+        tick_ = 0;
+        playing_ = false;
+        clear_error();
+        return true;
+    } catch (...) {
+        capture_current_error();
+        return false;
+    }
+}
+
 godot::String CLifeWorldEditor::get_last_error() const
 {
     try {
@@ -1010,6 +1417,9 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("get_host_outputs"), &CLifeWorldEditor::get_host_outputs);
     godot::ClassDB::bind_method(godot::D_METHOD("set_host_input", "channel", "amount"),
                                 &CLifeWorldEditor::set_host_input);
+    godot::ClassDB::bind_method(godot::D_METHOD("export_world_snapshot"), &CLifeWorldEditor::export_world_snapshot);
+    godot::ClassDB::bind_method(godot::D_METHOD("import_world_snapshot", "snapshot"),
+                                &CLifeWorldEditor::import_world_snapshot);
     godot::ClassDB::bind_method(godot::D_METHOD("get_last_error"), &CLifeWorldEditor::get_last_error);
     godot::ClassDB::bind_method(godot::D_METHOD("clear_last_error"), &CLifeWorldEditor::clear_last_error);
 }

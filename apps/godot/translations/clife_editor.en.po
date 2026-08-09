@@ -9,6 +9,18 @@ msgstr ""
 msgid "ui.title"
 msgstr "CLife World Editor"
 
+msgid "ui.save_world"
+msgstr "Save World"
+
+msgid "status.world_saved"
+msgstr "World saved"
+
+msgid "status.world_loaded"
+msgstr "World loaded"
+
+msgid "status.world_save_failed"
+msgstr "Could not save world (%s)"
+
 msgid "ui.mode_edit"
 msgstr "EDIT"
 

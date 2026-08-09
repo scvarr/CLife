@@ -4,6 +4,7 @@
 
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/string.hpp>
 
 #include <cstdint>
@@ -81,6 +82,8 @@ public:
     [[nodiscard]] godot::Array get_host_inputs();
     [[nodiscard]] godot::Array get_host_outputs();
     bool set_host_input(const godot::String& channel, double amount);
+    [[nodiscard]] godot::Dictionary export_world_snapshot();
+    bool import_world_snapshot(const godot::Dictionary& snapshot);
     [[nodiscard]] godot::String get_last_error() const;
     void clear_last_error();
 

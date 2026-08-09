@@ -10,6 +10,18 @@ msgstr ""
 msgid "ui.title"
 msgstr "Редактор мира CLife"
 
+msgid "ui.save_world"
+msgstr "Сохранить мир"
+
+msgid "status.world_saved"
+msgstr "Мир сохранён"
+
+msgid "status.world_loaded"
+msgstr "Мир загружен"
+
+msgid "status.world_save_failed"
+msgstr "Ошибка сохранения: %s"
+
 msgid "ui.mode_edit"
 msgstr "РЕДАКТИРОВАНИЕ"
 

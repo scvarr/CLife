@@ -3,6 +3,7 @@ extends Node3D
 const INPUT_DIRECTION := 0
 const OUTPUT_DIRECTION := 1
 const GEOMETRY_VOLUME_CHANNEL := "geometry.volume"
+const WORLD_SAVE_PATH := "user://current_world.clife.json"
 const DEFAULT_LOCALE := "ru"
 const SETTINGS_PATH := "user://settings.cfg"
 const TRANSLATION_PATHS := [
@@ -25,6 +26,7 @@ var pause_button: Button
 var step_button: Button
 var reset_button: Button
 var back_to_editor_button: Button
+var save_world_button: Button
 var new_name: LineEdit
 var add_value_button: Button
 var add_template_button: Button
@@ -45,9 +47,11 @@ func _ready() -> void:
 	current_locale = _load_locale_preference()
 	TranslationServer.set_locale(current_locale)
 	editor = CLifeWorldEditor.new()
+	_load_saved_world()
 	_refresh_preview_visibility()
 	_build_editor_ui()
 	_rebuild_world_tree()
+	_rebuild_host_inputs()
 	_refresh_mode()
 	_show_welcome_inspector()
 	_refresh_status()
@@ -92,6 +96,38 @@ func _on_locale_selected(index: int, selector: OptionButton) -> void:
 	TranslationServer.set_locale(current_locale)
 	_save_locale_preference()
 	_rebuild_localized_ui()
+
+
+func _load_saved_world() -> void:
+	if not FileAccess.file_exists(WORLD_SAVE_PATH):
+		return
+	var file := FileAccess.open(WORLD_SAVE_PATH, FileAccess.READ)
+	if file == null:
+		_set_status_error("could not open saved world")
+		return
+	var json := JSON.new()
+	if json.parse(file.get_as_text()) != OK:
+		_set_status_error("could not parse saved world: %s" % json.get_error_message())
+		return
+	if not (json.data is Dictionary):
+		_set_status_error("saved world root must be an object")
+		return
+	if not editor.import_world_snapshot(json.data):
+		_set_status_error(editor.get_last_error())
+		return
+	_set_status("status.world_loaded")
+
+
+func _on_save_world() -> void:
+	if editor.is_run_active():
+		return
+	var file := FileAccess.open(WORLD_SAVE_PATH, FileAccess.WRITE)
+	if file == null:
+		_set_status("status.world_save_failed", [FileAccess.get_open_error()])
+		return
+	file.store_string(JSON.stringify(editor.export_world_snapshot(), "\t"))
+	file.close()
+	_set_status("status.world_saved")
 
 
 func _rebuild_localized_ui() -> void:
@@ -164,6 +200,8 @@ func _build_header() -> Control:
 	mode_label.add_theme_font_size_override("font_size", 18)
 	mode_label.custom_minimum_size.x = 120.0
 	header.add_child(mode_label)
+	save_world_button = _button(tr("ui.save_world"), _on_save_world)
+	header.add_child(save_world_button)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(spacer)
@@ -904,6 +942,7 @@ func _refresh_mode() -> void:
 	step_button.disabled = running and editor.is_playing()
 	reset_button.disabled = not running
 	back_to_editor_button.disabled = not running
+	save_world_button.disabled = running
 	new_name.editable = not running
 	add_value_button.disabled = running
 	add_template_button.disabled = running
