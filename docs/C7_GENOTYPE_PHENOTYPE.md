@@ -44,21 +44,25 @@ Division by zero, unknown references, malformed syntax и любой non-finite 
 
 `RuntimeWorld` компилирует phenotype при создании и строит calculator `Program` из conversion и buffer processes. Формулы genotype → phenotype не вычисляются на каждом tick. `RuntimeWorld::phenotype(ObjectId)` предоставляет const-доступ к скомпилированному phenotype объекта без раскрытия mutable `Calculator`; `function_states(ObjectId)` отдельно возвращает изменяемое состояние runtime-функций.
 
-## 5. Flow values и пропорциональное разрешение
+## 5. Flow values и buffer surplus/deficit semantics
 
-Обычный `Value` во время тика является общим потоком со множеством источников и потребителей. Для каждого value calculator вычисляет суммы предложений и запросов, разрешает `min(total_supply, total_demand)` и одним коэффициентом пропорционально масштабирует все источники, а другим — всех потребителей. Приоритетов между свежим потоком, накопителем и conversion-функциями нет. Результат не зависит от declaration order.
+Обычный `Value` во время тика сначала разрешается как normal bus. `normal_supply` — текущий amount value от normal sources; `normal_demand` — сумма throughput-запросов обычных conversion `Function` consumers. Buffers — отдельные stateful primitives, а не обычные source или consumer этой arbitration.
 
-Buffer рассчитывает offer и demand из одного состояния в начале разрешения value:
+При `normal_supply >= normal_demand` все обычные consumers получают полный throughput. Только оставшийся `surplus` может зарядить buffers, пропорционально их текущим запросам:
 
 ```text
-offer  = min(stored, Throughput)
-demand = min(Capacity - stored, Throughput)
-stored = stored - actual_supplied + actual_received - Leakage
+charge_demand = min(Capacity - stored, Throughput)
 ```
 
-Один buffer может одновременно получить и отдать поток. Неиспользованная часть offer остаётся внутри него.
+При `normal_supply < normal_demand` buffers могут разрядиться только для покрытия `deficit`, пропорционально доступным offers:
 
-Остаток обычного временного потока переносится в отдельный `end_buffer`. Pipeline текущего тика не может читать его. После заполнения end-buffer применяются end rules, затем на следующем тике snapshot заменяется новым. Первый мир использует `remaining Energy -> END Heat` и `END Heat -> Temperature * 0.1`.
+```text
+offer = min(stored, Throughput)
+```
+
+После actual discharge доступный объём пропорционально распределяется между обычными `Function` consumers по их throughput demands. У обычных consumers нет приоритетов; declaration order не задаёт приоритет и для нескольких buffers. В одном разрешении value buffer может либо receive surplus, либо supply deficit, либо не менять state; одновременно receive и supply он не может и не заряжается из собственного offer. Leakage остаётся отдельным существующим шагом state update.
+
+Непринятый buffers surplus остаётся на `Value` и переносится в отдельный `end_buffer`. Pipeline текущего тика не может читать его. После заполнения end-buffer применяются end rules, затем на следующем тике snapshot заменяется новым. Первый мир использует `remaining Energy -> END Heat` и `END Heat -> Temperature * 0.1`.
 
 ## 6. First-world proof
 
@@ -81,7 +85,20 @@ Compiled phenotype:
 
 При `Capacity = 5` base contribution клетки и трёх функций вместе с дополнительным размером накопителя дают `Organic = 5`. После изменения только `Capacity` на `10` новая компиляция даёт `OrganicSize = 2`, `Throughput = 3` и total `Organic = 6`. `geometry.volume` уже связан с этим `ValueKey`, поэтому Godot меняет объём без поиска имени Organic.
 
-`Energy Storage` хранит runtime amount, изначально равный нулю. При Light `1` первый tick даёт `UsedEnergy = 0.25`, `Stored = 0.75`; второй — `UsedEnergy = 0.4375`, `Stored = 1.3125`.
+`Energy Storage` хранит runtime amount, изначально равный нулю. При `Light = 1/tick`, `Energy Use throughput = 0.5`, `Capacity = 5` и `Throughput = 1.5` normal bus сначала полностью обслуживает Energy Use, а затем storage получает surplus:
+
+```text
+Tick 1: UsedEnergy = 0.5, Storage received = 0.5, Storage stored = 0.5
+Tick 2: UsedEnergy = 0.5, Storage received = 0.5, Storage stored = 1.0
+```
+
+На следующем tick при `Light = 0` storage покрывает deficit обычного consumer:
+
+```text
+Storage supplies = 0.5, UsedEnergy = 0.5, Storage stored = 0.5
+```
+
+Пока storage может принять этот surplus, он не попадает в `END Heat`; только не принятый buffers остаток остаётся на `Energy` для существующего end-buffer transfer.
 
 ## 7. Godot editor
 

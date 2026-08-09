@@ -73,21 +73,27 @@ AmbientTemperature = 0.2
 
 Таким образом готовые возможности host/engine могут использоваться как источник части чисел мира без повторной реализации той же пространственной или физической работы внутри core.
 
-## 4. Общий пропорциональный поток
+## 4. Normal bus и buffers
 
-Порядок записей функций и накопителей в genome не задаёт приоритет. Один `Value` объединяет все обычные предложения и предложения buffer processes, а также все conversion-запросы и buffer-запросы.
+Порядок записей функций и накопителей в genome не задаёт приоритет. Для каждого `Value` сначала разрешается normal bus: текущий amount normal sources и сумма throughput-запросов обычных `Function` consumers. Buffer не является ни обычным source, ни обычным consumer этой arbitration.
 
-Если несколько функций одновременно хотят взять одно ограниченное значение, они получают одинаковую долю своей потенциальной нагрузки.
+Если normal supply достаточен, все обычные функции получают полный throughput. Оставшийся `surplus` затем распределяется между buffers пропорционально их текущим charge demands:
 
 ```text
-actual_total = min(total_supply, total_demand)
-source_fraction = actual_total / total_supply
-demand_fraction = actual_total / total_demand
-actual_source_i = offer_i * source_fraction
-actual_consumer_i = demand_i * demand_fraction
+charge_demand = min(Capacity - stored, Throughput)
 ```
 
-Пример:
+Если normal supply недостаточен, buffers сначала предлагают только объём, нужный для покрытия `deficit`, пропорционально их текущим discharge offers:
+
+```text
+offer = min(stored, Throughput)
+```
+
+После фактического discharge доступный normal supply пропорционально делится только между обычными `Function` consumers согласно их throughput demands. Таким образом, обычные consumers остаются равными peers без приоритета, а declaration order не влияет ни на них, ни на распределение между buffers.
+
+В одном разрешении `Value` buffer либо получает surplus, либо отдаёт ресурс для deficit, либо бездействует: он не может одновременно receive и supply и не может заряжаться из собственного offer. Непринятый buffers surplus остаётся на `Value`.
+
+Пример недостатка normal bus:
 
 ```text
 Light = 1
@@ -99,7 +105,7 @@ A receives 0.5
 B receives 0.5
 ```
 
-Именно это правило заменяет последовательное «кто выполнился первым, тот и забрал ресурс» и снимает необходимость в imperative scheduler для такого конфликта.
+Пропорциональное деление normal consumers заменяет последовательное «кто выполнился первым, тот и забрал ресурс» и снимает необходимость в imperative scheduler для такого конфликта.
 
 ## 5. Конечный same-tick конвейер
 
@@ -126,8 +132,8 @@ Core не переводит автоматически неиспользова
 
 ```text
 Energy produced = 1.00
-Energy accepted by consumers = 0.25
-unused Energy = 0.75
+Energy accepted by consumers = 0.50
+unused Energy = 0.50
 ```
 
 После работы генома world rule сначала переносит остаток в недоступный pipeline end-buffer:
@@ -177,12 +183,13 @@ external Light is supplied by world/engine
 1. World/host/engine supplies external root values
 
 2. Genome pipeline runs
-       functions request input values
-       all supplies and demands are resolved proportionally
-       stateful buffers may supply and receive the same Value
+       normal Function consumers form normal demand
+       normal supply first satisfies them fully when possible
+       surplus charges buffers proportionally, or deficit is covered by buffers proportionally
+       remaining normal supply is shared proportionally only by ordinary Function consumers
        actual inputs produce downstream values
 
-3. Unused transient flow enters the separate end-buffer
+3. Surplus not accepted by buffers enters the separate end-buffer
 
 4. End-of-tick world rules process the end-buffer
 
