@@ -68,7 +68,9 @@
 
 Наблюдение: `WorldDefinition` уже хранит world-authored `UnitDefinition` со стабильным `UnitId` и symbol. `ValueDefinition` может ссылаться на структурный `UnitExpression` из компонентов `UnitId` и integer exponent. Core не приписывает символам (`L`, `E`, `O`, `mm`, `tick`) физический смысл и не содержит заранее известных dimensions. Ранняя C2-модель исследовала похожую область через `Measure` и `measure_per_unit`, но C2 историческая; её API не должен восстанавливаться автоматически.
 
-Возможное направление: развивать world data для базовых масштабов, производительности на такт и отношений преобразования между различными Value. Genome parameters преимущественно остаются относительными коэффициентами.
+Реализованное основание: `UnitConversionDefinition` хранит authored мировой закон между двумя `UnitExpression`, включая stable `UnitConversionId` и исходные количества, например `10 L -> 1 E`. Эта запись пока не запускает преобразование в runtime и не привязана к `FunctionTypeDefinition`.
+
+Возможное направление: развивать world data для базовых масштабов, производительности на такт и будущего использования этих законов функциями. Genome parameters преимущественно остаются относительными коэффициентами.
 
 Текущий Godot UI создаёт atomic units и назначает Value одну atomic unit. Compound expressions уже представимы моделью, но их authoring и parser строк (`kg/m`) пока отсутствуют. Отношения не нужно задавать для каждой пары Value; потенциально UI мог бы разделять:
 
@@ -84,4 +86,4 @@
 
 Более далёкая возможность: expressions знают размерности `L`, `E`, `O`, `L / tick`, `E / L`, отвергают `Light + Organic` и допускают `Light * (Energy / Light) -> Energy`.
 
-Пока НЕ решено: нужен ли полноценный dimension type system; как задаются производные units и automatic conversions; как expression compiler проверяет размерности; как world laws описывают transformations между разными Value; какие свойства материалов нужны. Conversions, properties и dimensional checking будут проектироваться только при конкретном кризисе.
+Пока НЕ решено: нужен ли полноценный dimension type system; как задаются производные units и automatic conversions; как expression compiler проверяет размерности; как `FunctionTypeDefinition` использует world conversion laws; какие свойства материалов нужны. Compound-unit authoring, properties и dimensional checking будут проектироваться только при конкретном кризисе.

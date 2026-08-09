@@ -28,6 +28,14 @@ struct UnitExpression final {
     std::vector<UnitComponent> components;
 };
 
+struct UnitConversionDefinition final {
+    UnitConversionId id;
+    UnitExpression source_unit;
+    Amount source_amount;
+    UnitExpression target_unit;
+    Amount target_amount;
+};
+
 struct ValueDefinition final {
     ValueKey key;
     std::string name;
@@ -173,9 +181,10 @@ struct CalculationSnapshot final {
 };
 
 struct WorldDefinitionSnapshot final {
-    std::uint32_t schema_version{2};
+    std::uint32_t schema_version{3};
     std::vector<ValueDefinition> values;
     std::vector<UnitDefinition> units;
+    std::vector<UnitConversionDefinition> unit_conversions;
     std::vector<CalculationSnapshot> calculations;
     std::vector<FunctionTypeSnapshot> function_types;
     std::vector<ObjectTemplate> templates;
@@ -187,12 +196,15 @@ struct WorldDefinitionSnapshot final {
     std::uint32_t next_calculation_id{1};
     std::uint32_t next_calculation_port_id{1};
     std::uint32_t next_unit_id{1};
+    std::uint32_t next_unit_conversion_id{1};
 };
 
 class WorldDefinition final {
 public:
     [[nodiscard]] ValueKey add_value(std::string name);
     [[nodiscard]] UnitId add_unit(std::string symbol);
+    [[nodiscard]] UnitConversionId add_unit_conversion(UnitExpression source_unit, Amount source_amount,
+                                                        UnitExpression target_unit, Amount target_amount);
     void set_value_unit(ValueKey value, UnitExpression unit);
     void rename_value(ValueKey key, std::string name);
     void remove_value(ValueKey key);
@@ -236,6 +248,7 @@ public:
 
     [[nodiscard]] const std::vector<ValueDefinition>& values() const noexcept;
     [[nodiscard]] const std::vector<UnitDefinition>& units() const noexcept;
+    [[nodiscard]] const std::vector<UnitConversionDefinition>& unit_conversions() const noexcept;
     [[nodiscard]] const std::vector<ObjectTemplate>& templates() const noexcept;
     [[nodiscard]] const std::vector<FunctionTypeDefinition>& function_types() const noexcept;
     [[nodiscard]] const std::vector<CalculationDefinition>& calculations() const noexcept;
@@ -259,6 +272,7 @@ private:
 
     std::vector<ValueDefinition> values_;
     std::vector<UnitDefinition> units_;
+    std::vector<UnitConversionDefinition> unit_conversions_;
     std::vector<ObjectTemplate> templates_;
     std::vector<FunctionTypeDefinition> function_types_;
     std::vector<CalculationDefinition> calculations_;
@@ -270,6 +284,7 @@ private:
     std::uint32_t next_calculation_id_{1};
     std::uint32_t next_calculation_port_id_{1};
     std::uint32_t next_unit_id_{1};
+    std::uint32_t next_unit_conversion_id_{1};
 };
 
 } // namespace clife::world

@@ -487,5 +487,32 @@ msgstr "Получено за прошлый такт: %.6f"
 msgid "ui.buffer_supplied_format"
 msgstr "Отдано за прошлый такт: %.6f"
 
+msgid "ui.unit_conversions"
+msgstr "Преобразования"
+
+msgid "ui.unit_conversion"
+msgstr "Преобразование единиц"
+
+msgid "ui.new_unit_conversion"
+msgstr "Новое преобразование единиц"
+
+msgid "ui.source_unit"
+msgstr "Исходная единица"
+
+msgid "ui.source_amount"
+msgstr "Исходное количество"
+
+msgid "ui.target_unit"
+msgstr "Целевая единица"
+
+msgid "ui.target_amount"
+msgstr "Целевое количество"
+
+msgid "ui.add_unit_conversion"
+msgstr "Добавить преобразование"
+
+msgid "status.unit_conversion_added"
+msgstr "Преобразование единиц добавлено со стабильным ID #%d"
+
 msgid "help.function_type_buffer"
 msgstr "Этот тип функции участвует в потоке Value как накопитель с состоянием."

@@ -93,6 +93,33 @@ msgstr "Calculation added with stable id #%d"
 msgid "status.unit_added"
 msgstr "Unit added with stable id #%d"
 
+msgid "ui.unit_conversions"
+msgstr "Conversions"
+
+msgid "ui.unit_conversion"
+msgstr "Unit Conversion"
+
+msgid "ui.new_unit_conversion"
+msgstr "New Unit Conversion"
+
+msgid "ui.source_unit"
+msgstr "Source Unit"
+
+msgid "ui.source_amount"
+msgstr "Source Amount"
+
+msgid "ui.target_unit"
+msgstr "Target Unit"
+
+msgid "ui.target_amount"
+msgstr "Target Amount"
+
+msgid "ui.add_unit_conversion"
+msgstr "Add Conversion"
+
+msgid "status.unit_conversion_added"
+msgstr "Unit conversion added with stable id #%d"
+
 msgid "status.value_unit_set"
 msgstr "Value unit assigned"
 

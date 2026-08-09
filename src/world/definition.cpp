@@ -127,6 +127,31 @@ UnitId WorldDefinition::add_unit(std::string symbol)
     return id;
 }
 
+UnitConversionId WorldDefinition::add_unit_conversion(UnitExpression source_unit, Amount source_amount,
+                                                       UnitExpression target_unit, Amount target_amount)
+{
+    if (!std::isfinite(source_amount) || source_amount <= 0.0) {
+        throw std::invalid_argument{"unit conversion source amount must be finite and positive"};
+    }
+    if (!std::isfinite(target_amount) || target_amount < 0.0) {
+        throw std::invalid_argument{"unit conversion target amount must be finite and non-negative"};
+    }
+    validate_unit_expression(source_unit);
+    validate_unit_expression(target_unit);
+    if (next_unit_conversion_id_ == 0) {
+        throw std::overflow_error{"UnitConversionId space exhausted"};
+    }
+    const UnitConversionId id{next_unit_conversion_id_++};
+    unit_conversions_.push_back({
+        .id = id,
+        .source_unit = std::move(source_unit),
+        .source_amount = source_amount,
+        .target_unit = std::move(target_unit),
+        .target_amount = target_amount,
+    });
+    return id;
+}
+
 void WorldDefinition::set_value_unit(ValueKey key, UnitExpression expression)
 {
     validate_unit_expression(expression);
@@ -609,6 +634,10 @@ void WorldDefinition::remove_host_binding(TemplateId id, std::size_t index)
 
 const std::vector<ValueDefinition>& WorldDefinition::values() const noexcept { return values_; }
 const std::vector<UnitDefinition>& WorldDefinition::units() const noexcept { return units_; }
+const std::vector<UnitConversionDefinition>& WorldDefinition::unit_conversions() const noexcept
+{
+    return unit_conversions_;
+}
 const std::vector<ObjectTemplate>& WorldDefinition::templates() const noexcept { return templates_; }
 const std::vector<FunctionTypeDefinition>& WorldDefinition::function_types() const noexcept { return function_types_; }
 
@@ -665,6 +694,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
     WorldDefinitionSnapshot result{
         .values = values_,
         .units = units_,
+        .unit_conversions = unit_conversions_,
         .templates = templates_,
         .world_rules = world_rules_,
         .next_value_key = next_value_key_,
@@ -674,6 +704,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
         .next_calculation_id = next_calculation_id_,
         .next_calculation_port_id = next_calculation_port_id_,
         .next_unit_id = next_unit_id_,
+        .next_unit_conversion_id = next_unit_conversion_id_,
     };
     result.calculations.reserve(calculations_.size());
     for (const CalculationDefinition& calculation : calculations_) {
@@ -707,12 +738,12 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
 
 WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& source)
 {
-    if (source.schema_version != 1 && source.schema_version != 2) {
+    if (source.schema_version != 1 && source.schema_version != 2 && source.schema_version != 3) {
         throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version"};
     }
     require_unique_snapshot_ids(source.values, &ValueDefinition::key, "ValueKey");
     require_unique_snapshot_names(source.values, "value");
-    if (source.schema_version == 2) {
+    if (source.schema_version >= 2) {
         require_unique_snapshot_ids(source.units, &UnitDefinition::id, "UnitId");
         for (std::size_t index = 0; index < source.units.size(); ++index) {
             require_name(source.units[index].symbol, "unit");
@@ -732,7 +763,7 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
 
     WorldDefinition restored;
     restored.values_ = source.values;
-    if (source.schema_version == 2) {
+    if (source.schema_version >= 2) {
         restored.units_ = source.units;
         for (const ValueDefinition& value : restored.values_) {
             if (value.unit) {
@@ -742,6 +773,20 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
     } else {
         for (ValueDefinition& value : restored.values_) {
             value.unit.reset();
+        }
+    }
+    if (source.schema_version == 3) {
+        require_unique_snapshot_ids(source.unit_conversions, &UnitConversionDefinition::id, "UnitConversionId");
+        for (const UnitConversionDefinition& conversion : source.unit_conversions) {
+            if (!std::isfinite(conversion.source_amount) || conversion.source_amount <= 0.0) {
+                throw std::invalid_argument{"unit conversion source amount must be finite and positive"};
+            }
+            if (!std::isfinite(conversion.target_amount) || conversion.target_amount < 0.0) {
+                throw std::invalid_argument{"unit conversion target amount must be finite and non-negative"};
+            }
+            restored.validate_unit_expression(conversion.source_unit);
+            restored.validate_unit_expression(conversion.target_unit);
+            restored.unit_conversions_.push_back(conversion);
         }
     }
 
@@ -911,8 +956,12 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
                               "CalculationId");
     require_next_id_is_unused(source.next_calculation_port_id, port_ids, [](CalculationPortId id) { return id; },
                               "CalculationPortId");
-    if (source.schema_version == 2) {
+    if (source.schema_version >= 2) {
         require_next_id_is_unused(source.next_unit_id, source.units, &UnitDefinition::id, "UnitId");
+    }
+    if (source.schema_version == 3) {
+        require_next_id_is_unused(source.next_unit_conversion_id, source.unit_conversions,
+                                  &UnitConversionDefinition::id, "UnitConversionId");
     }
     restored.next_value_key_ = source.next_value_key;
     restored.next_template_id_ = source.next_template_id;
@@ -920,7 +969,8 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
     restored.next_parameter_id_ = source.next_parameter_id;
     restored.next_calculation_id_ = source.next_calculation_id;
     restored.next_calculation_port_id_ = source.next_calculation_port_id;
-    restored.next_unit_id_ = source.schema_version == 2 ? source.next_unit_id : 1;
+    restored.next_unit_id_ = source.schema_version >= 2 ? source.next_unit_id : 1;
+    restored.next_unit_conversion_id_ = source.schema_version == 3 ? source.next_unit_conversion_id : 1;
     return restored;
 }
 

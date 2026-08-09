@@ -21,8 +21,12 @@ using clife::world::ObjectId;
 using clife::world::ParameterId;
 using clife::world::RuntimeWorld;
 using clife::world::TemplateId;
+using clife::world::UnitConversionId;
+using clife::world::UnitExpression;
+using clife::world::UnitId;
 using clife::world::ValueKey;
 using clife::world::WorldDefinition;
+using clife::world::WorldDefinitionSnapshot;
 using clife::world::WorldRuleDefinition;
 
 bool expect_true(bool condition, const char* message)
@@ -775,6 +779,55 @@ bool test_world_units_and_snapshot_compatibility()
                          "snapshot rejects an unknown UnitId");
 }
 
+bool test_unit_conversions_and_snapshot_compatibility()
+{
+    WorldDefinition definition;
+    const UnitId light = definition.add_unit("L");
+    const UnitId energy = definition.add_unit("E");
+    const UnitExpression light_expression{.components = {{.unit = light, .exponent = 1}}};
+    const UnitExpression energy_expression{.components = {{.unit = energy, .exponent = 1}}};
+    const UnitConversionId conversion =
+        definition.add_unit_conversion(light_expression, 10.0, energy_expression, 1.0);
+
+    const WorldDefinitionSnapshot snapshot = definition.snapshot();
+    WorldDefinition restored = WorldDefinition::from_snapshot(snapshot);
+    if (!expect_true(conversion.value == 1 && restored.unit_conversions().size() == 1 &&
+                         restored.unit_conversions()[0].id == conversion &&
+                         restored.unit_conversions()[0].source_amount == 10.0 &&
+                         restored.unit_conversions()[0].target_amount == 1.0 &&
+                         restored.unit_conversions()[0].source_unit.components.size() == 1 &&
+                         restored.unit_conversions()[0].source_unit.components[0].unit == light &&
+                         restored.unit_conversions()[0].source_unit.components[0].exponent == 1 &&
+                         restored.unit_conversions()[0].target_unit.components.size() == 1 &&
+                         restored.unit_conversions()[0].target_unit.components[0].unit == energy &&
+                         restored.unit_conversions()[0].target_unit.components[0].exponent == 1 &&
+                         restored.add_unit_conversion(light_expression, 1.0, energy_expression, 0.5).value == 2,
+                     "unit conversion IDs and authored amounts survive snapshot round trip")) {
+        return false;
+    }
+
+    auto v2_snapshot = snapshot;
+    v2_snapshot.schema_version = 2;
+    v2_snapshot.unit_conversions.clear();
+    v2_snapshot.next_unit_conversion_id = 1;
+    WorldDefinition v2_restored = WorldDefinition::from_snapshot(v2_snapshot);
+    if (!expect_true(v2_restored.unit_conversions().empty() &&
+                         v2_restored.add_unit_conversion(light_expression, 1.0, energy_expression, 0.1).value == 1,
+                     "schema version 2 snapshots restore without unit conversions")) {
+        return false;
+    }
+
+    const UnitExpression unknown_expression{.components = {{.unit = {999}, .exponent = 1}}};
+    return expect_throws([&] { (void)definition.add_unit_conversion(light_expression, 0.0, energy_expression, 1.0); },
+                         "unit conversion rejects zero source amount") &&
+           expect_throws([&] { (void)definition.add_unit_conversion(light_expression, -1.0, energy_expression, 1.0); },
+                         "unit conversion rejects negative source amount") &&
+           expect_throws([&] { (void)definition.add_unit_conversion(light_expression, 1.0, energy_expression, -1.0); },
+                         "unit conversion rejects negative target amount") &&
+           expect_throws([&] { (void)definition.add_unit_conversion(unknown_expression, 1.0, energy_expression, 1.0); },
+                         "unit conversion rejects unknown UnitId");
+}
+
 bool test_utf8_expression_names()
 {
     const ParameterId light{1};
@@ -859,6 +912,7 @@ int main()
                    test_reusable_calculation_definitions() && test_world_definition_snapshot_round_trip() &&
                    test_snapshot_preserves_next_ids_and_rejects_invalid_data() &&
                    test_world_units_and_snapshot_compatibility() &&
+                   test_unit_conversions_and_snapshot_compatibility() &&
                    test_utf8_expression_names() &&
                    test_expression_operations_and_validation() &&
                    test_invalid_derived_results_are_rejected()

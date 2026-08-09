@@ -24,6 +24,7 @@ public:
 
     [[nodiscard]] godot::Array get_values();
     [[nodiscard]] godot::Array get_units();
+    [[nodiscard]] godot::Array get_unit_conversions();
     [[nodiscard]] godot::Array get_templates();
     [[nodiscard]] godot::Array get_function_types();
     [[nodiscard]] godot::Array get_calculations();
@@ -36,6 +37,8 @@ public:
 
     [[nodiscard]] std::int64_t add_value(const godot::String& name);
     [[nodiscard]] std::int64_t add_unit(const godot::String& symbol);
+    [[nodiscard]] std::int64_t add_unit_conversion(std::int64_t source_unit_id, double source_amount,
+                                                    std::int64_t target_unit_id, double target_amount);
     bool set_value_unit(std::int64_t value_key, std::int64_t unit_id);
     bool rename_value(std::int64_t key, const godot::String& name);
     bool remove_value(std::int64_t key);

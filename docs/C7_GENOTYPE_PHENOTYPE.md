@@ -46,7 +46,9 @@ actual throughput = ThroughputFactor * world base processing rate
 
 Минимальный фундамент units уже существует на уровне `WorldDefinition`. `UnitDefinition` — world-authored данные со стабильным `UnitId` и пользовательским symbol; core не знает SI, Mass, Length, Energy или других заранее заданных физических размерностей. `ValueDefinition` может иметь или не иметь `UnitExpression`. Выражение структурно состоит из `UnitComponent { UnitId, exponent }`, поэтому модель допускает `L`, `mm^3` и `L / tick`, хотя текущий Godot UI authoring назначает Value только одну атомарную единицу с exponent `+1`.
 
-Пока не реализованы conversions между Value, свойства материалов и dimensional checking выражений. Они остаются отдельными будущими решениями и не выводятся из символов единиц.
+`UnitConversionDefinition` уже хранит отдельный мировой закон между `UnitExpression`: исходное и целевое выражения, authored amounts и стабильный `UnitConversionId`. Например, `10 L -> 1 E` — именно conversion law мира, а не conversion одной физической величины. Сейчас эта запись описывает данные мира и не применяется `Calculator`, `FunctionTypeDefinition` или runtime.
+
+Compound-unit authoring, свойства материалов, привязка world conversion к функциям и dimensional checking выражений пока не реализованы. `WorldRuleDefinition` остаётся отдельным end-of-tick правилом переноса `Value`, а не записью unit conversion.
 
 Следует различать три уровня количественной семантики:
 

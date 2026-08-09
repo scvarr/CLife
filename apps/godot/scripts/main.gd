@@ -358,6 +358,15 @@ func _rebuild_world_tree() -> void:
 		item.set_metadata(0, {"kind": "unit", "id": int(unit.id)})
 	units_root.collapsed = false
 
+	var conversions_root := world_tree.create_item(root)
+	conversions_root.set_text(0, tr("ui.unit_conversions"))
+	conversions_root.set_metadata(0, {"kind": "unit_conversions"})
+	for conversion in editor.get_unit_conversions():
+		var item := world_tree.create_item(conversions_root)
+		item.set_text(0, _unit_conversion_text(conversion))
+		item.set_metadata(0, {"kind": "unit_conversion", "id": int(conversion.id)})
+	conversions_root.collapsed = false
+
 	var values_root := world_tree.create_item(root)
 	values_root.set_text(0, tr("ui.values"))
 	values_root.set_metadata(0, {"kind": "section"})
@@ -421,6 +430,10 @@ func _on_world_item_selected() -> void:
 	match selected_kind:
 		"value":
 			_show_value_inspector(selected_identity)
+		"unit_conversions":
+			_show_unit_conversion_creator()
+		"unit_conversion":
+			_show_unit_conversion_inspector(selected_identity)
 		"template":
 			if editor.select_template(selected_identity):
 				_refresh_preview_visibility()
@@ -470,6 +483,50 @@ func _show_value_inspector(key: int) -> void:
 		_finish_deletion(editor.remove_value(key), "status.value_deleted")
 	)
 	inspector.add_child(delete_button)
+
+
+func _show_unit_conversion_creator() -> void:
+	_clear_children(inspector)
+	_add_heading(inspector, tr("ui.new_unit_conversion"))
+	var source_unit := _unit_option()
+	var source_amount := _positive_spin(1.0)
+	var target_unit := _unit_option()
+	var target_amount := _amount_spin(0.1)
+	inspector.add_child(_labeled_control(tr("ui.source_unit"), source_unit))
+	inspector.add_child(_labeled_control(tr("ui.source_amount"), source_amount))
+	inspector.add_child(_labeled_control(tr("ui.target_unit"), target_unit))
+	inspector.add_child(_labeled_control(tr("ui.target_amount"), target_amount))
+	var add_button := _button(tr("ui.add_unit_conversion"), func() -> void:
+		var conversion_id := editor.add_unit_conversion(
+			_selected_option_id(source_unit), source_amount.value,
+			_selected_option_id(target_unit), target_amount.value)
+		if conversion_id == 0:
+			_show_facade_error_if_any()
+			return
+		selected_kind = "unit_conversion"
+		selected_identity = conversion_id
+		_set_status("status.unit_conversion_added", [conversion_id])
+		_rebuild_world_tree()
+		_show_unit_conversion_inspector(conversion_id)
+	)
+	add_button.disabled = source_unit.item_count == 0 or target_unit.item_count == 0
+	inspector.add_child(add_button)
+
+
+func _show_unit_conversion_inspector(conversion_id: int) -> void:
+	var conversion := _find_by(editor.get_unit_conversions(), "id", conversion_id)
+	if conversion.is_empty():
+		_show_welcome_inspector()
+		return
+	_clear_children(inspector)
+	_add_heading(inspector, tr("ui.unit_conversion"))
+	_add_wrapped_label(inspector, _unit_conversion_text(conversion))
+	_add_separator(inspector)
+	inspector.add_child(_button(tr("ui.new_unit_conversion"), func() -> void:
+		selected_kind = "unit_conversions"
+		selected_identity = -1
+		_show_unit_conversion_creator()
+	))
 
 
 func _show_template_inspector(template_id: int) -> void:
@@ -1063,6 +1120,10 @@ func _restore_edit_inspector() -> void:
 	match selected_kind:
 		"value":
 			_show_value_inspector(selected_identity)
+		"unit_conversions":
+			_show_unit_conversion_creator()
+		"unit_conversion":
+			_show_unit_conversion_inspector(selected_identity)
 		"template":
 			_show_template_inspector(selected_identity)
 		"function_type":
@@ -1171,6 +1232,16 @@ func _unit_expression_text(components: Array) -> String:
 		var exponent := int(component.get("exponent", 0))
 		terms.append(symbol if exponent == 1 else "%s^%d" % [symbol, exponent])
 	return " * ".join(terms)
+
+
+func _unit_conversion_text(conversion: Dictionary) -> String:
+	return "%s %s → %s %s  [#%d]" % [
+		str(conversion.get("source_amount", 0.0)),
+		_unit_expression_text(conversion.get("source_components", [])),
+		str(conversion.get("target_amount", 0.0)),
+		_unit_expression_text(conversion.get("target_components", [])),
+		int(conversion.get("id", 0)),
+	]
 
 
 func _find_by(items: Array, field: String, identity: int) -> Dictionary:
