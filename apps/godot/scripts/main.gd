@@ -30,6 +30,7 @@ var save_world_button: Button
 var new_name: LineEdit
 var add_value_button: Button
 var add_template_button: Button
+var add_calculation_button: Button
 var add_rule_button: Button
 var host_inputs_box: HBoxContainer
 var status_label: Label
@@ -271,9 +272,11 @@ func _build_world_panel() -> Control:
 	column.add_child(new_name)
 	var buttons := HBoxContainer.new()
 	add_value_button = _button(tr("ui.add_value"), _on_add_value)
+	add_calculation_button = _button(tr("ui.add_calculation"), _on_add_calculation)
 	add_template_button = _button(tr("ui.add_template"), _on_add_template)
 	add_rule_button = _button(tr("ui.add_rule"), _on_add_rule)
 	buttons.add_child(add_value_button)
+	buttons.add_child(add_calculation_button)
 	buttons.add_child(add_template_button)
 	buttons.add_child(add_rule_button)
 	column.add_child(buttons)
@@ -349,6 +352,15 @@ func _rebuild_world_tree() -> void:
 		item.set_metadata(0, {"kind": "value", "id": int(value.key)})
 	values_root.collapsed = false
 
+	var calculations_root := world_tree.create_item(root)
+	calculations_root.set_text(0, tr("ui.calculations"))
+	calculations_root.set_metadata(0, {"kind": "section"})
+	for calculation in editor.get_calculations():
+		var item := world_tree.create_item(calculations_root)
+		item.set_text(0, "%s  [#%d]" % [calculation.name, calculation.id])
+		item.set_metadata(0, {"kind": "calculation", "id": int(calculation.id)})
+	calculations_root.collapsed = false
+
 	var templates_root := world_tree.create_item(root)
 	templates_root.set_text(0, tr("ui.templates"))
 	templates_root.set_metadata(0, {"kind": "section"})
@@ -402,6 +414,8 @@ func _on_world_item_selected() -> void:
 				_show_facade_error_if_any()
 		"function_type":
 			_show_function_type_inspector(selected_identity)
+		"calculation":
+			_show_calculation_inspector(selected_identity)
 		"rule":
 			_show_rule_inspector(selected_identity, false)
 		_:
@@ -459,6 +473,46 @@ func _show_template_inspector(template_id: int) -> void:
 	_build_genome_editor(template_id)
 	_add_separator(inspector)
 	_build_bindings_editor(template_id)
+
+
+func _show_calculation_inspector(calculation_id: int) -> void:
+	var calculation := _find_by(editor.get_calculations(), "id", calculation_id)
+	if calculation.is_empty():
+		_show_welcome_inspector()
+		return
+	_clear_children(inspector)
+	_add_heading(inspector, str(calculation.name))
+	_add_wrapped_label(inspector, tr("ui.stable_calculation_id") % calculation_id)
+	_add_heading(inspector, tr("ui.calculation_inputs"))
+	var available := PackedStringArray()
+	for input in calculation.inputs:
+		_add_wrapped_label(inspector, "%s [#%d]" % [input.name, int(input.id)])
+		available.append(str(input.name))
+	_add_heading(inspector, tr("ui.new_calculation_input"))
+	var input_name := LineEdit.new()
+	input_name.placeholder_text = tr("ui.name")
+	inspector.add_child(_labeled_control(tr("ui.name"), input_name))
+	inspector.add_child(_button(tr("ui.add_calculation_input"), func() -> void:
+		_finish_edit(editor.add_calculation_input(calculation_id, input_name.text) != 0,
+			"status.calculation_input_added")
+	))
+	_add_separator(inspector)
+	_add_heading(inspector, tr("ui.calculation_outputs"))
+	for output in calculation.outputs:
+		_add_wrapped_label(inspector, "%s [#%d] = %s" % [output.name, int(output.id), output.expression_source])
+		available.append(str(output.name))
+	_add_heading(inspector, tr("ui.new_calculation_output"))
+	_add_wrapped_label(inspector, tr("ui.available_values_format") % ", ".join(available))
+	var output_name := LineEdit.new()
+	output_name.placeholder_text = tr("ui.name")
+	var output_expression := LineEdit.new()
+	output_expression.placeholder_text = tr("ui.expression")
+	inspector.add_child(_labeled_control(tr("ui.name"), output_name))
+	inspector.add_child(_labeled_control(tr("ui.expression"), output_expression))
+	inspector.add_child(_button(tr("ui.add_calculation_output"), func() -> void:
+		_finish_edit(editor.add_calculation_output(calculation_id, output_name.text, output_expression.text) != 0,
+			"status.calculation_output_added")
+	))
 
 
 func _show_function_type_inspector(function_type_id: int) -> void:
@@ -812,6 +866,19 @@ func _on_add_value() -> void:
 	_show_value_inspector(key)
 
 
+func _on_add_calculation() -> void:
+	var calculation_id := editor.add_calculation(new_name.text)
+	if calculation_id == 0:
+		_show_facade_error_if_any()
+		return
+	new_name.clear()
+	selected_kind = "calculation"
+	selected_identity = calculation_id
+	_set_status("status.calculation_added", [calculation_id])
+	_rebuild_world_tree()
+	_show_calculation_inspector(calculation_id)
+
+
 func _on_add_template() -> void:
 	var template_id := editor.add_template(new_name.text)
 	if template_id == 0:
@@ -928,6 +995,8 @@ func _restore_edit_inspector() -> void:
 			_show_template_inspector(selected_identity)
 		"function_type":
 			_show_function_type_inspector(selected_identity)
+		"calculation":
+			_show_calculation_inspector(selected_identity)
 		"rule":
 			_show_rule_inspector(selected_identity, false)
 		_:
@@ -945,6 +1014,7 @@ func _refresh_mode() -> void:
 	save_world_button.disabled = running
 	new_name.editable = not running
 	add_value_button.disabled = running
+	add_calculation_button.disabled = running
 	add_template_button.disabled = running
 	add_rule_button.disabled = running
 	world_tree.mouse_filter = Control.MOUSE_FILTER_IGNORE if running else Control.MOUSE_FILTER_STOP

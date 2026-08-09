@@ -25,6 +25,7 @@ public:
     [[nodiscard]] godot::Array get_values();
     [[nodiscard]] godot::Array get_templates();
     [[nodiscard]] godot::Array get_function_types();
+    [[nodiscard]] godot::Array get_calculations();
     [[nodiscard]] godot::Array get_initial_values(std::int64_t template_id);
     [[nodiscard]] godot::Array get_material_contributions(std::int64_t template_id);
     [[nodiscard]] godot::Array get_genome(std::int64_t template_id);
@@ -36,6 +37,10 @@ public:
     bool rename_value(std::int64_t key, const godot::String& name);
     bool remove_value(std::int64_t key);
     [[nodiscard]] std::int64_t add_template(const godot::String& name);
+    [[nodiscard]] std::int64_t add_calculation(const godot::String& name);
+    [[nodiscard]] std::int64_t add_calculation_input(std::int64_t calculation_id, const godot::String& name);
+    [[nodiscard]] std::int64_t add_calculation_output(std::int64_t calculation_id, const godot::String& name,
+                                                       const godot::String& expression);
     bool rename_template(std::int64_t id, const godot::String& name);
     bool remove_template(std::int64_t id);
     bool set_initial_value(std::int64_t template_id, std::int64_t value_key, double amount);

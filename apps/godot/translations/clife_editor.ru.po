@@ -40,6 +40,45 @@ msgstr "ИНСПЕКТОР"
 msgid "ui.values"
 msgstr "Значения"
 
+msgid "ui.calculations"
+msgstr "Формулы"
+
+msgid "ui.add_calculation"
+msgstr "+ Формула"
+
+msgid "ui.stable_calculation_id"
+msgstr "Стабильный CalculationId: #%d"
+
+msgid "ui.calculation_inputs"
+msgstr "Входы"
+
+msgid "ui.new_calculation_input"
+msgstr "Новый вход"
+
+msgid "ui.add_calculation_input"
+msgstr "Добавить вход"
+
+msgid "ui.calculation_outputs"
+msgstr "Выходы"
+
+msgid "ui.new_calculation_output"
+msgstr "Новый выход"
+
+msgid "ui.add_calculation_output"
+msgstr "Добавить выход"
+
+msgid "ui.available_values_format"
+msgstr "Доступные значения: %s"
+
+msgid "status.calculation_added"
+msgstr "Формула добавлена со стабильным ID #%d"
+
+msgid "status.calculation_input_added"
+msgstr "Вход формулы добавлен"
+
+msgid "status.calculation_output_added"
+msgstr "Выход формулы добавлен"
+
 msgid "ui.templates"
 msgstr "Шаблоны"
 

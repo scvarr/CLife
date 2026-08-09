@@ -267,6 +267,41 @@ godot::Array CLifeWorldEditor::get_function_types()
     return result;
 }
 
+godot::Array CLifeWorldEditor::get_calculations()
+{
+    godot::Array result;
+    try {
+        for (const world::CalculationDefinition& calculation : definition_.calculations()) {
+            godot::Dictionary item;
+            item["id"] = static_cast<std::int64_t>(calculation.id.value);
+            item["name"] = to_godot_string(calculation.name);
+            godot::Array inputs;
+            for (const world::CalculationInputDefinition& input : calculation.inputs) {
+                godot::Dictionary entry;
+                entry["id"] = static_cast<std::int64_t>(input.id.value);
+                entry["name"] = to_godot_string(input.name);
+                inputs.push_back(entry);
+            }
+            godot::Array outputs;
+            for (const world::CalculationOutputDefinition& output : calculation.outputs) {
+                godot::Dictionary entry;
+                entry["id"] = static_cast<std::int64_t>(output.id.value);
+                entry["name"] = to_godot_string(output.name);
+                entry["expression_source"] = to_godot_string(output.expression_source);
+                outputs.push_back(entry);
+            }
+            item["inputs"] = inputs;
+            item["outputs"] = outputs;
+            result.push_back(item);
+        }
+        clear_error();
+    } catch (...) {
+        capture_current_error();
+        result.clear();
+    }
+    return result;
+}
+
 godot::Array CLifeWorldEditor::get_initial_values(std::int64_t raw_template_id)
 {
     godot::Array result;
@@ -448,6 +483,55 @@ std::int64_t CLifeWorldEditor::add_template(const godot::String& name)
         selected_template_ = id;
         clear_error();
         return static_cast<std::int64_t>(id.value);
+    } catch (...) {
+        capture_current_error();
+        return 0;
+    }
+}
+
+std::int64_t CLifeWorldEditor::add_calculation(const godot::String& name)
+{
+    try {
+        require_edit_mode();
+        const world::CalculationId id = definition_.add_calculation(to_std_string(name));
+        clear_error();
+        return static_cast<std::int64_t>(id.value);
+    } catch (...) {
+        capture_current_error();
+        return 0;
+    }
+}
+
+std::int64_t CLifeWorldEditor::add_calculation_input(std::int64_t raw_calculation_id, const godot::String& name)
+{
+    try {
+        require_edit_mode();
+        const std::int64_t id = raw_calculation_id;
+        if (id <= 0 || id > std::numeric_limits<std::uint32_t>::max()) {
+            throw std::invalid_argument{"invalid CalculationId"};
+        }
+        const world::CalculationPortId port =
+            definition_.add_calculation_input({static_cast<std::uint32_t>(id)}, to_std_string(name));
+        clear_error();
+        return static_cast<std::int64_t>(port.value);
+    } catch (...) {
+        capture_current_error();
+        return 0;
+    }
+}
+
+std::int64_t CLifeWorldEditor::add_calculation_output(std::int64_t raw_calculation_id, const godot::String& name,
+                                                       const godot::String& expression)
+{
+    try {
+        require_edit_mode();
+        if (raw_calculation_id <= 0 || raw_calculation_id > std::numeric_limits<std::uint32_t>::max()) {
+            throw std::invalid_argument{"invalid CalculationId"};
+        }
+        const world::CalculationPortId port = definition_.add_calculation_output(
+            {static_cast<std::uint32_t>(raw_calculation_id)}, to_std_string(name), to_std_string(expression));
+        clear_error();
+        return static_cast<std::int64_t>(port.value);
     } catch (...) {
         capture_current_error();
         return 0;
@@ -1344,6 +1428,7 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("get_values"), &CLifeWorldEditor::get_values);
     godot::ClassDB::bind_method(godot::D_METHOD("get_templates"), &CLifeWorldEditor::get_templates);
     godot::ClassDB::bind_method(godot::D_METHOD("get_function_types"), &CLifeWorldEditor::get_function_types);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_calculations"), &CLifeWorldEditor::get_calculations);
     godot::ClassDB::bind_method(godot::D_METHOD("get_initial_values", "template_id"),
                                 &CLifeWorldEditor::get_initial_values);
     godot::ClassDB::bind_method(godot::D_METHOD("get_material_contributions", "template_id"),
@@ -1356,6 +1441,11 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("rename_value", "key", "name"), &CLifeWorldEditor::rename_value);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_value", "key"), &CLifeWorldEditor::remove_value);
     godot::ClassDB::bind_method(godot::D_METHOD("add_template", "name"), &CLifeWorldEditor::add_template);
+    godot::ClassDB::bind_method(godot::D_METHOD("add_calculation", "name"), &CLifeWorldEditor::add_calculation);
+    godot::ClassDB::bind_method(godot::D_METHOD("add_calculation_input", "calculation_id", "name"),
+                                &CLifeWorldEditor::add_calculation_input);
+    godot::ClassDB::bind_method(godot::D_METHOD("add_calculation_output", "calculation_id", "name", "expression"),
+                                &CLifeWorldEditor::add_calculation_output);
     godot::ClassDB::bind_method(godot::D_METHOD("rename_template", "id", "name"), &CLifeWorldEditor::rename_template);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_template", "id"), &CLifeWorldEditor::remove_template);
     godot::ClassDB::bind_method(godot::D_METHOD("set_initial_value", "template_id", "value_key", "amount"),

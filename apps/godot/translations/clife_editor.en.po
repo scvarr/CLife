@@ -39,6 +39,45 @@ msgstr "INSPECTOR"
 msgid "ui.values"
 msgstr "Values"
 
+msgid "ui.calculations"
+msgstr "Calculations"
+
+msgid "ui.add_calculation"
+msgstr "+ Calculation"
+
+msgid "ui.stable_calculation_id"
+msgstr "Stable CalculationId: #%d"
+
+msgid "ui.calculation_inputs"
+msgstr "Inputs"
+
+msgid "ui.new_calculation_input"
+msgstr "New Input"
+
+msgid "ui.add_calculation_input"
+msgstr "Add Input"
+
+msgid "ui.calculation_outputs"
+msgstr "Outputs"
+
+msgid "ui.new_calculation_output"
+msgstr "New Output"
+
+msgid "ui.add_calculation_output"
+msgstr "Add Output"
+
+msgid "ui.available_values_format"
+msgstr "Available values: %s"
+
+msgid "status.calculation_added"
+msgstr "Calculation added with stable id #%d"
+
+msgid "status.calculation_input_added"
+msgstr "Calculation input added"
+
+msgid "status.calculation_output_added"
+msgstr "Calculation output added"
+
 msgid "ui.templates"
 msgstr "Templates"
 
