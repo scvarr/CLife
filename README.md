@@ -6,7 +6,7 @@ CLife — проект искусственной жизни с переноси
 
 ## Текущий этап
 
-**C7 — genotype → phenotype foundation with world-defined function laws and compiled derived parameters.**
+**C7.1 — genotype → phenotype, proportional resource flows, material functions and stateful buffers.**
 
 Концептуальная база C0 зафиксирована как рабочий baseline: [`docs/C0_CONCEPT.md`](docs/C0_CONCEPT.md).
 Архитектурные правила реализации: [`docs/C1_ARCHITECTURE.md`](docs/C1_ARCHITECTURE.md).

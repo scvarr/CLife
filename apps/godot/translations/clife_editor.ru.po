@@ -327,3 +327,39 @@ msgstr "Ошибка: %s"
 
 msgid "status.locale_save_failed"
 msgstr "Не удалось сохранить настройку языка (%d)"
+
+msgid "ui.material_cost"
+msgstr "Материальная стоимость"
+
+msgid "ui.end_buffer"
+msgstr "Конечный буфер"
+
+msgid "ui.end_value_format"
+msgstr "КОНЕЦ %s"
+
+msgid "ui.runtime_functions"
+msgstr "Состояние функций"
+
+msgid "ui.runtime_function_format"
+msgstr "Функция №%d: %s"
+
+msgid "ui.buffer_capacity_format"
+msgstr "Ёмкость: %.6f"
+
+msgid "ui.buffer_throughput_format"
+msgstr "Пропускная способность: %.6f / такт"
+
+msgid "ui.buffer_leakage_format"
+msgstr "Утечка: %.6f / такт"
+
+msgid "ui.buffer_stored_format"
+msgstr "Хранится сейчас: %.6f"
+
+msgid "ui.buffer_received_format"
+msgstr "Получено за прошлый такт: %.6f"
+
+msgid "ui.buffer_supplied_format"
+msgstr "Отдано за прошлый такт: %.6f"
+
+msgid "help.function_type_buffer"
+msgstr "Этот тип функции участвует в потоке Value как накопитель с состоянием."

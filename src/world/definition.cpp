@@ -52,18 +52,27 @@ void WorldDefinition::remove_value(ValueKey key)
     for (const ObjectTemplate& object : templates_) {
         if (std::ranges::any_of(object.initial_values,
                                 [&](const InitialValueDefinition& item) { return referenced(item.value); }) ||
+            std::ranges::any_of(object.material_contributions,
+                                [&](const TemplateMaterialContributionDefinition& item) {
+                                    return referenced(item.value);
+                                }) ||
             std::ranges::any_of(object.host_bindings,
                                 [&](const HostBinding& item) { return referenced(item.value); })) {
             throw std::invalid_argument{"cannot remove a referenced value"};
         }
     }
     if (std::ranges::any_of(world_rules_, [&](const WorldRuleDefinition& rule) {
-            return referenced(rule.source) || referenced(rule.target);
+            return referenced(rule.source) || referenced(rule.end_buffer) || referenced(rule.target);
         })) {
         throw std::invalid_argument{"cannot remove a referenced value"};
     }
     if (std::ranges::any_of(function_types_, [&](const FunctionTypeDefinition& type) {
-            return type.process && (referenced(type.process->input) || referenced(type.process->output));
+            return (type.process && (referenced(type.process->input) || referenced(type.process->output))) ||
+                   (type.buffer_process && referenced(type.buffer_process->value)) ||
+                   std::ranges::any_of(type.material_contributions,
+                                       [&](const MaterialContributionDefinition& item) {
+                                           return referenced(item.value);
+                                       });
         })) {
         throw std::invalid_argument{"cannot remove a referenced value"};
     }
@@ -137,6 +146,22 @@ void WorldDefinition::remove_initial_value(TemplateId id, ValueKey key)
     if (std::erase_if(object.initial_values, [key](const InitialValueDefinition& item) { return item.value == key; }) ==
         0) {
         throw std::invalid_argument{"initial value does not exist"};
+    }
+}
+
+void WorldDefinition::set_template_material_contribution(TemplateId id, ValueKey key, Amount amount)
+{
+    (void)value(key);
+    if (!std::isfinite(amount) || amount < 0.0) {
+        throw std::invalid_argument{"template material contribution must be finite and non-negative"};
+    }
+    ObjectTemplate& object = mutable_template(id);
+    const auto found = std::ranges::find(object.material_contributions, key,
+                                         &TemplateMaterialContributionDefinition::value);
+    if (found == object.material_contributions.end()) {
+        object.material_contributions.push_back({.value = key, .amount = amount});
+    } else {
+        found->amount = amount;
     }
 }
 
@@ -248,10 +273,50 @@ void WorldDefinition::set_function_process(FunctionTypeId type_id, FunctionProce
     (void)value(process.input);
     (void)value(process.output);
     FunctionTypeDefinition& type = mutable_function_type(type_id);
+    if (type.buffer_process) {
+        throw std::invalid_argument{"function type cannot have both conversion and buffer processes"};
+    }
     if (!parameter_belongs_to(type, process.throughput) || !parameter_belongs_to(type, process.result_per_input)) {
         throw std::invalid_argument{"process parameter does not belong to function type"};
     }
     type.process = process;
+}
+
+void WorldDefinition::set_buffer_process(FunctionTypeId type_id, BufferProcessDefinition process)
+{
+    (void)value(process.value);
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    if (type.process) {
+        throw std::invalid_argument{"function type cannot have both conversion and buffer processes"};
+    }
+    if (!parameter_belongs_to(type, process.capacity) || !parameter_belongs_to(type, process.throughput) ||
+        !parameter_belongs_to(type, process.leakage)) {
+        throw std::invalid_argument{"buffer parameter does not belong to function type"};
+    }
+    type.buffer_process = process;
+}
+
+void WorldDefinition::add_function_material_contribution(FunctionTypeId type_id, ValueKey key,
+                                                         std::string_view expression_source)
+{
+    (void)value(key);
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    if (std::ranges::any_of(type.material_contributions,
+                            [key](const MaterialContributionDefinition& item) { return item.value == key; })) {
+        throw std::invalid_argument{"function type has more than one contribution for a material value"};
+    }
+    std::vector<ParameterName> names;
+    names.reserve(type.genome_parameters.size() + type.derived_parameters.size());
+    for (const GenomeParameterDefinition& parameter : type.genome_parameters) {
+        names.push_back({.parameter = parameter.id, .name = parameter.name});
+    }
+    for (const DerivedParameterDefinition& parameter : type.derived_parameters) {
+        names.push_back({.parameter = parameter.id, .name = parameter.name});
+    }
+    type.material_contributions.push_back({
+        .value = key,
+        .amount = compile_expression(expression_source, names),
+    });
 }
 
 std::size_t WorldDefinition::add_genome_function(TemplateId id, FunctionTypeId type_id)
@@ -403,6 +468,7 @@ bool WorldDefinition::parameter_belongs_to(const FunctionTypeDefinition& type, P
 void WorldDefinition::validate_rule(const WorldRuleDefinition& rule, std::size_t ignored_index) const
 {
     (void)value(rule.source);
+    (void)value(rule.end_buffer);
     (void)value(rule.target);
     if (!std::isfinite(rule.target_per_source)) {
         throw std::invalid_argument{"world rule target_per_source must be finite"};

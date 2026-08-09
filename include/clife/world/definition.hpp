@@ -38,12 +38,26 @@ struct FunctionProcessDefinition final {
     ParameterId result_per_input;
 };
 
+struct BufferProcessDefinition final {
+    ValueKey value;
+    ParameterId capacity;
+    ParameterId throughput;
+    ParameterId leakage;
+};
+
+struct MaterialContributionDefinition final {
+    ValueKey value;
+    Expression amount;
+};
+
 struct FunctionTypeDefinition final {
     FunctionTypeId id;
     std::string name;
     std::vector<GenomeParameterDefinition> genome_parameters;
     std::vector<DerivedParameterDefinition> derived_parameters;
     std::optional<FunctionProcessDefinition> process;
+    std::optional<BufferProcessDefinition> buffer_process;
+    std::vector<MaterialContributionDefinition> material_contributions;
 };
 
 struct GenomeFunctionInstance final {
@@ -52,6 +66,11 @@ struct GenomeFunctionInstance final {
 };
 
 struct InitialValueDefinition final {
+    ValueKey value;
+    Amount amount;
+};
+
+struct TemplateMaterialContributionDefinition final {
     ValueKey value;
     Amount amount;
 };
@@ -71,12 +90,14 @@ struct ObjectTemplate final {
     TemplateId id;
     std::string name;
     std::vector<InitialValueDefinition> initial_values;
+    std::vector<TemplateMaterialContributionDefinition> material_contributions;
     std::vector<GenomeFunctionInstance> genome;
     std::vector<HostBinding> host_bindings;
 };
 
 struct WorldRuleDefinition final {
     ValueKey source;
+    ValueKey end_buffer;
     ValueKey target;
     Amount target_per_source;
 };
@@ -93,6 +114,7 @@ public:
     void remove_template(TemplateId id);
     void set_initial_value(TemplateId id, ValueKey value, Amount amount);
     void remove_initial_value(TemplateId id, ValueKey value);
+    void set_template_material_contribution(TemplateId id, ValueKey value, Amount amount);
 
     [[nodiscard]] FunctionTypeId add_function_type(std::string name);
     void rename_function_type(FunctionTypeId id, std::string name);
@@ -100,6 +122,8 @@ public:
     [[nodiscard]] ParameterId add_derived_parameter(FunctionTypeId type, std::string name, std::string_view expression);
     void rename_parameter(FunctionTypeId type, ParameterId parameter, std::string name);
     void set_function_process(FunctionTypeId type, FunctionProcessDefinition process);
+    void set_buffer_process(FunctionTypeId type, BufferProcessDefinition process);
+    void add_function_material_contribution(FunctionTypeId type, ValueKey value, std::string_view expression);
 
     [[nodiscard]] std::size_t add_genome_function(TemplateId id, FunctionTypeId type);
     void set_genome_parameter(TemplateId id, std::size_t index, ParameterId parameter, Amount value);

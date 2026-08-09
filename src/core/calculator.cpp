@@ -14,7 +14,9 @@ namespace clife {
 
 Calculator::Calculator(Program program)
     : program_(std::move(program)), values_(program_.value_count, 0.0), generated_(program_.value_count, false),
-      outgoing_(program_.value_count), end_snapshot_(program_.value_count, 0.0), end_delta_(program_.value_count, 0.0)
+      outgoing_(program_.value_count), buffers_by_value_(program_.value_count),
+      buffer_states_(program_.buffers.size()), end_buffer_(program_.value_count, 0.0),
+      end_delta_(program_.value_count, 0.0)
 {
     if (program_.value_count == 0) {
         throw std::invalid_argument{"calculator must contain at least one value"};
@@ -54,23 +56,55 @@ Calculator::Calculator(Program program)
                std::tie(right.input.index, right.output.index, right.throughput, right.result_per_input);
     });
 
+    for (std::size_t index = 0; index < program_.buffers.size(); ++index) {
+        const BufferProcess& buffer = program_.buffers[index];
+        validate_value(buffer.value, "buffer value");
+        if (!std::isfinite(buffer.capacity) || buffer.capacity < 0.0) {
+            throw std::invalid_argument{"buffer capacity must be finite and non-negative"};
+        }
+        if (!std::isfinite(buffer.throughput) || buffer.throughput <= 0.0) {
+            throw std::invalid_argument{"buffer throughput must be finite and positive"};
+        }
+        if (!std::isfinite(buffer.leakage) || buffer.leakage < 0.0) {
+            throw std::invalid_argument{"buffer leakage must be finite and non-negative"};
+        }
+        if (!std::isfinite(buffer.initial_amount) || buffer.initial_amount < 0.0 ||
+            buffer.initial_amount > buffer.capacity) {
+            throw std::invalid_argument{"buffer initial amount must be finite and within capacity"};
+        }
+        buffer_states_[index].stored_amount = buffer.initial_amount;
+    }
+
     for (const ValueAmount& initial : program_.initial_values) {
         if (generated_[initial.value.index]) {
             throw std::invalid_argument{"genome-produced value cannot also have a persistent initial value"};
         }
     }
 
-    for (std::size_t i = 0; i < program_.end_rules.size(); ++i) {
-        const EndRule& rule = program_.end_rules[i];
+    for (std::size_t i = 0; i < program_.end_buffer_transfers.size(); ++i) {
+        const EndBufferTransfer& transfer = program_.end_buffer_transfers[i];
+        validate_value(transfer.source, "end-buffer transfer source");
+        validate_value(transfer.target, "end-buffer transfer target");
+        if (!std::isfinite(transfer.target_per_source) || transfer.target_per_source < 0.0) {
+            throw std::invalid_argument{"end-buffer transfer factor must be finite and non-negative"};
+        }
+        for (std::size_t previous = 0; previous < i; ++previous) {
+            if (program_.end_buffer_transfers[previous].source == transfer.source) {
+                throw std::invalid_argument{"value has more than one consuming end-buffer transfer"};
+            }
+        }
+    }
+    std::sort(program_.end_buffer_transfers.begin(), program_.end_buffer_transfers.end(),
+              [](const EndBufferTransfer& left, const EndBufferTransfer& right) {
+                  return std::tie(left.source.index, left.target.index, left.target_per_source) <
+                         std::tie(right.source.index, right.target.index, right.target_per_source);
+              });
+
+    for (const EndRule& rule : program_.end_rules) {
         validate_value(rule.source, "end rule source");
         validate_value(rule.target, "end rule target");
         if (!std::isfinite(rule.target_per_source)) {
             throw std::invalid_argument{"end rule target_per_source must be finite"};
-        }
-        for (std::size_t previous = 0; previous < i; ++previous) {
-            if (program_.end_rules[previous].source == rule.source) {
-                throw std::invalid_argument{"value has more than one consuming end rule"};
-            }
         }
         if (generated_[rule.target.index]) {
             throw std::invalid_argument{"end rule target must be persistent, not a genome-produced value"};
@@ -110,9 +144,15 @@ void Calculator::step(std::span<const ValueAmount> external_values)
         values_[external.value.index] = external.amount;
     }
 
+    for (BufferState& state : buffer_states_) {
+        state.received_last_tick = 0.0;
+        state.supplied_last_tick = 0.0;
+    }
+
     for (const ValueId input : evaluation_order_) {
         const std::vector<std::size_t>& outgoing = outgoing_[input.index];
-        if (outgoing.empty()) {
+        const std::vector<std::size_t>& buffers = buffers_by_value_[input.index];
+        if (outgoing.empty() && buffers.empty()) {
             continue;
         }
 
@@ -121,41 +161,79 @@ void Calculator::step(std::span<const ValueAmount> external_values)
             throw std::domain_error{"genome function input must be finite and non-negative"};
         }
 
+        Amount total_supply{available};
         Amount total_demand{0.0};
         for (const std::size_t function_index : outgoing) {
             total_demand += program_.functions[function_index].throughput;
         }
-        if (!std::isfinite(total_demand)) {
-            throw std::overflow_error{"function demand overflow"};
+
+        std::vector<Amount> buffer_offers;
+        std::vector<Amount> buffer_demands;
+        buffer_offers.reserve(buffers.size());
+        buffer_demands.reserve(buffers.size());
+        for (const std::size_t buffer_index : buffers) {
+            const BufferProcess& buffer = program_.buffers[buffer_index];
+            const Amount stored = buffer_states_[buffer_index].stored_amount;
+            const Amount offer = std::min(stored, buffer.throughput);
+            const Amount demand = std::min(std::max(0.0, buffer.capacity - stored), buffer.throughput);
+            buffer_offers.push_back(offer);
+            buffer_demands.push_back(demand);
+            total_supply += offer;
+            total_demand += demand;
+        }
+        if (!std::isfinite(total_supply) || !std::isfinite(total_demand)) {
+            throw std::overflow_error{"flow supply or demand overflow"};
         }
 
-        const Amount load_fraction = std::min(1.0, available / total_demand);
-        Amount total_taken{0.0};
+        const Amount actual_total = std::min(total_supply, total_demand);
+        const Amount source_fraction = total_supply > 0.0 ? actual_total / total_supply : 0.0;
+        const Amount demand_fraction = total_demand > 0.0 ? actual_total / total_demand : 0.0;
         for (const std::size_t function_index : outgoing) {
             const Function& function = program_.functions[function_index];
-            const Amount taken = function.throughput * load_fraction;
+            const Amount taken = function.throughput * demand_fraction;
             const Amount produced = taken * function.result_per_input;
             values_[function.output.index] += produced;
-            total_taken += taken;
+        }
+        for (std::size_t local_index = 0; local_index < buffers.size(); ++local_index) {
+            BufferState& state = buffer_states_[buffers[local_index]];
+            state.supplied_last_tick = buffer_offers[local_index] * source_fraction;
+            state.received_last_tick = buffer_demands[local_index] * demand_fraction;
+            state.stored_amount += state.received_last_tick - state.supplied_last_tick;
         }
 
-        values_[input.index] = std::max(0.0, available - total_taken);
+        values_[input.index] = std::max(0.0, available * (1.0 - source_fraction));
     }
 
-    end_snapshot_ = values_;
+    for (std::size_t index = 0; index < program_.buffers.size(); ++index) {
+        const BufferProcess& buffer = program_.buffers[index];
+        BufferState& state = buffer_states_[index];
+        state.stored_amount -= std::min(state.stored_amount, buffer.leakage);
+        state.stored_amount = std::clamp(state.stored_amount, 0.0, buffer.capacity);
+    }
+
+    std::fill(end_buffer_.begin(), end_buffer_.end(), 0.0);
     std::fill(end_delta_.begin(), end_delta_.end(), 0.0);
 
+    for (const EndBufferTransfer& transfer : program_.end_buffer_transfers) {
+        const Amount source = values_[transfer.source.index];
+        if (!std::isfinite(source) || source < 0.0) {
+            throw std::domain_error{"end-buffer transfer source must be finite and non-negative"};
+        }
+        end_buffer_[transfer.target.index] += source * transfer.target_per_source;
+        if (!std::isfinite(end_buffer_[transfer.target.index])) {
+            throw std::overflow_error{"end buffer produced a non-finite value"};
+        }
+        values_[transfer.source.index] = 0.0;
+    }
+
     for (const EndRule& rule : program_.end_rules) {
-        const Amount source = end_snapshot_[rule.source.index];
+        const Amount source = end_buffer_[rule.source.index];
         if (!std::isfinite(source) || source < 0.0) {
             throw std::domain_error{"end rule source must be finite and non-negative"};
         }
         end_delta_[rule.target.index] += source * rule.target_per_source;
     }
 
-    for (const EndRule& rule : program_.end_rules) {
-        values_[rule.source.index] = 0.0;
-    }
     for (std::size_t index = 0; index < values_.size(); ++index) {
         values_[index] += end_delta_[index];
         if (!std::isfinite(values_[index])) {
@@ -168,6 +246,22 @@ Amount Calculator::value(ValueId id) const noexcept
 {
     const auto index = static_cast<std::size_t>(id.index);
     return index < values_.size() ? values_[index] : 0.0;
+}
+
+const BufferState& Calculator::buffer_state(std::size_t index) const
+{
+    if (index >= buffer_states_.size()) {
+        throw std::out_of_range{"buffer index is out of range"};
+    }
+    return buffer_states_[index];
+}
+
+std::size_t Calculator::buffer_count() const noexcept { return buffer_states_.size(); }
+
+Amount Calculator::end_value(ValueId id) const noexcept
+{
+    const auto index = static_cast<std::size_t>(id.index);
+    return index < end_buffer_.size() ? end_buffer_[index] : 0.0;
 }
 
 std::size_t Calculator::value_count() const noexcept
@@ -189,6 +283,17 @@ void Calculator::compile_pipeline()
         const Function& function = program_.functions[function_index];
         outgoing_[function.input.index].push_back(function_index);
         ++indegree[function.output.index];
+    }
+    for (std::size_t buffer_index = 0; buffer_index < program_.buffers.size(); ++buffer_index) {
+        buffers_by_value_[program_.buffers[buffer_index].value.index].push_back(buffer_index);
+    }
+    for (std::vector<std::size_t>& buffers : buffers_by_value_) {
+        std::ranges::sort(buffers, [&](std::size_t left_index, std::size_t right_index) {
+            const BufferProcess& left = program_.buffers[left_index];
+            const BufferProcess& right = program_.buffers[right_index];
+            return std::tie(left.capacity, left.throughput, left.leakage, left.initial_amount, left_index) <
+                   std::tie(right.capacity, right.throughput, right.leakage, right.initial_amount, right_index);
+        });
     }
 
     std::deque<ValueId> ready;

@@ -326,3 +326,39 @@ msgstr "Error: %s"
 
 msgid "status.locale_save_failed"
 msgstr "Could not save locale preference (%d)"
+
+msgid "ui.material_cost"
+msgstr "Material cost"
+
+msgid "ui.end_buffer"
+msgstr "End buffer"
+
+msgid "ui.end_value_format"
+msgstr "END %s"
+
+msgid "ui.runtime_functions"
+msgstr "Runtime functions"
+
+msgid "ui.runtime_function_format"
+msgstr "Function #%d: %s"
+
+msgid "ui.buffer_capacity_format"
+msgstr "Capacity: %.6f"
+
+msgid "ui.buffer_throughput_format"
+msgstr "Throughput: %.6f / tick"
+
+msgid "ui.buffer_leakage_format"
+msgstr "Leakage: %.6f / tick"
+
+msgid "ui.buffer_stored_format"
+msgstr "Stored now: %.6f"
+
+msgid "ui.buffer_received_format"
+msgstr "Received last tick: %.6f"
+
+msgid "ui.buffer_supplied_format"
+msgstr "Supplied last tick: %.6f"
+
+msgid "help.function_type_buffer"
+msgstr "This function type participates in a Value flow as a stateful buffer."

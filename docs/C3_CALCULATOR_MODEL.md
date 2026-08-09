@@ -73,16 +73,18 @@ AmbientTemperature = 0.2
 
 Таким образом готовые возможности host/engine могут использоваться как источник части чисел мира без повторной реализации той же пространственной или физической работы внутри core.
 
-## 4. Конкуренция за одно значение
+## 4. Общий пропорциональный поток
 
-Порядок записей функций в genome не задаёт приоритет.
+Порядок записей функций и накопителей в genome не задаёт приоритет. Один `Value` объединяет все обычные предложения и предложения buffer processes, а также все conversion-запросы и buffer-запросы.
 
 Если несколько функций одновременно хотят взять одно ограниченное значение, они получают одинаковую долю своей потенциальной нагрузки.
 
 ```text
-total_demand = sum(function demand)
-load_fraction = min(1, available / total_demand)
-actual_i = demand_i * load_fraction
+actual_total = min(total_supply, total_demand)
+source_fraction = actual_total / total_supply
+demand_fraction = actual_total / total_demand
+actual_source_i = offer_i * source_fraction
+actual_consumer_i = demand_i * demand_fraction
 ```
 
 Пример:
@@ -112,30 +114,33 @@ B receives 0.5
 
 Если будущая механика действительно потребует циклического same-tick расчёта, это будет отдельное изменение закона, а не скрытое усложнение текущего evaluator.
 
-## 6. Остаток значения не является State
+Buffer одного value не создаёт графовое ребро `Value -> Value`: его внутренний amount является отдельным runtime state и переносится между тиками.
+
+## 6. Остаток значения и end-buffer
 
 Core не переводит автоматически неиспользованный результат в специальный `State`.
 
 После завершения геномного конвейера может остаться некоторое количество значения. Что с ним происходит дальше, определяют **правила мира**, а не genome и не встроенная категория числа.
 
-Например в первом клеточном мире:
+Например в мире без свободной ёмкости накопителей:
 
 ```text
 Energy produced = 1.00
-Energy used by genome functions = 0.25
+Energy accepted by consumers = 0.25
 unused Energy = 0.75
 ```
 
-После работы генома world rule может определить:
+После работы генома world rule сначала переносит остаток в недоступный pipeline end-buffer:
 
 ```text
-1 Energy = +0.1 Temperature
+remaining Energy -> END Heat
+END Heat = +0.1 Temperature
 ```
 
 Тогда:
 
 ```text
-Temperature delta = 0.75 * 0.1 = 0.075
+Temperature delta = END Heat * 0.1
 ```
 
 Если правило мира учитывает материал клетки, формула может зависеть и от его числовых значений. Это всё равно world rule: клетка не обязана иметь геномную функцию «нагреться».
@@ -173,13 +178,15 @@ external Light is supplied by world/engine
 
 2. Genome pipeline runs
        functions request input values
-       shared demand is resolved proportionally
+       all supplies and demands are resolved proportionally
+       stateful buffers may supply and receive the same Value
        actual inputs produce downstream values
 
-3. End-of-tick world rules process consequences
-       including unused values when the world defines such a rule
+3. Unused transient flow enters the separate end-buffer
 
-4. Resulting object/world values become the basis of the next tick
+4. End-of-tick world rules process the end-buffer
+
+5. Resulting object/world and function states become the basis of the next tick
 ```
 
 World rules не являются продолжением genome и не должны зависеть от порядка записей функций genome.

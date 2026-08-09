@@ -40,7 +40,7 @@ clife_core <- clife_world <- host applications / future engine adapters
 
 `WorldDefinition` — источник человекочитаемых и редактируемых данных. Он предоставляет явные операции добавления, переименования, изменения и удаления определений и сразу отвергает неизвестные ключи, пустые/дублирующиеся имена, некорректные числа и конфликтующие bindings/rules.
 
-`Program` не является editable world model. Это компактное скомпилированное представление одного `ObjectTemplate`, передаваемое в `Calculator`. Начиная с C7 компиляция сначала строит phenotype из function types и независимых genome parameters, затем переводит процессные функции phenotype в `Function`, stable value keys — в dense IDs, initial values — в `ValueAmount`, world rules — в `EndRule`.
+`Program` не является editable world model. Это компактное скомпилированное представление одного `ObjectTemplate`, передаваемое в `Calculator`. Начиная с C7.1 компиляция строит phenotype, переводит conversion-функции в `Function`, buffer-функции в `BufferProcess`, material contributions и initial values — в начальные amounts, а world rules — в end-buffer transfers и `EndRule`.
 
 ## 4. Genome и world rules
 
@@ -56,10 +56,10 @@ ParameterId -> independent Amount
 World rules принадлежат миру и описывают неизбежные последствия после genome pipeline:
 
 ```text
-remaining source ValueKey -> target ValueKey * target_per_source
+remaining source ValueKey -> END end_buffer ValueKey -> target ValueKey * target_per_source
 ```
 
-Они семантически и в editable data хранятся отдельно. Текущая компиляция применяет все правила мира к каждой программе шаблона и использует существующий `Program::end_rules`; это не делает правила частью genome.
+Они семантически и в editable data хранятся отдельно. End-buffer заполняется только после pipeline, недоступен обычным функциям текущего тика и хранит last-tick snapshot для инспектора. Это не делает правила частью genome.
 
 ## 5. Host channels
 

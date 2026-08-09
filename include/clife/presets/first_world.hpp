@@ -11,11 +11,11 @@ inline constexpr std::string_view kUsedEnergyOutputChannel{"cell.used_energy"};
 inline constexpr std::string_view kTemperatureOutputChannel{"cell.temperature"};
 inline constexpr std::string_view kGeometryVolumeOutputChannel{"geometry.volume"};
 
-inline constexpr std::string_view kValuesSummary{"Light\nEnergy\nUsedEnergy\nTemperature\nOrganic"};
+inline constexpr std::string_view kValuesSummary{"Light\nEnergy\nUsedEnergy\nHeat\nTemperature\nOrganic"};
 inline constexpr std::string_view kGenomeSummary{"Light Absorption: Throughput 1.0 -> Light to Energy\n"
-                                                 "Energy Use: Throughput 0.25 -> Energy to UsedEnergy\n"
-                                                 "Energy Storage: Capacity 5.0 -> Organic size 1.0"};
-inline constexpr std::string_view kWorldRuleSummary{"remaining Energy -> Temperature * 0.1"};
+                                                 "Energy Use: Throughput 0.5 -> Energy to UsedEnergy\n"
+                                                 "Energy Storage: Capacity 5.0, Throughput 1.5, Stored 0"};
+inline constexpr std::string_view kWorldRuleSummary{"remaining Energy -> END Heat -> Temperature * 0.1"};
 inline constexpr std::string_view kBindingSummary{"world.light -> Light\n"
                                                   "UsedEnergy -> cell.used_energy\n"
                                                   "Temperature -> cell.temperature\n"
@@ -26,6 +26,7 @@ struct FirstWorldPreset final {
     world::ValueKey light;
     world::ValueKey energy;
     world::ValueKey used_energy;
+    world::ValueKey heat;
     world::ValueKey temperature;
     world::ValueKey organic;
     world::TemplateId cell;
@@ -34,6 +35,8 @@ struct FirstWorldPreset final {
     world::FunctionTypeId energy_storage;
     world::ParameterId storage_capacity;
     world::ParameterId storage_organic_size;
+    world::ParameterId storage_throughput;
+    world::ParameterId storage_leakage;
 };
 
 [[nodiscard]] FirstWorldPreset make_first_world_preset();

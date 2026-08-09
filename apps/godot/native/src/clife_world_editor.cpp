@@ -8,6 +8,7 @@
 #include <cmath>
 #include <exception>
 #include <limits>
+#include <set>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -180,6 +181,7 @@ godot::Array CLifeWorldEditor::get_function_types()
             item["genome_parameters"] = genome_parameters;
             item["derived_parameters"] = derived_parameters;
             item["has_process"] = type.process.has_value();
+            item["has_buffer"] = type.buffer_process.has_value();
             result.push_back(item);
         }
         clear_error();
@@ -199,6 +201,26 @@ godot::Array CLifeWorldEditor::get_initial_values(std::int64_t raw_template_id)
             godot::Dictionary item;
             item["value_key"] = static_cast<std::int64_t>(initial.value.value);
             item["amount"] = initial.amount;
+            result.push_back(item);
+        }
+        clear_error();
+    } catch (...) {
+        capture_current_error();
+        result.clear();
+    }
+    return result;
+}
+
+godot::Array CLifeWorldEditor::get_material_contributions(std::int64_t raw_template_id)
+{
+    godot::Array result;
+    try {
+        const world::TemplateId id = template_id(raw_template_id);
+        const world::CompiledPhenotype phenotype = world::compile_phenotype(definition_, id);
+        for (const world::MaterialAmount& material : phenotype.material_amounts()) {
+            godot::Dictionary item;
+            item["value_key"] = static_cast<std::int64_t>(material.value.value);
+            item["amount"] = material.amount;
             result.push_back(item);
         }
         clear_error();
@@ -262,6 +284,7 @@ godot::Array CLifeWorldEditor::get_world_rules()
             godot::Dictionary item;
             item["index"] = static_cast<std::int64_t>(index);
             item["source_key"] = static_cast<std::int64_t>(rule.source.value);
+            item["end_buffer_key"] = static_cast<std::int64_t>(rule.end_buffer.value);
             item["target_key"] = static_cast<std::int64_t>(rule.target.value);
             item["target_per_source"] = rule.target_per_source;
             result.push_back(item);
@@ -405,23 +428,27 @@ bool CLifeWorldEditor::remove_genome_function(std::int64_t raw_template_id, std:
     return edit([&] { definition_.remove_genome_function(template_id(raw_template_id), item_index(index)); });
 }
 
-bool CLifeWorldEditor::add_world_rule(std::int64_t source_key, std::int64_t target_key, double target_per_source)
+bool CLifeWorldEditor::add_world_rule(std::int64_t source_key, std::int64_t end_buffer_key, std::int64_t target_key,
+                                      double target_per_source)
 {
     return edit([&] {
         (void)definition_.add_world_rule({
             .source = value_key(source_key),
+            .end_buffer = value_key(end_buffer_key),
             .target = value_key(target_key),
             .target_per_source = target_per_source,
         });
     });
 }
 
-bool CLifeWorldEditor::change_world_rule(std::int64_t index, std::int64_t source_key, std::int64_t target_key,
+bool CLifeWorldEditor::change_world_rule(std::int64_t index, std::int64_t source_key,
+                                         std::int64_t end_buffer_key, std::int64_t target_key,
                                          double target_per_source)
 {
     return edit([&] {
         definition_.change_world_rule(item_index(index), {
                                                              .source = value_key(source_key),
+                                                             .end_buffer = value_key(end_buffer_key),
                                                              .target = value_key(target_key),
                                                              .target_per_source = target_per_source,
                                                          });
@@ -622,6 +649,89 @@ godot::Array CLifeWorldEditor::get_runtime_values()
     return result;
 }
 
+godot::Array CLifeWorldEditor::get_runtime_functions()
+{
+    godot::Array result;
+    try {
+        if (!runtime_ || !preview_object_ || !run_definition_) {
+            return result;
+        }
+        const world::CompiledPhenotype& phenotype = runtime_->phenotype(*preview_object_);
+        const std::vector<world::RuntimeFunctionState> states = runtime_->function_states(*preview_object_);
+        for (const world::RuntimeFunctionState& state : states) {
+            const world::FunctionTypeDefinition& type = run_definition_->function_type(state.type);
+            const world::CompiledFunctionPhenotype& function = phenotype.function(state.function_index);
+            godot::Dictionary item;
+            item["object_id"] = static_cast<std::int64_t>(preview_object_->value);
+            item["function_index"] = static_cast<std::int64_t>(state.function_index);
+            item["function_type_id"] = static_cast<std::int64_t>(state.type.value);
+            item["function_type_name"] = to_godot_string(type.name);
+            godot::Array genome_parameters;
+            for (const world::GenomeParameterDefinition& parameter : type.genome_parameters) {
+                godot::Dictionary entry;
+                entry["parameter_id"] = static_cast<std::int64_t>(parameter.id.value);
+                entry["name"] = to_godot_string(parameter.name);
+                entry["amount"] = function.parameter(parameter.id);
+                genome_parameters.push_back(entry);
+            }
+            godot::Array derived_parameters;
+            for (const world::DerivedParameterDefinition& parameter : type.derived_parameters) {
+                godot::Dictionary entry;
+                entry["parameter_id"] = static_cast<std::int64_t>(parameter.id.value);
+                entry["name"] = to_godot_string(parameter.name);
+                entry["amount"] = function.parameter(parameter.id);
+                derived_parameters.push_back(entry);
+            }
+            item["genome_parameters"] = genome_parameters;
+            item["derived_parameters"] = derived_parameters;
+            if (state.buffer) {
+                const world::CompiledBufferParameters& parameters = *function.buffer_parameters();
+                godot::Dictionary buffer;
+                buffer["capacity"] = parameters.capacity;
+                buffer["throughput"] = parameters.throughput;
+                buffer["leakage"] = parameters.leakage;
+                buffer["stored_amount"] = state.buffer->stored_amount;
+                buffer["received_last_tick"] = state.buffer->received_last_tick;
+                buffer["supplied_last_tick"] = state.buffer->supplied_last_tick;
+                item["buffer"] = buffer;
+            }
+            result.push_back(item);
+        }
+        clear_error();
+    } catch (...) {
+        capture_current_error();
+        result.clear();
+    }
+    return result;
+}
+
+godot::Array CLifeWorldEditor::get_last_end_buffer()
+{
+    godot::Array result;
+    try {
+        if (!runtime_ || !preview_object_ || !run_definition_) {
+            return result;
+        }
+        std::set<world::ValueKey> included;
+        for (const world::WorldRuleDefinition& rule : run_definition_->world_rules()) {
+            if (!included.insert(rule.end_buffer).second) {
+                continue;
+            }
+            const world::ValueDefinition& value = run_definition_->value(rule.end_buffer);
+            godot::Dictionary item;
+            item["value_key"] = static_cast<std::int64_t>(value.key.value);
+            item["name"] = to_godot_string(value.name);
+            item["amount"] = runtime_->last_end_value(*preview_object_, value.key);
+            result.push_back(item);
+        }
+        clear_error();
+    } catch (...) {
+        capture_current_error();
+        result.clear();
+    }
+    return result;
+}
+
 godot::Array CLifeWorldEditor::get_host_inputs()
 {
     godot::Array result;
@@ -784,6 +894,8 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("get_function_types"), &CLifeWorldEditor::get_function_types);
     godot::ClassDB::bind_method(godot::D_METHOD("get_initial_values", "template_id"),
                                 &CLifeWorldEditor::get_initial_values);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_material_contributions", "template_id"),
+                                &CLifeWorldEditor::get_material_contributions);
     godot::ClassDB::bind_method(godot::D_METHOD("get_genome", "template_id"), &CLifeWorldEditor::get_genome);
     godot::ClassDB::bind_method(godot::D_METHOD("get_world_rules"), &CLifeWorldEditor::get_world_rules);
     godot::ClassDB::bind_method(godot::D_METHOD("get_bindings", "template_id"), &CLifeWorldEditor::get_bindings);
@@ -805,10 +917,12 @@ void CLifeWorldEditor::_bind_methods()
         &CLifeWorldEditor::set_genome_parameter);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_genome_function", "template_id", "index"),
                                 &CLifeWorldEditor::remove_genome_function);
-    godot::ClassDB::bind_method(godot::D_METHOD("add_world_rule", "source_key", "target_key", "target_per_source"),
-                                &CLifeWorldEditor::add_world_rule);
     godot::ClassDB::bind_method(
-        godot::D_METHOD("change_world_rule", "index", "source_key", "target_key", "target_per_source"),
+        godot::D_METHOD("add_world_rule", "source_key", "end_buffer_key", "target_key", "target_per_source"),
+        &CLifeWorldEditor::add_world_rule);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("change_world_rule", "index", "source_key", "end_buffer_key", "target_key",
+                        "target_per_source"),
         &CLifeWorldEditor::change_world_rule);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_world_rule", "index"), &CLifeWorldEditor::remove_world_rule);
     godot::ClassDB::bind_method(godot::D_METHOD("add_host_binding", "template_id", "channel", "direction", "value_key"),
@@ -834,6 +948,8 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("get_fixed_tick_seconds"), &CLifeWorldEditor::get_fixed_tick_seconds);
     godot::ClassDB::bind_method(godot::D_METHOD("get_preview_object_id"), &CLifeWorldEditor::get_preview_object_id);
     godot::ClassDB::bind_method(godot::D_METHOD("get_runtime_values"), &CLifeWorldEditor::get_runtime_values);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_runtime_functions"), &CLifeWorldEditor::get_runtime_functions);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_last_end_buffer"), &CLifeWorldEditor::get_last_end_buffer);
     godot::ClassDB::bind_method(godot::D_METHOD("get_host_inputs"), &CLifeWorldEditor::get_host_inputs);
     godot::ClassDB::bind_method(godot::D_METHOD("get_host_outputs"), &CLifeWorldEditor::get_host_outputs);
     godot::ClassDB::bind_method(godot::D_METHOD("set_host_input", "channel", "amount"),

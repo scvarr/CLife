@@ -1,6 +1,7 @@
 #include <clife/core/calculator.hpp>
 #include <clife/core/simulation.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <iostream>
@@ -72,7 +73,8 @@ bool test_cell_world_slice()
                 {.input = kLight, .output = kEnergy, .throughput = 1.0},
                 {.input = kEnergy, .output = kUsedEnergy, .throughput = 0.25},
             },
-        .end_rules = {{.source = kEnergy, .target = kTemperature, .target_per_source = 0.1}},
+        .end_buffer_transfers = {{.source = kEnergy, .target = kOther}},
+        .end_rules = {{.source = kOther, .target = kTemperature, .target_per_source = 0.1}},
         .initial_values = {{.value = kTemperature, .amount = 0.2}},
     }};
 
@@ -101,9 +103,10 @@ bool test_declaration_order_does_not_change_pipeline()
 
     const auto run = [](std::vector<clife::Function> functions) {
         clife::Calculator calculator{{
-            .value_count = 4,
+            .value_count = 5,
             .functions = std::move(functions),
-            .end_rules = {{.source = kEnergy, .target = kTemperature, .target_per_source = 0.1}},
+            .end_buffer_transfers = {{.source = kEnergy, .target = kOther}},
+            .end_rules = {{.source = kOther, .target = kTemperature, .target_per_source = 0.1}},
         }};
         const std::array external{clife::ValueAmount{.value = kLight, .amount = 1.0}};
         calculator.step(external);
@@ -169,37 +172,130 @@ bool test_multiple_producers_feed_downstream_value()
     return expect_near(calculator.value(output), 2.0, "downstream waits for all upstream producers");
 }
 
-bool test_end_rules_are_simultaneous()
+bool test_buffer_flow_and_end_buffer()
 {
-    constexpr clife::ValueId first{0};
-    constexpr clife::ValueId second{1};
-    constexpr clife::ValueId third{2};
+    constexpr clife::ValueId heat{3};
+    constexpr clife::ValueId temperature{4};
+    clife::Calculator calculator{{
+        .value_count = 5,
+        .functions = {
+            {.input = kLight, .output = kEnergy, .throughput = 1.0},
+            {.input = kEnergy, .output = kUsedEnergy, .throughput = 0.5},
+        },
+        .buffers = {{.value = kEnergy, .capacity = 5.0, .throughput = 1.5}},
+        .end_buffer_transfers = {{.source = kEnergy, .target = heat}},
+        .end_rules = {{.source = heat, .target = temperature, .target_per_source = 0.1}},
+        .initial_values = {{.value = temperature, .amount = 0.2}},
+    }};
+    const std::array external{clife::ValueAmount{.value = kLight, .amount = 1.0}};
 
-    const std::vector<clife::EndRule> forward{
-        {.source = first, .target = second, .target_per_source = 2.0},
-        {.source = second, .target = third, .target_per_source = 3.0},
+    calculator.step(external);
+    const clife::BufferState first = calculator.buffer_state(0);
+    if (!expect_near(calculator.value(kUsedEnergy), 0.25, "tick 1 proportional Energy Use") ||
+        !expect_near(first.stored_amount, 0.75, "tick 1 storage amount") ||
+        !expect_near(first.received_last_tick, 0.75, "tick 1 storage received") ||
+        !expect_near(first.supplied_last_tick, 0.0, "tick 1 storage supplied") ||
+        !expect_near(calculator.end_value(heat), 0.0, "tick 1 end Heat") ||
+        !expect_near(calculator.value(temperature), 0.2, "tick 1 Temperature")) {
+        return false;
+    }
+
+    calculator.step(external);
+    const clife::BufferState second = calculator.buffer_state(0);
+    if (!expect_near(calculator.value(kUsedEnergy), 0.4375, "tick 2 proportional Energy Use") ||
+        !expect_near(second.stored_amount, 1.3125, "tick 2 storage amount") ||
+        !expect_near(second.received_last_tick, 1.3125, "tick 2 storage received") ||
+        !expect_near(second.supplied_last_tick, 0.75, "tick 2 storage supplied")) {
+        return false;
+    }
+
+    calculator.step(external);
+    const clife::BufferState third = calculator.buffer_state(0);
+    const clife::Amount expected_storage = 1.3125 - (1.3125 * 2.0 / 2.3125) + 1.5;
+    const clife::Amount expected_heat = 1.0 * (1.0 - 2.0 / 2.3125);
+    return expect_near(third.stored_amount, expected_storage, "tick 3 unused buffer offer remains stored") &&
+           expect_near(third.supplied_last_tick, 1.3125 * 2.0 / 2.3125,
+                       "tick 3 buffer source scales proportionally") &&
+           expect_near(calculator.end_value(heat), expected_heat, "tick 3 unused fresh Energy becomes END Heat") &&
+           expect_near(calculator.value(temperature), 0.2 + expected_heat * 0.1,
+                       "tick 3 END Heat changes Temperature");
+}
+
+bool expect_true(bool condition, const char* message)
+{
+    if (condition) {
+        return true;
+    }
+    std::cerr << message << ": expected true\n";
+    return false;
+}
+
+bool test_end_buffer_is_not_pipeline_input_and_clears()
+{
+    constexpr clife::ValueId source{0};
+    constexpr clife::ValueId heat{1};
+    constexpr clife::ValueId pipeline_output{2};
+    clife::Calculator calculator{{
+        .value_count = 3,
+        .functions = {{.input = heat, .output = pipeline_output, .throughput = 10.0}},
+        .end_buffer_transfers = {{.source = source, .target = heat}},
+    }};
+    const std::array first_input{clife::ValueAmount{.value = source, .amount = 1.0}};
+    calculator.step(first_input);
+    if (!expect_near(calculator.value(pipeline_output), 0.0, "pipeline cannot read current END Heat") ||
+        !expect_near(calculator.end_value(heat), 1.0, "end buffer records current tick")) {
+        return false;
+    }
+    const std::array second_input{clife::ValueAmount{.value = source, .amount = 0.0}};
+    calculator.step(second_input);
+    return expect_near(calculator.end_value(heat), 0.0, "end buffer clears between ticks");
+}
+
+bool test_buffer_limits_and_declaration_order()
+{
+    constexpr clife::ValueId flow{0};
+    constexpr clife::ValueId output{1};
+    const std::vector<clife::BufferProcess> forward{
+        {.value = flow, .capacity = 5.0, .throughput = 1.5, .initial_amount = 0.75},
+        {.value = flow, .capacity = 3.0, .throughput = 0.5, .initial_amount = 0.25},
     };
     auto reversed = forward;
-    std::swap(reversed[0], reversed[1]);
+    std::reverse(reversed.begin(), reversed.end());
 
-    const auto run = [first, second, third](std::vector<clife::EndRule> rules) {
+    const auto run = [flow, output](std::vector<clife::BufferProcess> buffers) {
         clife::Calculator calculator{{
-            .value_count = 3,
-            .end_rules = std::move(rules),
-            .initial_values = {{.value = first, .amount = 1.0}, {.value = second, .amount = 4.0}},
+            .value_count = 2,
+            .functions = {{.input = flow, .output = output, .throughput = 0.5}},
+            .buffers = std::move(buffers),
         }};
-        calculator.step({});
-        return std::array<clife::Amount, 3>{calculator.value(first), calculator.value(second), calculator.value(third)};
+        const std::array external{clife::ValueAmount{.value = flow, .amount = 1.0}};
+        calculator.step(external);
+        std::array<clife::Amount, 2> stored{
+            calculator.buffer_state(0).stored_amount,
+            calculator.buffer_state(1).stored_amount,
+        };
+        std::sort(stored.begin(), stored.end());
+        return std::array<clife::Amount, 3>{calculator.value(output), stored[0], stored[1]};
     };
 
-    const auto a = run(forward);
-    const auto b = run(std::move(reversed));
-    return expect_near(a[0], 0.0, "first source is consumed") &&
-           expect_near(a[1], 2.0, "second receives only pre-rule first value") &&
-           expect_near(a[2], 12.0, "third receives pre-rule second value") &&
-           expect_near(a[0], b[0], "end rule order keeps first value") &&
-           expect_near(a[1], b[1], "end rule order keeps second value") &&
-           expect_near(a[2], b[2], "end rule order keeps third value");
+    const auto first = run(forward);
+    const auto second = run(std::move(reversed));
+    if (!expect_near(first[0], second[0], "buffer order keeps consumer result") ||
+        !expect_near(first[1], second[1], "buffer order keeps first state") ||
+        !expect_near(first[2], second[2], "buffer order keeps second state")) {
+        return false;
+    }
+
+    clife::Calculator capacity_limited{{
+        .value_count = 1,
+        .buffers = {{.value = flow, .capacity = 1.0, .throughput = 1.5, .initial_amount = 0.75}},
+    }};
+    const std::array external{clife::ValueAmount{.value = flow, .amount = 1.0}};
+    capacity_limited.step(external);
+    const clife::BufferState state = capacity_limited.buffer_state(0);
+    return expect_near(state.received_last_tick, 0.25, "buffer demand is limited by remaining capacity") &&
+           expect_true(state.supplied_last_tick <= 0.75, "buffer offer is limited by stored amount") &&
+           expect_true(state.stored_amount >= 0.0 && state.stored_amount <= 1.0, "buffer remains within capacity");
 }
 
 bool test_same_tick_cycle_is_rejected()
@@ -235,7 +331,13 @@ int main()
     if (!test_multiple_producers_feed_downstream_value()) {
         return 1;
     }
-    if (!test_end_rules_are_simultaneous()) {
+    if (!test_buffer_flow_and_end_buffer()) {
+        return 1;
+    }
+    if (!test_end_buffer_is_not_pipeline_input_and_clears()) {
+        return 1;
+    }
+    if (!test_buffer_limits_and_declaration_order()) {
         return 1;
     }
     if (!test_same_tick_cycle_is_rejected()) {

@@ -18,6 +18,12 @@ struct ObjectId final {
     friend constexpr auto operator<=>(ObjectId, ObjectId) noexcept = default;
 };
 
+struct RuntimeFunctionState final {
+    std::size_t function_index;
+    FunctionTypeId type;
+    std::optional<BufferState> buffer;
+};
+
 class RuntimeWorld final {
 public:
     explicit RuntimeWorld(const WorldDefinition& definition);
@@ -32,6 +38,8 @@ public:
     [[nodiscard]] Amount output(ObjectId object, std::string_view channel) const;
     [[nodiscard]] TemplateId source_template(ObjectId object) const;
     [[nodiscard]] const CompiledPhenotype& phenotype(ObjectId object) const;
+    [[nodiscard]] std::vector<RuntimeFunctionState> function_states(ObjectId object) const;
+    [[nodiscard]] Amount last_end_value(ObjectId object, ValueKey value) const;
     [[nodiscard]] std::optional<ValueId> runtime_value_id(ValueKey key) const noexcept;
     [[nodiscard]] std::size_t object_count() const noexcept;
 
@@ -40,6 +48,7 @@ private:
         TemplateId source;
         CompiledPhenotype phenotype;
         Program program;
+        std::vector<std::optional<std::size_t>> buffer_indices;
         std::vector<HostBinding> bindings;
     };
 

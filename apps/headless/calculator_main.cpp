@@ -43,7 +43,8 @@ struct CommandLine final {
 [[nodiscard]] bool is_structural_option(std::string_view argument) noexcept
 {
     return argument == "--values" || argument == "--initial" || argument == "--external" ||
-           argument == "--function" || argument == "--end-rule" || argument == "--observe";
+           argument == "--function" || argument == "--end-transfer" || argument == "--end-rule" ||
+           argument == "--observe";
 }
 
 [[nodiscard]] bool has_custom_program(int argc, char* argv[]) noexcept
@@ -225,6 +226,16 @@ void add_end_rule(LabConfig& config, std::string_view text)
     });
 }
 
+void add_end_transfer(LabConfig& config, std::string_view text)
+{
+    const ThreeParts parts = split_three(text, ':', "end-buffer transfer definition");
+    config.program.end_buffer_transfers.push_back({
+        .source = parse_value_id(parts.first, "end-buffer transfer source"),
+        .target = parse_value_id(parts.second, "end-buffer transfer target"),
+        .target_per_source = parse_amount(parts.third, "end-buffer transfer factor"),
+    });
+}
+
 [[nodiscard]] CommandLine parse_command_line(int argc, char* argv[])
 {
     CommandLine command;
@@ -248,6 +259,8 @@ void add_end_rule(LabConfig& config, std::string_view text)
             add_function(command.config, require_value(argc, argv, index, argument));
         } else if (argument == "--end-rule") {
             add_end_rule(command.config, require_value(argc, argv, index, argument));
+        } else if (argument == "--end-transfer") {
+            add_end_transfer(command.config, require_value(argc, argv, index, argument));
         } else if (argument == "--observe") {
             command.config.observed_values.push_back(
                 parse_value_id(require_value(argc, argv, index, argument), "observed value"));
@@ -281,12 +294,13 @@ void print_help()
               << "  --initial VALUE=AMOUNT                 Initial persistent value\n"
               << "  --external VALUE=AMOUNT                External root supplied every tick\n"
               << "  --function IN:OUT:THROUGHPUT:FACTOR    Genome function\n"
-              << "  --end-rule SOURCE:TARGET:FACTOR        End-of-tick world rule\n"
+              << "  --end-transfer SOURCE:END:FACTOR       Move unused flow into the end buffer\n"
+              << "  --end-rule END:TARGET:FACTOR           Apply an end-buffer world rule\n"
               << "  --observe VALUE                        Print result column\n"
               << "  --help, -h                             Show this help\n\n"
               << "Functions compete proportionally when they take the same input. FACTOR is the current minimal\n"
-              << "result formula: output = actually_taken * FACTOR. End rules consume their remaining source\n"
-              << "simultaneously after the genome pipeline. A custom program must specify --values.\n\n"
+              << "result formula: output = actually_taken * FACTOR. End transfers run after the pipeline;\n"
+              << "end rules can read only that separate buffer. A custom program must specify --values.\n\n"
               << "Without structural options, the shared clife_presets first world runs with Light=1.\n"
               << "A custom calculator program must specify --values.\n";
 }
@@ -308,8 +322,12 @@ void print_configuration(const LabConfig& config)
                   << display_name(config, function.output) << ", throughput=" << function.throughput
                   << ", factor=" << function.result_per_input << '\n';
     }
+    for (const clife::EndBufferTransfer& transfer : config.program.end_buffer_transfers) {
+        std::cout << "End transfer: remaining " << display_name(config, transfer.source) << " -> END "
+                  << display_name(config, transfer.target) << " * " << transfer.target_per_source << '\n';
+    }
     for (const clife::EndRule& rule : config.program.end_rules) {
-        std::cout << "World end rule: remaining " << display_name(config, rule.source) << " -> "
+        std::cout << "World end rule: END " << display_name(config, rule.source) << " -> "
                   << display_name(config, rule.target) << " * " << rule.target_per_source << '\n';
     }
     std::cout << '\n';

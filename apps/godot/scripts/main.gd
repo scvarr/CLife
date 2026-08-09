@@ -33,6 +33,8 @@ var add_rule_button: Button
 var host_inputs_box: HBoxContainer
 var status_label: Label
 var runtime_value_labels: Dictionary = {}
+var runtime_buffer_labels: Dictionary = {}
+var runtime_end_labels: Dictionary = {}
 var current_locale := DEFAULT_LOCALE
 var status_key := "status.ready"
 var status_arguments: Array = []
@@ -318,8 +320,9 @@ func _rebuild_world_tree() -> void:
 	rules_root.set_metadata(0, {"kind": "section"})
 	for rule in editor.get_world_rules():
 		var item := world_tree.create_item(rules_root)
-		item.set_text(0, "%s → %s  × %.3f" % [
+		item.set_text(0, "%s → %s → %s  × %.3f" % [
 			_value_name(int(rule.source_key)),
+			tr("ui.end_value_format") % _value_name(int(rule.end_buffer_key)),
 			_value_name(int(rule.target_key)),
 			float(rule.target_per_source),
 		])
@@ -398,6 +401,8 @@ func _show_template_inspector(template_id: int) -> void:
 	_add_separator(inspector)
 	_build_initial_values_editor(template_id)
 	_add_separator(inspector)
+	_build_material_contributions(template_id)
+	_add_separator(inspector)
 	_build_genome_editor(template_id)
 	_add_separator(inspector)
 	_build_bindings_editor(template_id)
@@ -421,6 +426,17 @@ func _show_function_type_inspector(function_type_id: int) -> void:
 		_add_wrapped_label(inspector, tr("ui.parameter_identity_format") % [parameter.name, parameter.id])
 	if bool(function_type.has_process):
 		_add_wrapped_label(inspector, tr("help.function_type_process"))
+	if bool(function_type.has_buffer):
+		_add_wrapped_label(inspector, tr("help.function_type_buffer"))
+
+
+func _build_material_contributions(template_id: int) -> void:
+	_add_heading(inspector, tr("ui.material_cost"))
+	for material in editor.get_material_contributions(template_id):
+		var key := int(material.value_key)
+		_add_wrapped_label(inspector, "%s [#%d]: %.6f" % [
+			_value_name(key), key, float(material.amount),
+		])
 
 
 func _build_initial_values_editor(template_id: int) -> void:
@@ -546,22 +562,26 @@ func _show_rule_inspector(index: int, is_new: bool) -> void:
 	_clear_children(inspector)
 	_add_heading(inspector, tr("ui.new_world_rule") if is_new else tr("ui.world_rule_format") % index)
 	var source := _value_option(0 if is_new else int(rule.source_key))
+	var end_buffer := _value_option(0 if is_new else int(rule.end_buffer_key))
 	var target := _value_option(0 if is_new else int(rule.target_key))
 	if is_new and target.item_count > 1:
 		target.select(1)
 	var factor := _amount_spin(1.0 if is_new else float(rule.target_per_source))
 	inspector.add_child(_labeled_control(tr("ui.source"), source))
+	inspector.add_child(_labeled_control(tr("ui.end_buffer"), end_buffer))
 	inspector.add_child(_labeled_control(tr("ui.target"), target))
 	inspector.add_child(_labeled_control(tr("ui.target_per_source"), factor))
 	if is_new:
 		inspector.add_child(_button(tr("ui.add_rule_plain"), func() -> void:
-			_finish_edit(editor.add_world_rule(_selected_option_id(source), _selected_option_id(target), factor.value),
+			_finish_edit(editor.add_world_rule(_selected_option_id(source), _selected_option_id(end_buffer),
+				_selected_option_id(target), factor.value),
 				"status.world_rule_added")
 		))
 	else:
 		inspector.add_child(_button(tr("ui.update_rule"), func() -> void:
-			_finish_edit(editor.change_world_rule(index, _selected_option_id(source), _selected_option_id(target),
-				factor.value), "status.world_rule_updated")
+			_finish_edit(editor.change_world_rule(index, _selected_option_id(source),
+				_selected_option_id(end_buffer), _selected_option_id(target), factor.value),
+				"status.world_rule_updated")
 		))
 		inspector.add_child(_button(tr("ui.remove_rule"), func() -> void:
 			_finish_edit(editor.remove_world_rule(index), "status.world_rule_removed")
@@ -571,6 +591,8 @@ func _show_rule_inspector(index: int, is_new: bool) -> void:
 func _show_runtime_inspector() -> void:
 	_clear_children(inspector)
 	runtime_value_labels.clear()
+	runtime_buffer_labels.clear()
+	runtime_end_labels.clear()
 	_add_heading(inspector, tr("ui.runtime_object_format") % editor.get_preview_object_id())
 	_add_wrapped_label(inspector, tr("help.runtime_values"))
 	for value in editor.get_runtime_values():
@@ -579,11 +601,42 @@ func _show_runtime_inspector() -> void:
 		label.text = "%s [#%d]: %.6f" % [value.name, key, float(value.amount)]
 		inspector.add_child(label)
 		runtime_value_labels[key] = label
+	_add_heading(inspector, tr("ui.runtime_functions"))
+	for function in editor.get_runtime_functions():
+		var function_index := int(function.function_index)
+		_add_wrapped_label(inspector, tr("ui.runtime_function_format") % [
+			function_index, function.function_type_name,
+		])
+		_add_wrapped_label(inspector, tr("ui.genome_parameters"))
+		for parameter in function.genome_parameters:
+			_add_wrapped_label(inspector, "%s: %.6f" % [parameter.name, float(parameter.amount)])
+		_add_wrapped_label(inspector, tr("ui.derived_parameters_read_only"))
+		for parameter in function.derived_parameters:
+			_add_wrapped_label(inspector, "%s: %.6f" % [parameter.name, float(parameter.amount)])
+		if function.has("buffer"):
+			var buffer: Dictionary = function.buffer
+			_add_wrapped_label(inspector, tr("ui.buffer_capacity_format") % float(buffer.capacity))
+			_add_wrapped_label(inspector, tr("ui.buffer_throughput_format") % float(buffer.throughput))
+			_add_wrapped_label(inspector, tr("ui.buffer_leakage_format") % float(buffer.leakage))
+			for field in ["stored_amount", "received_last_tick", "supplied_last_tick"]:
+				var live_label := Label.new()
+				live_label.text = _buffer_state_text(field, float(buffer[field]))
+				inspector.add_child(live_label)
+				runtime_buffer_labels["%d:%s" % [function_index, field]] = live_label
+	_add_heading(inspector, tr("ui.end_buffer"))
+	for end_value in editor.get_last_end_buffer():
+		var key := int(end_value.value_key)
+		var label := Label.new()
+		label.text = "%s [#%d]: %.6f" % [end_value.name, key, float(end_value.amount)]
+		inspector.add_child(label)
+		runtime_end_labels[key] = label
 
 
 func _show_run_inspector_help() -> void:
 	_clear_children(inspector)
 	runtime_value_labels.clear()
+	runtime_buffer_labels.clear()
+	runtime_end_labels.clear()
 	_add_heading(inspector, tr("ui.run_inspector"))
 	_add_wrapped_label(inspector, tr("help.click_runtime_object"))
 
@@ -594,6 +647,31 @@ func _refresh_runtime_values() -> void:
 		if runtime_value_labels.has(key):
 			var label := runtime_value_labels[key] as Label
 			label.text = "%s [#%d]: %.6f" % [value.name, key, float(value.amount)]
+	for function in editor.get_runtime_functions():
+		if not function.has("buffer"):
+			continue
+		var buffer: Dictionary = function.buffer
+		var function_index := int(function.function_index)
+		for field in ["stored_amount", "received_last_tick", "supplied_last_tick"]:
+			var label_key := "%d:%s" % [function_index, field]
+			if runtime_buffer_labels.has(label_key):
+				var label := runtime_buffer_labels[label_key] as Label
+				label.text = _buffer_state_text(field, float(buffer[field]))
+	for end_value in editor.get_last_end_buffer():
+		var key := int(end_value.value_key)
+		if runtime_end_labels.has(key):
+			var label := runtime_end_labels[key] as Label
+			label.text = "%s [#%d]: %.6f" % [end_value.name, key, float(end_value.amount)]
+
+
+func _buffer_state_text(field: String, amount: float) -> String:
+	match field:
+		"stored_amount":
+			return tr("ui.buffer_stored_format") % amount
+		"received_last_tick":
+			return tr("ui.buffer_received_format") % amount
+		_:
+			return tr("ui.buffer_supplied_format") % amount
 
 
 func _rebuild_host_inputs() -> void:

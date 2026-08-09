@@ -63,6 +63,7 @@ struct CellWorld final {
     ValueKey light;
     ValueKey energy;
     ValueKey used_energy;
+    ValueKey heat;
     ValueKey temperature;
     TemplateId cell;
 };
@@ -73,6 +74,7 @@ struct CellWorld final {
     const ValueKey light = definition.add_value("Light");
     const ValueKey energy = definition.add_value("Energy");
     const ValueKey used_energy = definition.add_value("UsedEnergy");
+    const ValueKey heat = definition.add_value("Heat");
     const ValueKey temperature = definition.add_value("Temperature");
     const TemplateId cell = definition.add_template("Cell");
 
@@ -96,7 +98,12 @@ struct CellWorld final {
                                          });
     (void)definition.add_genome_function(cell, absorption);
     (void)definition.add_genome_function(cell, use);
-    (void)definition.add_world_rule({.source = energy, .target = temperature, .target_per_source = 0.1});
+    (void)definition.add_world_rule({
+        .source = energy,
+        .end_buffer = heat,
+        .target = temperature,
+        .target_per_source = 0.1,
+    });
     definition.set_initial_value(cell, temperature, 0.2);
     (void)definition.add_host_binding(cell, {
                                                 .channel = "world.light",
@@ -118,6 +125,7 @@ struct CellWorld final {
         .light = light,
         .energy = energy,
         .used_energy = used_energy,
+        .heat = heat,
         .temperature = temperature,
         .cell = cell,
     };
@@ -233,7 +241,14 @@ bool test_invalid_references_and_definitions_are_rejected()
             },
             "missing process ValueKey") ||
         !expect_throws(
-            [&] { (void)definition.add_world_rule({.source = missing, .target = value, .target_per_source = 1.0}); },
+            [&] {
+                (void)definition.add_world_rule({
+                    .source = missing,
+                    .end_buffer = value,
+                    .target = value,
+                    .target_per_source = 1.0,
+                });
+            },
             "missing world rule ValueKey") ||
         !expect_throws([&] { (void)definition.add_value("Value"); }, "duplicate value name") ||
         !expect_throws([&] { (void)definition.add_template("Object"); }, "duplicate template name") ||
@@ -306,7 +321,7 @@ bool test_value_storage_order_does_not_define_semantics()
     CellWorld forward = make_cell_world();
     CellWorld reversed = make_cell_world();
     reversed.definition.reorder_values(
-        std::array{reversed.temperature, reversed.used_energy, reversed.energy, reversed.light});
+        std::array{reversed.temperature, reversed.heat, reversed.used_energy, reversed.energy, reversed.light});
     RuntimeWorld first{forward.definition};
     RuntimeWorld second{reversed.definition};
     const ObjectId a = first.instantiate(forward.cell);
@@ -340,8 +355,18 @@ bool test_mutation_api_and_runtime_validation()
     const std::size_t function = definition.add_genome_function(object, type);
     definition.set_genome_parameter(object, function, rate, 2.0);
     definition.set_genome_parameter(object, function, result, 0.5);
-    const std::size_t rule = definition.add_world_rule({.source = output, .target = state, .target_per_source = 1.0});
-    definition.change_world_rule(rule, {.source = output, .target = state, .target_per_source = 2.0});
+    const std::size_t rule = definition.add_world_rule({
+        .source = output,
+        .end_buffer = state,
+        .target = state,
+        .target_per_source = 1.0,
+    });
+    definition.change_world_rule(rule, {
+                                           .source = output,
+                                           .end_buffer = state,
+                                           .target = state,
+                                           .target_per_source = 2.0,
+                                       });
     const std::size_t binding = definition.add_host_binding(object, {
                                                                         .channel = "in",
                                                                         .direction = HostChannelDirection::input,

@@ -26,6 +26,7 @@ public:
     [[nodiscard]] godot::Array get_templates();
     [[nodiscard]] godot::Array get_function_types();
     [[nodiscard]] godot::Array get_initial_values(std::int64_t template_id);
+    [[nodiscard]] godot::Array get_material_contributions(std::int64_t template_id);
     [[nodiscard]] godot::Array get_genome(std::int64_t template_id);
     [[nodiscard]] godot::Array get_world_rules();
     [[nodiscard]] godot::Array get_bindings(std::int64_t template_id);
@@ -42,8 +43,10 @@ public:
     bool add_genome_function(std::int64_t template_id, std::int64_t function_type_id);
     bool set_genome_parameter(std::int64_t template_id, std::int64_t index, std::int64_t parameter_id, double value);
     bool remove_genome_function(std::int64_t template_id, std::int64_t index);
-    bool add_world_rule(std::int64_t source_key, std::int64_t target_key, double target_per_source);
-    bool change_world_rule(std::int64_t index, std::int64_t source_key, std::int64_t target_key,
+    bool add_world_rule(std::int64_t source_key, std::int64_t end_buffer_key, std::int64_t target_key,
+                        double target_per_source);
+    bool change_world_rule(std::int64_t index, std::int64_t source_key, std::int64_t end_buffer_key,
+                           std::int64_t target_key,
                            double target_per_source);
     bool remove_world_rule(std::int64_t index);
     bool add_host_binding(std::int64_t template_id, const godot::String& channel, std::int64_t direction,
@@ -67,6 +70,8 @@ public:
     [[nodiscard]] double get_fixed_tick_seconds() const noexcept;
     [[nodiscard]] std::int64_t get_preview_object_id() const noexcept;
     [[nodiscard]] godot::Array get_runtime_values();
+    [[nodiscard]] godot::Array get_runtime_functions();
+    [[nodiscard]] godot::Array get_last_end_buffer();
     [[nodiscard]] godot::Array get_host_inputs();
     [[nodiscard]] godot::Array get_host_outputs();
     bool set_host_input(const godot::String& channel, double amount);

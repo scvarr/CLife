@@ -16,6 +16,22 @@ namespace {
     return found->value;
 }
 
+void add_material(std::vector<MaterialAmount>& materials, ValueKey value, Amount amount)
+{
+    if (!std::isfinite(amount) || amount < 0.0) {
+        throw std::invalid_argument{"material contribution must be finite and non-negative"};
+    }
+    const auto found = std::ranges::find(materials, value, &MaterialAmount::value);
+    if (found == materials.end()) {
+        materials.push_back({.value = value, .amount = amount});
+    } else {
+        found->amount += amount;
+        if (!std::isfinite(found->amount)) {
+            throw std::overflow_error{"material contribution total overflow"};
+        }
+    }
+}
+
 } // namespace
 
 CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateId source_template)
@@ -23,6 +39,9 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
     const ObjectTemplate& object = definition.object_template(source_template);
     CompiledPhenotype phenotype;
     phenotype.source_template_ = source_template;
+    for (const TemplateMaterialContributionDefinition& contribution : object.material_contributions) {
+        add_material(phenotype.material_amounts_, contribution.value, contribution.amount);
+    }
     phenotype.functions_.reserve(object.genome.size());
     for (const GenomeFunctionInstance& instance : object.genome) {
         const FunctionTypeDefinition& type = definition.function_type(instance.type);
@@ -64,8 +83,31 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
                 .result_per_input = result_per_input,
             };
         }
+        if (type.buffer_process) {
+            const Amount capacity = parameter_value(resolved, type.buffer_process->capacity);
+            const Amount throughput = parameter_value(resolved, type.buffer_process->throughput);
+            const Amount leakage = parameter_value(resolved, type.buffer_process->leakage);
+            if (!std::isfinite(capacity) || capacity < 0.0) {
+                throw std::invalid_argument{"compiled buffer capacity must be finite and non-negative"};
+            }
+            if (!std::isfinite(throughput) || throughput <= 0.0) {
+                throw std::invalid_argument{"compiled buffer throughput must be finite and positive"};
+            }
+            if (!std::isfinite(leakage) || leakage < 0.0) {
+                throw std::invalid_argument{"compiled buffer leakage must be finite and non-negative"};
+            }
+            function.buffer_parameters_ = CompiledBufferParameters{
+                .capacity = capacity,
+                .throughput = throughput,
+                .leakage = leakage,
+            };
+        }
+        for (const MaterialContributionDefinition& contribution : type.material_contributions) {
+            add_material(phenotype.material_amounts_, contribution.value, contribution.amount.evaluate(resolved));
+        }
         phenotype.functions_.push_back(std::move(function));
     }
+    std::ranges::sort(phenotype.material_amounts_, {}, &MaterialAmount::value);
     return phenotype;
 }
 
@@ -95,6 +137,11 @@ const std::optional<CompiledProcessParameters>& CompiledFunctionPhenotype::proce
     return process_parameters_;
 }
 
+const std::optional<CompiledBufferParameters>& CompiledFunctionPhenotype::buffer_parameters() const noexcept
+{
+    return buffer_parameters_;
+}
+
 TemplateId CompiledPhenotype::source_template() const noexcept { return source_template_; }
 
 std::span<const CompiledFunctionPhenotype> CompiledPhenotype::functions() const noexcept { return functions_; }
@@ -105,6 +152,14 @@ const CompiledFunctionPhenotype& CompiledPhenotype::function(std::size_t index) 
         throw std::out_of_range{"compiled phenotype function index is out of range"};
     }
     return functions_[index];
+}
+
+std::span<const MaterialAmount> CompiledPhenotype::material_amounts() const noexcept { return material_amounts_; }
+
+Amount CompiledPhenotype::material_amount(ValueKey value) const noexcept
+{
+    const auto found = std::ranges::find(material_amounts_, value, &MaterialAmount::value);
+    return found == material_amounts_.end() ? 0.0 : found->amount;
 }
 
 } // namespace clife::world
