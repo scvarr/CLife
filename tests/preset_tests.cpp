@@ -44,13 +44,13 @@ bool test_preset_definition_and_ticks()
         return false;
     }
     session.step();
-    if (!expect_near(session.used_energy(), 0.25, "first tick UsedEnergy") ||
+    if (!expect_near(session.used_energy(), 0.5, "first tick UsedEnergy") ||
         !expect_near(session.energy(), 0.0, "first tick Energy") ||
         !expect_near(session.temperature(), 0.2, "first tick Temperature")) {
         return false;
     }
     session.step();
-    return expect_near(session.used_energy(), 0.4375, "second tick UsedEnergy") &&
+    return expect_near(session.used_energy(), 0.5, "second tick UsedEnergy") &&
            expect_near(session.temperature(), 0.2, "second tick Temperature");
 }
 
@@ -145,7 +145,7 @@ bool test_sessions_are_independent()
     clife::presets::DemoSession first;
     clife::presets::DemoSession second;
     first.step();
-    return expect_near(first.used_energy(), 0.25, "first session advances") &&
+    return expect_near(first.used_energy(), 0.5, "first session advances") &&
            expect_near(second.temperature(), 0.2, "second session stays initial");
 }
 
@@ -190,7 +190,7 @@ bool test_modified_editable_definition_compiles()
     runtime.set_input(cell, preset.light, 1.0);
     runtime.step();
 
-    return expect_near(runtime.value(cell, preset.used_energy), 0.25, "edited definition UsedEnergy") &&
+    return expect_near(runtime.value(cell, preset.used_energy), 0.5, "edited definition UsedEnergy") &&
            expect_near(runtime.value(cell, preset.temperature), 0.2, "edited definition Temperature") &&
            expect_near(runtime.value(cell, extra), 0.0, "new editable value participates in runtime mapping");
 }
@@ -210,8 +210,9 @@ bool test_first_world_runtime_storage_and_reset()
     const auto idle_storage = std::ranges::find(idle, preset.energy_storage,
                                                 &clife::world::RuntimeFunctionState::type);
     if (!expect_true(first_storage != first.end() && first_storage->buffer.has_value(), "storage runtime state") ||
-        !expect_near(first_storage->buffer->stored_amount, 0.75, "tick 1 stored") ||
-        !expect_near(first_storage->buffer->received_last_tick, 0.75, "tick 1 received") ||
+        !expect_near(first_storage->buffer->stored_amount, 0.5, "tick 1 stored") ||
+        !expect_near(first_storage->buffer->received_last_tick, 0.5, "tick 1 received") ||
+        !expect_near(first_storage->buffer->supplied_last_tick, 0.0, "tick 1 supplied") ||
         !expect_near(idle_storage->buffer->stored_amount, 0.0, "independent object storage") ||
         !expect_near(runtime.last_end_value(cell, preset.heat), 0.0, "tick 1 END Heat")) {
         return false;
@@ -221,9 +222,21 @@ bool test_first_world_runtime_storage_and_reset()
     const auto second = runtime.function_states(cell);
     const auto second_storage = std::ranges::find(second, preset.energy_storage,
                                                   &clife::world::RuntimeFunctionState::type);
-    if (!expect_near(runtime.value(cell, preset.used_energy), 0.4375, "tick 2 UsedEnergy") ||
-        !expect_near(second_storage->buffer->stored_amount, 1.3125, "tick 2 stored") ||
-        !expect_near(second_storage->buffer->supplied_last_tick, 0.75, "tick 2 supplied")) {
+    if (!expect_near(runtime.value(cell, preset.used_energy), 0.5, "tick 2 UsedEnergy") ||
+        !expect_near(second_storage->buffer->stored_amount, 1.0, "tick 2 stored") ||
+        !expect_near(second_storage->buffer->received_last_tick, 0.5, "tick 2 received") ||
+        !expect_near(second_storage->buffer->supplied_last_tick, 0.0, "tick 2 supplied")) {
+        return false;
+    }
+    runtime.set_input(cell, preset.light, 0.0);
+    runtime.step();
+    const auto third = runtime.function_states(cell);
+    const auto third_storage = std::ranges::find(third, preset.energy_storage,
+                                                 &clife::world::RuntimeFunctionState::type);
+    if (!expect_near(runtime.value(cell, preset.used_energy), 0.5, "tick 3 UsedEnergy") ||
+        !expect_near(third_storage->buffer->stored_amount, 0.5, "tick 3 stored") ||
+        !expect_near(third_storage->buffer->received_last_tick, 0.0, "tick 3 received") ||
+        !expect_near(third_storage->buffer->supplied_last_tick, 0.5, "tick 3 supplied")) {
         return false;
     }
     clife::world::RuntimeWorld reset{preset.definition};
