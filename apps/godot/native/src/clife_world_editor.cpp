@@ -559,9 +559,7 @@ bool CLifeWorldEditor::remove_template(std::int64_t id)
         const world::TemplateId removed = template_id(id);
         definition_.remove_template(removed);
         if (selected_template_ == removed) {
-            selected_template_ = definition_.templates().empty()
-                                     ? std::optional<world::TemplateId>{}
-                                     : std::optional<world::TemplateId>{definition_.templates().front().id};
+            selected_template_.reset();
         }
     });
 }

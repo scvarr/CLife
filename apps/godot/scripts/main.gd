@@ -443,7 +443,7 @@ func _show_value_inspector(key: int) -> void:
 		_finish_edit(editor.rename_value(key, name_edit.text), "status.value_renamed")
 	))
 	var delete_button := _button(tr("ui.delete_value"), func() -> void:
-		_finish_edit(editor.remove_value(key), "status.value_deleted")
+		_finish_deletion(editor.remove_value(key), "status.value_deleted")
 	)
 	inspector.add_child(delete_button)
 
@@ -463,7 +463,7 @@ func _show_template_inspector(template_id: int) -> void:
 		_finish_edit(editor.rename_template(template_id, name_edit.text), "status.template_renamed")
 	))
 	inspector.add_child(_button(tr("ui.delete_template"), func() -> void:
-		_finish_edit(editor.remove_template(template_id), "status.template_deleted")
+		_finish_deletion(editor.remove_template(template_id), "status.template_deleted")
 	))
 	_add_separator(inspector)
 	_build_initial_values_editor(template_id)
@@ -985,6 +985,18 @@ func _finish_edit(success: bool, message_key: String, arguments: Array = []) -> 
 	_refresh_preview_visibility()
 	_rebuild_world_tree()
 	_restore_edit_inspector()
+
+
+func _finish_deletion(success: bool, message_key: String) -> void:
+	if not success:
+		_show_facade_error_if_any()
+		return
+	selected_kind = ""
+	selected_identity = -1
+	_set_status(message_key)
+	_refresh_preview_visibility()
+	_rebuild_world_tree()
+	_show_welcome_inspector()
 
 
 func _restore_edit_inspector() -> void:
