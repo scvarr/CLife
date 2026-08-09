@@ -1,5 +1,7 @@
 # C2 — определение мира как данных
 
+> **Статус: исторический / заменён последующей архитектурой.** Этот документ описывает ранний этап проектирования с `Field / Resource / State / Matter` и `Measure / Property`; это не текущий API. Актуальная модель опирается на `ValueDefinition`, `CalculationDefinition`, `FunctionTypeDefinition`, `ObjectTemplate`, `WorldRuleDefinition`, `HostBinding` и `WorldDefinitionSnapshot`; см. `C1_ARCHITECTURE.md`, `C4_HOST_WORLD_EDITOR_MODEL.md`, `C6_GODOT_WORLD_EDITOR.md` и `C7_GENOTYPE_PHENOTYPE.md`.
+
 Статус: **принято / начало реализации**
 
 Этот документ фиксирует промежуточный этап проектирования, на котором мир уже был вынесен в данные, но core всё ещё делил числа на роли `Field / Resource / State / Matter` и вводил `Measure / Property`.
@@ -204,9 +206,9 @@ Renderer получает числа и идентификаторы/метри�
 
 Выбор 2D/3D не меняет симуляционные законы и не требует менять `clife_core`.
 
-## 9. Текущий implementation slice
+## 9. Исторический implementation slice
 
-Текущая реализация уже использует отдельные роли `Field`, `Resource`, `State`, `Matter`.
+Этот раздел фиксирует тогдашний planned implementation slice. Текущий master не использует отдельные фундаментальные роли `Field`, `Resource`, `State`, `Matter`.
 
 Следующий слой вводит:
 

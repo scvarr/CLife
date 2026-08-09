@@ -4,6 +4,8 @@
 
 C4 отделяет компактный числовой evaluator от редактируемого мира, runtime-состояния и будущих адаптеров хоста. Каноническая модель мира остаётся независимой от Godot, Unreal и конкретного UI.
 
+Текущий `WorldDefinition` содержит `ValueDefinition`, `CalculationDefinition`, `FunctionTypeDefinition`, `ObjectTemplate`, `WorldRuleDefinition` и `HostBinding`. Стабильные ID (`ValueKey`, `TemplateId`, `FunctionTypeId`, `ParameterId`, `CalculationId`, `CalculationPortId`) являются identity; имена — пользовательские authoring-данные, а не runtime identity.
+
 ## 1. Слои и зависимости
 
 ```text
@@ -92,7 +94,17 @@ Input staging является однотактовым. На каждом `Runt
 
 Godot и Unreal adapters должны зависеть от `clife_world`, переводить lifecycle и engine values в описанный push/read контракт и не создавать альтернативную модель мира. Смысл доменных полей и операций редактора должен быть общим; сцены, assets, widgets, inspectors и другие UI-детали будут engine-specific.
 
-C4 намеренно не вводит renderer interface, serialization, reflection, undo framework, scheduler или общий cross-engine UI toolkit.
+C4 намеренно не вводит renderer interface, reflection, undo framework, scheduler или общий cross-engine UI toolkit.
+
+## 7.1 Persistence boundary
+
+`WorldDefinitionSnapshot` — нейтральное C++ представление authoring-мира. Оно хранит definitions, стабильные ID, состояния next-ID counters и исходный текст expressions, но не compiled expression internals и не runtime state.
+
+```text
+WorldDefinition -> WorldDefinitionSnapshot -> host serialization
+```
+
+World layer не зависит от JSON, файловой системы или Godot. Host отвечает за конкретный формат: текущий Godot adapter преобразует snapshot в `Dictionary`, а GDScript — в JSON-файл.
 
 ## 8. Зарезервированный structural lifecycle
 

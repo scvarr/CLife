@@ -4,6 +4,8 @@
 
 C5 одновременно проводит один и тот же клеточный preset через Godot и Unreal. Параллельная реализация нужна не ради общего renderer, а как проверка того, что численная модель и host contract действительно не зависят от lifecycle, UI и rendering API одного движка.
 
+Статус этого документа: C5 описывает historical dual-engine vertical slice. Текущий Godot editor развивается как основной authoring host и зависит напрямую от `clife_world`; Unreal остаётся отдельным/отложенным host. `first_world` остаётся test/example preset, а не стартовым документом Godot editor.
+
 ## 1. Зависимости
 
 ```text

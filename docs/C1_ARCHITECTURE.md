@@ -9,7 +9,9 @@ C1 фиксирует архитектурные правила реализац
 CLife строится как **переносимое C++-ядро симуляции**, которое не зависит от конкретного renderer/game engine.
 
 ```text
-clife_core <- clife_world <- clife_presets <- headless / Godot / Unreal
+clife_core <- clife_world <- headless / Godot
+                         <- clife_presets <- preset tests/examples
+                         <- Unreal (separate deferred host)
 ```
 
 `clife_core`:
@@ -152,7 +154,7 @@ clife_headless  executable host
 clife_tests     test executable
 ```
 
-Engine adapters подключаются через `clife_presets`/`clife_world`, не меняя точку входа calculator core или главный цикл.
+Godot adapter подключается непосредственно через `clife_world`. `clife_presets` остаётся отдельной библиотекой test/example данных; Unreal остаётся отдельным отложенным host, а не текущим местом editor-разработки.
 
 ## 8. Структура каталогов
 

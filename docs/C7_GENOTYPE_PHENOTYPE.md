@@ -15,6 +15,15 @@ independent values  ->  deterministic derived values  ->  tick-changing amounts
 
 Если значение однозначно выводится из genome parameters и world laws, оно не принадлежит genome. Поэтому `organic_size` не хранится рядом с `capacity`: оно вычисляется при phenotype compilation.
 
+Сейчас уже существует **семантический genotype**: `GenomeFunctionInstance` содержит `FunctionTypeId` и независимые `ParameterId -> Amount`. Именно его собирает authoring UI, а затем `compile_phenotype()` строит phenotype. Физического genome как byte/string sequence, encoding, decoding, folding или mutation representation пока нет.
+
+```text
+сейчас:   UI/world authoring -> semantic genotype -> phenotype compilation
+будущее:  encoded genome -> decoding -> semantic genotype -> phenotype compilation
+```
+
+Способ будущей кодировки не определён.
+
 ## 2. World function types
 
 `FunctionTypeDefinition` имеет стабильный `FunctionTypeId`, display name, определения независимых и производных параметров и необязательное описание numeric process. Каждый параметр имеет стабильный `ParameterId`; display name не используется как runtime identity.
@@ -37,6 +46,8 @@ Derived parameter expression компилируется при редактир�
 Имя параметра разрешается в стабильный `ParameterId` один раз при компиляции expression. Последующее переименование function type или parameter metadata не меняет поведение формулы. Derived definitions вычисляются в declaration order, поэтому более поздняя формула может ссылаться на уже определённый derived parameter. Forward references и cycles этим минимальным C7 API не создаются.
 
 Division by zero, unknown references, malformed syntax и любой non-finite result являются явными validation errors. Expression evaluator не имеет side effects, engine access, loops или scripting.
+
+Phenotype expressions вычисляются при genotype → phenotype compilation. Отдельно существует `CalculationDefinition`: библиотека чистых функций с именованными inputs/outputs. Binding calculation к runtime/tick пока не реализован и не должен смешиваться с phenotype formulas.
 
 ## 4. Phenotype compilation and runtime
 
@@ -102,10 +113,12 @@ Storage supplies = 0.5, UsedEnergy = 0.5, Storage stored = 0.5
 
 ## 7. Godot editor
 
-Godot facade возвращает structured function types, genome instances, compiled material totals, runtime function states и last end-buffer. Template inspector показывает редактируемые **Genome parameters**, read-only **Derived parameters** и материальную стоимость. RUN inspector показывает capacity/throughput/leakage, stored/received/supplied накопителя и END Heat.
+Godot facade возвращает structured function types, calculations, genome instances, compiled material totals, runtime function states и last end-buffer. Template inspector показывает редактируемые Genome parameters, derived parameters и материальную стоимость. Calculation library остаётся отдельной от phenotype/runtime.
 
 Function types доступны отдельным разделом world tree. Все новые application captions проходят через существующие RU/EN PO resources. Function/parameter display names остаются world data и не переводятся автоматически.
 
-## 8. Не входит в C7.1
+## 8. Границы текущей реализации
 
-C7.1 не реализует mutation, inheritance transport, biosynthesis, thermosynthesis, reproduction, division, topology, multi-cell, ненулевой закон leakage, save/load или runtime formula DSL. Structural operations по-прежнему зарезервированы для tick boundary.
+Не реализованы mutation, inheritance transport, biosynthesis, thermosynthesis, reproduction, division, topology, multi-cell, физическое genome encoding и runtime formula binding/DSL. Structural operations по-прежнему зарезервированы для tick boundary.
+
+Сохранение authoring `WorldDefinition` уже реализовано через `WorldDefinitionSnapshot` и host serialization. Не реализованы сохранение `RuntimeWorld`, эволюционной популяции и биологическая сериализация физического genome.
