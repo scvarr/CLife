@@ -130,8 +130,11 @@ func _input(event: InputEvent) -> void:
 
 func _build_editor_ui() -> void:
 	var root := $UI/Root as Control
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	var margin := MarginContainer.new()
 	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	margin.add_theme_constant_override("margin_left", 12)
 	margin.add_theme_constant_override("margin_right", 12)
 	margin.add_theme_constant_override("margin_top", 10)
@@ -139,6 +142,8 @@ func _build_editor_ui() -> void:
 	root.add_child(margin)
 
 	var page := VBoxContainer.new()
+	page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	page.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	page.add_theme_constant_override("separation", 8)
 	margin.add_child(page)
 	page.add_child(_build_header())
@@ -148,6 +153,7 @@ func _build_editor_ui() -> void:
 
 func _build_header() -> Control:
 	var header := HBoxContainer.new()
+	header.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.custom_minimum_size.y = 42.0
 	var title := Label.new()
 	title.text = tr("ui.title")
@@ -175,17 +181,20 @@ func _build_header() -> Control:
 
 func _build_workspace() -> Control:
 	var split := HSplitContainer.new()
+	split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	split.split_offset = 240
 	split.add_child(_build_world_panel())
 	var detail_split := HSplitContainer.new()
 	detail_split.split_offset = 470
 	detail_split.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	detail_split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	split.add_child(detail_split)
 
 	var viewport_slot := Control.new()
 	viewport_slot.custom_minimum_size.x = 300.0
 	viewport_slot.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	viewport_slot.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	viewport_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var viewport_caption := Label.new()
 	viewport_caption.text = tr("ui.viewport_help")
@@ -200,6 +209,7 @@ func _build_workspace() -> Control:
 func _build_world_panel() -> Control:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size.x = 230.0
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 10)
 	margin.add_theme_constant_override("margin_right", 10)
@@ -234,6 +244,8 @@ func _build_world_panel() -> Control:
 func _build_inspector_panel() -> Control:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size.x = 300.0
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var margin := MarginContainer.new()
 	margin.add_theme_constant_override("margin_left", 10)
 	margin.add_theme_constant_override("margin_right", 10)
@@ -242,15 +254,19 @@ func _build_inspector_panel() -> Control:
 	panel.add_child(margin)
 	var scroll := ScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	margin.add_child(scroll)
 	inspector = VBoxContainer.new()
 	inspector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inspector.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.add_child(inspector)
 	return panel
 
 
 func _build_status_area() -> Control:
 	var column := VBoxContainer.new()
+	column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	status_label = Label.new()
 	status_label.text = tr("status.ready")
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
