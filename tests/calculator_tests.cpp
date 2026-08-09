@@ -191,9 +191,9 @@ bool test_buffer_flow_and_end_buffer()
 
     calculator.step(external);
     const clife::BufferState first = calculator.buffer_state(0);
-    if (!expect_near(calculator.value(kUsedEnergy), 0.25, "tick 1 proportional Energy Use") ||
-        !expect_near(first.stored_amount, 0.75, "tick 1 storage amount") ||
-        !expect_near(first.received_last_tick, 0.75, "tick 1 storage received") ||
+    if (!expect_near(calculator.value(kUsedEnergy), 0.5, "tick 1 Energy Use receives normal demand") ||
+        !expect_near(first.stored_amount, 0.5, "tick 1 storage amount") ||
+        !expect_near(first.received_last_tick, 0.5, "tick 1 storage receives surplus") ||
         !expect_near(first.supplied_last_tick, 0.0, "tick 1 storage supplied") ||
         !expect_near(calculator.end_value(heat), 0.0, "tick 1 end Heat") ||
         !expect_near(calculator.value(temperature), 0.2, "tick 1 Temperature")) {
@@ -202,23 +202,21 @@ bool test_buffer_flow_and_end_buffer()
 
     calculator.step(external);
     const clife::BufferState second = calculator.buffer_state(0);
-    if (!expect_near(calculator.value(kUsedEnergy), 0.4375, "tick 2 proportional Energy Use") ||
-        !expect_near(second.stored_amount, 1.3125, "tick 2 storage amount") ||
-        !expect_near(second.received_last_tick, 1.3125, "tick 2 storage received") ||
-        !expect_near(second.supplied_last_tick, 0.75, "tick 2 storage supplied")) {
+    if (!expect_near(calculator.value(kUsedEnergy), 0.5, "tick 2 Energy Use receives normal demand") ||
+        !expect_near(second.stored_amount, 1.0, "tick 2 storage amount") ||
+        !expect_near(second.received_last_tick, 0.5, "tick 2 storage receives surplus") ||
+        !expect_near(second.supplied_last_tick, 0.0, "tick 2 storage supplied")) {
         return false;
     }
 
-    calculator.step(external);
+    const std::array no_light{clife::ValueAmount{.value = kLight, .amount = 0.0}};
+    calculator.step(no_light);
     const clife::BufferState third = calculator.buffer_state(0);
-    const clife::Amount expected_storage = 1.3125 - (1.3125 * 2.0 / 2.3125) + 1.5;
-    const clife::Amount expected_heat = 1.0 * (1.0 - 2.0 / 2.3125);
-    return expect_near(third.stored_amount, expected_storage, "tick 3 unused buffer offer remains stored") &&
-           expect_near(third.supplied_last_tick, 1.3125 * 2.0 / 2.3125,
-                       "tick 3 buffer source scales proportionally") &&
-           expect_near(calculator.end_value(heat), expected_heat, "tick 3 unused fresh Energy becomes END Heat") &&
-           expect_near(calculator.value(temperature), 0.2 + expected_heat * 0.1,
-                       "tick 3 END Heat changes Temperature");
+    return expect_near(calculator.value(kUsedEnergy), 0.5, "storage covers Energy deficit") &&
+           expect_near(third.stored_amount, 0.5, "storage loses only discharged deficit") &&
+           expect_near(third.received_last_tick, 0.0, "discharging storage does not receive") &&
+           expect_near(third.supplied_last_tick, 0.5, "storage supplies Energy deficit") &&
+           expect_near(calculator.end_value(heat), 0.0, "no surplus reaches END Heat");
 }
 
 bool expect_true(bool condition, const char* message)
@@ -251,51 +249,98 @@ bool test_end_buffer_is_not_pipeline_input_and_clears()
     return expect_near(calculator.end_value(heat), 0.0, "end buffer clears between ticks");
 }
 
-bool test_buffer_limits_and_declaration_order()
+bool test_buffer_surplus_limits_and_end_buffer()
 {
     constexpr clife::ValueId flow{0};
     constexpr clife::ValueId output{1};
-    const std::vector<clife::BufferProcess> forward{
-        {.value = flow, .capacity = 5.0, .throughput = 1.5, .initial_amount = 0.75},
-        {.value = flow, .capacity = 3.0, .throughput = 0.5, .initial_amount = 0.25},
-    };
-    auto reversed = forward;
-    std::reverse(reversed.begin(), reversed.end());
-
-    const auto run = [flow, output](std::vector<clife::BufferProcess> buffers) {
-        clife::Calculator calculator{{
-            .value_count = 2,
-            .functions = {{.input = flow, .output = output, .throughput = 0.5}},
-            .buffers = std::move(buffers),
-        }};
-        const std::array external{clife::ValueAmount{.value = flow, .amount = 1.0}};
-        calculator.step(external);
-        std::array<clife::Amount, 2> stored{
-            calculator.buffer_state(0).stored_amount,
-            calculator.buffer_state(1).stored_amount,
-        };
-        std::sort(stored.begin(), stored.end());
-        return std::array<clife::Amount, 3>{calculator.value(output), stored[0], stored[1]};
-    };
-
-    const auto first = run(forward);
-    const auto second = run(std::move(reversed));
-    if (!expect_near(first[0], second[0], "buffer order keeps consumer result") ||
-        !expect_near(first[1], second[1], "buffer order keeps first state") ||
-        !expect_near(first[2], second[2], "buffer order keeps second state")) {
-        return false;
-    }
-
+    constexpr clife::ValueId heat{2};
     clife::Calculator capacity_limited{{
-        .value_count = 1,
-        .buffers = {{.value = flow, .capacity = 1.0, .throughput = 1.5, .initial_amount = 0.75}},
+        .value_count = 3,
+        .functions = {{.input = flow, .output = output, .throughput = 0.5}},
+        .buffers = {{.value = flow, .capacity = 0.1, .throughput = 0.25}},
+        .end_buffer_transfers = {{.source = flow, .target = heat}},
     }};
     const std::array external{clife::ValueAmount{.value = flow, .amount = 1.0}};
     capacity_limited.step(external);
     const clife::BufferState state = capacity_limited.buffer_state(0);
-    return expect_near(state.received_last_tick, 0.25, "buffer demand is limited by remaining capacity") &&
-           expect_true(state.supplied_last_tick <= 0.75, "buffer offer is limited by stored amount") &&
-           expect_true(state.stored_amount >= 0.0 && state.stored_amount <= 1.0, "buffer remains within capacity");
+    if (!expect_near(capacity_limited.value(output), 0.5, "normal consumer is satisfied before charging") ||
+        !expect_near(state.received_last_tick, 0.1, "buffer charge respects capacity") ||
+        !expect_near(state.stored_amount, 0.1, "buffer remains within capacity") ||
+        !expect_near(capacity_limited.end_value(heat), 0.4, "unaccepted surplus reaches END Heat") ||
+        !expect_true(state.received_last_tick == 0.0 || state.supplied_last_tick == 0.0,
+                     "buffer never receives and supplies in one tick")) {
+        return false;
+    }
+
+    clife::Calculator throughput_limited{{
+        .value_count = 2,
+        .buffers = {{.value = flow, .capacity = 1.0, .throughput = 0.25}},
+        .end_buffer_transfers = {{.source = flow, .target = output}},
+    }};
+    throughput_limited.step(external);
+    return expect_near(throughput_limited.buffer_state(0).received_last_tick, 0.25,
+                       "buffer charge respects throughput") &&
+           expect_near(throughput_limited.end_value(output), 0.75, "throughput-limited surplus reaches END Heat");
+}
+
+bool test_multiple_buffers_share_surplus_and_deficit_proportionally()
+{
+    constexpr clife::ValueId flow{0};
+    constexpr clife::ValueId output{1};
+    std::vector<clife::BufferProcess> forward{
+        {.value = flow, .capacity = 2.0, .throughput = 0.5},
+        {.value = flow, .capacity = 3.0, .throughput = 1.0},
+    };
+    auto reversed = forward;
+    std::reverse(reversed.begin(), reversed.end());
+
+    const auto charge = [flow, output](std::vector<clife::BufferProcess> buffers) {
+        clife::Calculator calculator{{
+            .value_count = 2,
+            .functions = {{.input = flow, .output = output, .throughput = 0.2}},
+            .buffers = std::move(buffers),
+        }};
+        const std::array external{clife::ValueAmount{.value = flow, .amount = 1.0}};
+        calculator.step(external);
+        std::array<clife::Amount, 2> received{
+            calculator.buffer_state(0).received_last_tick, calculator.buffer_state(1).received_last_tick};
+        std::sort(received.begin(), received.end());
+        return received;
+    };
+    const auto charged_forward = charge(forward);
+    const auto charged_reversed = charge(std::move(reversed));
+    if (!expect_near(charged_forward[0], 0.8 / 3.0, "smaller charge demand gets proportional share") ||
+        !expect_near(charged_forward[1], 0.8 * 2.0 / 3.0, "larger charge demand gets proportional share") ||
+        !expect_near(charged_forward[0], charged_reversed[0], "charging ignores declaration order") ||
+        !expect_near(charged_forward[1], charged_reversed[1], "charging ignores declaration order")) {
+        return false;
+    }
+
+    forward[0].initial_amount = 0.5;
+    forward[1].initial_amount = 1.0;
+    reversed = forward;
+    std::reverse(reversed.begin(), reversed.end());
+    const auto discharge = [flow, output](std::vector<clife::BufferProcess> buffers) {
+        clife::Calculator calculator{{
+            .value_count = 2,
+            .functions = {{.input = flow, .output = output, .throughput = 1.0}},
+            .buffers = std::move(buffers),
+        }};
+        const std::array external{clife::ValueAmount{.value = flow, .amount = 0.0}};
+        calculator.step(external);
+        std::array<clife::Amount, 2> supplied{
+            calculator.buffer_state(0).supplied_last_tick, calculator.buffer_state(1).supplied_last_tick};
+        std::sort(supplied.begin(), supplied.end());
+        return std::array<clife::Amount, 3>{calculator.value(output), supplied[0], supplied[1]};
+    };
+    const auto discharged_forward = discharge(forward);
+    const auto discharged_reversed = discharge(std::move(reversed));
+    return expect_near(discharged_forward[0], 1.0, "buffers cover only the normal deficit") &&
+           expect_near(discharged_forward[1], 1.0 / 3.0, "smaller discharge offer gets proportional share") &&
+           expect_near(discharged_forward[2], 2.0 / 3.0, "larger discharge offer gets proportional share") &&
+           expect_near(discharged_forward[0], discharged_reversed[0], "discharging ignores declaration order") &&
+           expect_near(discharged_forward[1], discharged_reversed[1], "discharging ignores declaration order") &&
+           expect_near(discharged_forward[2], discharged_reversed[2], "discharging ignores declaration order");
 }
 
 bool test_same_tick_cycle_is_rejected()
@@ -337,7 +382,10 @@ int main()
     if (!test_end_buffer_is_not_pipeline_input_and_clears()) {
         return 1;
     }
-    if (!test_buffer_limits_and_declaration_order()) {
+    if (!test_buffer_surplus_limits_and_end_buffer()) {
+        return 1;
+    }
+    if (!test_multiple_buffers_share_surplus_and_deficit_proportionally()) {
         return 1;
     }
     if (!test_same_tick_cycle_is_rejected()) {

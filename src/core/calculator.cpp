@@ -161,47 +161,70 @@ void Calculator::step(std::span<const ValueAmount> external_values)
             throw std::domain_error{"genome function input must be finite and non-negative"};
         }
 
-        Amount total_supply{available};
-        Amount total_demand{0.0};
+        Amount normal_demand{0.0};
         for (const std::size_t function_index : outgoing) {
-            total_demand += program_.functions[function_index].throughput;
+            normal_demand += program_.functions[function_index].throughput;
+        }
+        if (!std::isfinite(normal_demand)) {
+            throw std::overflow_error{"normal flow demand overflow"};
         }
 
-        std::vector<Amount> buffer_offers;
-        std::vector<Amount> buffer_demands;
-        buffer_offers.reserve(buffers.size());
-        buffer_demands.reserve(buffers.size());
-        for (const std::size_t buffer_index : buffers) {
-            const BufferProcess& buffer = program_.buffers[buffer_index];
-            const Amount stored = buffer_states_[buffer_index].stored_amount;
-            const Amount offer = std::min(stored, buffer.throughput);
-            const Amount demand = std::min(std::max(0.0, buffer.capacity - stored), buffer.throughput);
-            buffer_offers.push_back(offer);
-            buffer_demands.push_back(demand);
-            total_supply += offer;
-            total_demand += demand;
-        }
-        if (!std::isfinite(total_supply) || !std::isfinite(total_demand)) {
-            throw std::overflow_error{"flow supply or demand overflow"};
-        }
+        if (available >= normal_demand) {
+            for (const std::size_t function_index : outgoing) {
+                const Function& function = program_.functions[function_index];
+                values_[function.output.index] += function.throughput * function.result_per_input;
+            }
 
-        const Amount actual_total = std::min(total_supply, total_demand);
-        const Amount source_fraction = total_supply > 0.0 ? actual_total / total_supply : 0.0;
-        const Amount demand_fraction = total_demand > 0.0 ? actual_total / total_demand : 0.0;
-        for (const std::size_t function_index : outgoing) {
-            const Function& function = program_.functions[function_index];
-            const Amount taken = function.throughput * demand_fraction;
-            const Amount produced = taken * function.result_per_input;
-            values_[function.output.index] += produced;
-        }
-        for (std::size_t local_index = 0; local_index < buffers.size(); ++local_index) {
-            BufferState& state = buffer_states_[buffers[local_index]];
-            state.supplied_last_tick = buffer_offers[local_index] * source_fraction;
-            state.received_last_tick = buffer_demands[local_index] * demand_fraction;
-            state.stored_amount += state.received_last_tick - state.supplied_last_tick;
-        }
+            const Amount surplus = available - normal_demand;
+            Amount total_charge_demand{0.0};
+            for (const std::size_t buffer_index : buffers) {
+                const BufferProcess& buffer = program_.buffers[buffer_index];
+                const Amount free_capacity = std::max(0.0, buffer.capacity - buffer_states_[buffer_index].stored_amount);
+                total_charge_demand += std::min(free_capacity, buffer.throughput);
+            }
+            if (!std::isfinite(total_charge_demand)) {
+                throw std::overflow_error{"buffer charge demand overflow"};
+            }
 
-        values_[input.index] = std::max(0.0, available * (1.0 - source_fraction));
+            const Amount total_charge = std::min(surplus, total_charge_demand);
+            const Amount charge_fraction = total_charge_demand > 0.0 ? total_charge / total_charge_demand : 0.0;
+            for (const std::size_t buffer_index : buffers) {
+                const BufferProcess& buffer = program_.buffers[buffer_index];
+                BufferState& state = buffer_states_[buffer_index];
+                const Amount free_capacity = std::max(0.0, buffer.capacity - state.stored_amount);
+                const Amount charge_demand = std::min(free_capacity, buffer.throughput);
+                state.received_last_tick = charge_demand * charge_fraction;
+                state.stored_amount += state.received_last_tick;
+            }
+            values_[input.index] = surplus - total_charge;
+        } else {
+            const Amount deficit = normal_demand - available;
+            Amount total_offer{0.0};
+            for (const std::size_t buffer_index : buffers) {
+                const BufferProcess& buffer = program_.buffers[buffer_index];
+                total_offer += std::min(buffer_states_[buffer_index].stored_amount, buffer.throughput);
+            }
+            if (!std::isfinite(total_offer)) {
+                throw std::overflow_error{"buffer discharge offer overflow"};
+            }
+
+            const Amount total_discharge = std::min(deficit, total_offer);
+            const Amount discharge_fraction = total_offer > 0.0 ? total_discharge / total_offer : 0.0;
+            const Amount demand_fraction = (available + total_discharge) / normal_demand;
+            for (const std::size_t function_index : outgoing) {
+                const Function& function = program_.functions[function_index];
+                const Amount taken = function.throughput * demand_fraction;
+                values_[function.output.index] += taken * function.result_per_input;
+            }
+            for (const std::size_t buffer_index : buffers) {
+                const BufferProcess& buffer = program_.buffers[buffer_index];
+                BufferState& state = buffer_states_[buffer_index];
+                const Amount offer = std::min(state.stored_amount, buffer.throughput);
+                state.supplied_last_tick = offer * discharge_fraction;
+                state.stored_amount -= state.supplied_last_tick;
+            }
+            values_[input.index] = 0.0;
+        }
     }
 
     for (std::size_t index = 0; index < program_.buffers.size(); ++index) {
