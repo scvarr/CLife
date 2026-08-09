@@ -686,7 +686,10 @@ func _show_function_type_inspector(function_type_id: int) -> void:
 
 func _build_function_process_editor(function_type_id: int, function_type: Dictionary) -> void:
 	_add_heading(inspector, tr("ui.process"))
-	var process: Dictionary = function_type.get("process", {})
+	var process: Dictionary = {}
+	var process_value: Variant = function_type.get("process")
+	if process_value is Dictionary:
+		process = process_value
 	var input_option := _value_option(int(process.get("input_key", 0)))
 	var throughput_option := _parameter_option(function_type, int(process.get("throughput_parameter_id", 0)))
 	var conversion_option := _conversion_option(int(process.get("conversion_id", 0)))
