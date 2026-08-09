@@ -152,12 +152,22 @@ double required_number(const godot::Variant& value, const char* context)
 
 std::uint32_t required_uint32(const godot::Variant& value, const char* context)
 {
-    if (value.get_type() != godot::Variant::INT) {
+    if (value.get_type() == godot::Variant::INT) {
+        const std::int64_t result = value;
+        if (result < 0 || result > std::numeric_limits<std::uint32_t>::max()) {
+            throw std::invalid_argument{std::string{context} + " is out of range"};
+        }
+        return static_cast<std::uint32_t>(result);
+    }
+    if (value.get_type() != godot::Variant::FLOAT) {
         throw std::invalid_argument{std::string{context} + " must be an integer"};
     }
-    const std::int64_t result = value;
-    if (result < 0 || result > std::numeric_limits<std::uint32_t>::max()) {
+    const double result = value;
+    if (!std::isfinite(result) || result < 0.0 || result > std::numeric_limits<std::uint32_t>::max()) {
         throw std::invalid_argument{std::string{context} + " is out of range"};
+    }
+    if (std::floor(result) != result) {
+        throw std::invalid_argument{std::string{context} + " must be an integer"};
     }
     return static_cast<std::uint32_t>(result);
 }
