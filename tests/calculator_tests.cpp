@@ -357,6 +357,29 @@ bool test_same_tick_cycle_is_rejected()
         "same-tick cycle");
 }
 
+bool test_multi_output_function_flow()
+{
+    constexpr clife::ValueId input{0};
+    constexpr clife::ValueId useful{1};
+    constexpr clife::ValueId loss{2};
+    constexpr clife::ValueId downstream{3};
+    constexpr clife::ValueId competing{4};
+    clife::Calculator calculator{{
+        .value_count = 5,
+        .functions = {
+            {.input = input, .throughput = 1.0,
+             .outputs = {{.value = useful, .result_per_input = 0.08}, {.value = loss, .result_per_input = 0.02}}},
+            {.input = input, .throughput = 1.0, .outputs = {{.value = competing, .result_per_input = 1.0}}},
+            {.input = useful, .throughput = 1.0, .outputs = {{.value = downstream, .result_per_input = 1.0}}},
+        },
+    }};
+    calculator.step(std::array{clife::ValueAmount{.value = input, .amount = 1.0}});
+    return expect_near(calculator.value(useful), 0.0, "downstream consumes one multi-output result") &&
+           expect_near(calculator.value(loss), 0.01, "multi-output loss is based on one proportional input share") &&
+           expect_near(calculator.value(downstream), 0.04, "downstream reads multi-output value") &&
+           expect_near(calculator.value(competing), 0.5, "multi-output function competes once for input");
+}
+
 } // namespace
 
 int main()
@@ -389,6 +412,9 @@ int main()
         return 1;
     }
     if (!test_same_tick_cycle_is_rejected()) {
+        return 1;
+    }
+    if (!test_multi_output_function_flow()) {
         return 1;
     }
     return 0;

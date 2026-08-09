@@ -13,6 +13,10 @@ FirstWorldPreset make_first_world_preset()
     const world::ValueKey heat = definition.add_value("Heat");
     const world::ValueKey temperature = definition.add_value("Temperature");
     const world::ValueKey organic = definition.add_value("Organic");
+    const world::UnitId legacy_unit = definition.add_unit("legacy");
+    const world::UnitConversionId identity_conversion = definition.add_unit_conversion(
+        {.components = {{.unit = legacy_unit, .exponent = 1}}}, 1.0,
+        {.components = {{.unit = legacy_unit, .exponent = 1}}}, 1.0);
     const world::TemplateId cell = definition.add_template("Cell");
 
     const world::FunctionTypeId light_absorption = definition.add_function_type("Light Absorption");
@@ -20,9 +24,9 @@ FirstWorldPreset make_first_world_preset()
     const world::ParameterId light_result = definition.add_derived_parameter(light_absorption, "Result per input", "1");
     definition.set_function_process(light_absorption, {
                                                           .input = light,
-                                                          .output = energy,
                                                           .throughput = light_throughput,
-                                                          .result_per_input = light_result,
+                                                          .conversion = identity_conversion,
+                                                          .outputs = {{.output = energy, .allocation = light_result}},
                                                       });
     definition.add_function_material_contribution(light_absorption, organic, "1");
 
@@ -31,9 +35,9 @@ FirstWorldPreset make_first_world_preset()
     const world::ParameterId use_result = definition.add_derived_parameter(energy_use, "Result per input", "1");
     definition.set_function_process(energy_use, {
                                                     .input = energy,
-                                                    .output = used_energy,
                                                     .throughput = use_throughput,
-                                                    .result_per_input = use_result,
+                                                    .conversion = identity_conversion,
+                                                    .outputs = {{.output = used_energy, .allocation = use_result}},
                                                 });
     definition.add_function_material_contribution(energy_use, organic, "1");
 

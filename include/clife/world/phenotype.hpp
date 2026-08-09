@@ -8,9 +8,14 @@
 
 namespace clife::world {
 
+struct CompiledProcessOutput final {
+    ValueKey output;
+    Amount result_per_input;
+};
+
 struct CompiledProcessParameters final {
     Amount throughput;
-    Amount result_per_input;
+    std::vector<CompiledProcessOutput> outputs;
 };
 
 struct CompiledBufferParameters final {

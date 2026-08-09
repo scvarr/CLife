@@ -66,6 +66,14 @@ world::UnitId unit_id(std::int64_t raw)
     return {static_cast<std::uint32_t>(raw)};
 }
 
+world::UnitConversionId unit_conversion_id(std::int64_t raw)
+{
+    if (raw <= 0 || raw > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::invalid_argument{"invalid UnitConversionId"};
+    }
+    return {static_cast<std::uint32_t>(raw)};
+}
+
 world::TemplateId template_id(std::int64_t raw)
 {
     if (raw <= 0 || raw > std::numeric_limits<std::uint32_t>::max()) {
@@ -360,6 +368,22 @@ godot::Array CLifeWorldEditor::get_function_types()
             item["derived_parameters"] = derived_parameters;
             item["material_contributions"] = material_contributions;
             item["has_process"] = type.process.has_value();
+            item["process"] = godot::Variant();
+            if (type.process) {
+                godot::Dictionary process;
+                process["input_key"] = static_cast<std::int64_t>(type.process->input.value);
+                process["throughput_parameter_id"] = static_cast<std::int64_t>(type.process->throughput.value);
+                process["conversion_id"] = static_cast<std::int64_t>(type.process->conversion.value);
+                godot::Array outputs;
+                for (const world::FunctionProcessOutputDefinition& output : type.process->outputs) {
+                    godot::Dictionary stored;
+                    stored["output_key"] = static_cast<std::int64_t>(output.output.value);
+                    stored["allocation_parameter_id"] = static_cast<std::int64_t>(output.allocation.value);
+                    outputs.push_back(stored);
+                }
+                process["outputs"] = outputs;
+                item["process"] = process;
+            }
             item["has_buffer"] = type.buffer_process.has_value();
             result.push_back(item);
         }
@@ -605,6 +629,32 @@ bool CLifeWorldEditor::set_value_unit(std::int64_t raw_value_key, std::int64_t r
                                                               .components = {{.unit = unit_id(raw_unit_id), .exponent = 1}},
                                                           });
     });
+}
+
+bool CLifeWorldEditor::set_function_process(std::int64_t raw_type, std::int64_t raw_input,
+                                            std::int64_t raw_throughput, std::int64_t raw_conversion,
+                                            std::int64_t raw_output, std::int64_t raw_allocation)
+{
+    return edit([&] {
+        definition_.set_function_process(function_type_id(raw_type), {
+            .input = value_key(raw_input),
+            .throughput = parameter_id(raw_throughput),
+            .conversion = unit_conversion_id(raw_conversion),
+            .outputs = {{.output = value_key(raw_output), .allocation = parameter_id(raw_allocation)}},
+        });
+    });
+}
+
+bool CLifeWorldEditor::add_function_process_output(std::int64_t raw_type, std::int64_t raw_output,
+                                                   std::int64_t raw_allocation)
+{
+    return edit([&] { definition_.add_function_process_output(function_type_id(raw_type),
+                                                                 {.output = value_key(raw_output), .allocation = parameter_id(raw_allocation)}); });
+}
+
+bool CLifeWorldEditor::remove_function_process_output(std::int64_t raw_type, std::int64_t raw_output)
+{
+    return edit([&] { definition_.remove_function_process_output(function_type_id(raw_type), value_key(raw_output)); });
 }
 
 bool CLifeWorldEditor::rename_value(std::int64_t key, const godot::String& name)
@@ -1316,9 +1366,16 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
             if (type.process) {
                 godot::Dictionary process;
                 process["input_key"] = static_cast<std::int64_t>(type.process->input.value);
-                process["output_key"] = static_cast<std::int64_t>(type.process->output.value);
                 process["throughput_parameter_id"] = static_cast<std::int64_t>(type.process->throughput.value);
-                process["result_per_input_parameter_id"] = static_cast<std::int64_t>(type.process->result_per_input.value);
+                process["conversion_id"] = static_cast<std::int64_t>(type.process->conversion.value);
+                godot::Array outputs;
+                for (const world::FunctionProcessOutputDefinition& output : type.process->outputs) {
+                    godot::Dictionary stored;
+                    stored["output_key"] = static_cast<std::int64_t>(output.output.value);
+                    stored["allocation_parameter_id"] = static_cast<std::int64_t>(output.allocation.value);
+                    outputs.push_back(stored);
+                }
+                process["outputs"] = outputs;
                 entry["process"] = process;
             }
             entry["buffer_process"] = godot::Variant();
@@ -1405,7 +1462,7 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
         require_edit_mode();
         world::WorldDefinitionSnapshot snapshot;
         snapshot.schema_version = required_uint32(required_field(serialized, "schema_version"), "schema_version");
-        if (snapshot.schema_version != 1 && snapshot.schema_version != 2 && snapshot.schema_version != 3) {
+        if (snapshot.schema_version < 1 || snapshot.schema_version > 4) {
             throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version"};
         }
         snapshot.next_value_key = required_uint32(required_field(serialized, "next_value_key"), "next_value_key");
@@ -1427,7 +1484,7 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                 });
             }
         }
-        if (snapshot.schema_version == 3) {
+        if (snapshot.schema_version >= 3) {
             snapshot.next_unit_conversion_id =
                 required_uint32(required_field(serialized, "next_unit_conversion_id"), "next_unit_conversion_id");
             for (const godot::Variant& value :
@@ -1529,12 +1586,25 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
             const godot::Variant process_value = required_field(item, "process");
             if (process_value.get_type() != godot::Variant::NIL) {
                 const godot::Dictionary process = required_dictionary(process_value, "process");
-                type.process = {
+                world::FunctionProcessDefinition stored{
                     .input = {required_uint32(required_field(process, "input_key"), "process input key")},
-                    .output = {required_uint32(required_field(process, "output_key"), "process output key")},
                     .throughput = {required_uint32(required_field(process, "throughput_parameter_id"), "process throughput")},
-                    .result_per_input = {required_uint32(required_field(process, "result_per_input_parameter_id"), "process result")},
                 };
+                if (snapshot.schema_version >= 4) {
+                    stored.conversion = {required_uint32(required_field(process, "conversion_id"), "process conversion")};
+                    for (const godot::Variant& output_value : required_array(required_field(process, "outputs"), "process outputs")) {
+                        const godot::Dictionary output = required_dictionary(output_value, "process output");
+                        stored.outputs.push_back({
+                            .output = {required_uint32(required_field(output, "output_key"), "process output key")},
+                            .allocation = {required_uint32(required_field(output, "allocation_parameter_id"), "process allocation")},
+                        });
+                    }
+                } else {
+                    stored.output = {required_uint32(required_field(process, "output_key"), "process output key")};
+                    stored.result_per_input =
+                        {required_uint32(required_field(process, "result_per_input_parameter_id"), "process result")};
+                }
+                type.process = std::move(stored);
             }
             const godot::Variant buffer_value = required_field(item, "buffer_process");
             if (buffer_value.get_type() != godot::Variant::NIL) {
@@ -1718,6 +1788,15 @@ void CLifeWorldEditor::_bind_methods()
                                 &CLifeWorldEditor::add_unit_conversion);
     godot::ClassDB::bind_method(godot::D_METHOD("set_value_unit", "value_key", "unit_id"),
                                 &CLifeWorldEditor::set_value_unit);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("set_function_process", "function_type_id", "input_value_key", "throughput_parameter_id",
+                        "conversion_id", "output_value_key", "allocation_parameter_id"),
+        &CLifeWorldEditor::set_function_process);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("add_function_process_output", "function_type_id", "output_value_key", "allocation_parameter_id"),
+        &CLifeWorldEditor::add_function_process_output);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_function_process_output", "function_type_id", "output_value_key"),
+                                &CLifeWorldEditor::remove_function_process_output);
     godot::ClassDB::bind_method(godot::D_METHOD("rename_value", "key", "name"), &CLifeWorldEditor::rename_value);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_value", "key"), &CLifeWorldEditor::remove_value);
     godot::ClassDB::bind_method(godot::D_METHOD("add_template", "name"), &CLifeWorldEditor::add_template);

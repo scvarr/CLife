@@ -99,6 +99,33 @@ msgstr "Conversions"
 msgid "ui.unit_conversion"
 msgstr "Unit Conversion"
 
+msgid "ui.process"
+msgstr "Process"
+
+msgid "ui.process_outputs"
+msgstr "Outputs"
+
+msgid "ui.throughput"
+msgstr "Throughput"
+
+msgid "ui.allocation"
+msgstr "Allocation"
+
+msgid "ui.set_process"
+msgstr "Set Process"
+
+msgid "ui.add_process_output"
+msgstr "Add Output"
+
+msgid "status.process_set"
+msgstr "Process configured"
+
+msgid "status.process_output_added"
+msgstr "Process output added"
+
+msgid "status.process_output_removed"
+msgstr "Process output removed"
+
 msgid "ui.new_unit_conversion"
 msgstr "New Unit Conversion"
 

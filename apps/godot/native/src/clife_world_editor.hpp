@@ -40,6 +40,12 @@ public:
     [[nodiscard]] std::int64_t add_unit_conversion(std::int64_t source_unit_id, double source_amount,
                                                     std::int64_t target_unit_id, double target_amount);
     bool set_value_unit(std::int64_t value_key, std::int64_t unit_id);
+    bool set_function_process(std::int64_t function_type_id, std::int64_t input_value_key,
+                              std::int64_t throughput_parameter_id, std::int64_t conversion_id,
+                              std::int64_t output_value_key, std::int64_t allocation_parameter_id);
+    bool add_function_process_output(std::int64_t function_type_id, std::int64_t output_value_key,
+                                     std::int64_t allocation_parameter_id);
+    bool remove_function_process_output(std::int64_t function_type_id, std::int64_t output_value_key);
     bool rename_value(std::int64_t key, const godot::String& name);
     bool remove_value(std::int64_t key);
     [[nodiscard]] std::int64_t add_template(const godot::String& name);

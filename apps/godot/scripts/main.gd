@@ -678,10 +678,49 @@ func _show_function_type_inspector(function_type_id: int) -> void:
 		_finish_edit(editor.set_function_material_contribution(function_type_id, _selected_option_id(material_value),
 			new_material_expression.text), "status.function_material_contribution_updated")
 	))
-	if bool(function_type.has_process):
-		_add_wrapped_label(inspector, tr("help.function_type_process"))
+	_add_separator(inspector)
+	_build_function_process_editor(function_type_id, function_type)
 	if bool(function_type.has_buffer):
 		_add_wrapped_label(inspector, tr("help.function_type_buffer"))
+
+
+func _build_function_process_editor(function_type_id: int, function_type: Dictionary) -> void:
+	_add_heading(inspector, tr("ui.process"))
+	var process: Dictionary = function_type.get("process", {})
+	var input_option := _value_option(int(process.get("input_key", 0)))
+	var throughput_option := _parameter_option(function_type, int(process.get("throughput_parameter_id", 0)))
+	var conversion_option := _conversion_option(int(process.get("conversion_id", 0)))
+	inspector.add_child(_labeled_control(tr("ui.input"), input_option))
+	inspector.add_child(_labeled_control(tr("ui.throughput"), throughput_option))
+	inspector.add_child(_labeled_control(tr("ui.unit_conversion"), conversion_option))
+	var outputs: Array = process.get("outputs", [])
+	if not outputs.is_empty():
+		_add_heading(inspector, tr("ui.process_outputs"))
+		for output in outputs:
+			var output_key := int(output.output_key)
+			_add_wrapped_label(inspector, "%s  ← %s" % [_value_name(output_key), _parameter_name(function_type, int(output.allocation_parameter_id))])
+			inspector.add_child(_button(tr("ui.remove"), func() -> void:
+				_finish_edit(editor.remove_function_process_output(function_type_id, output_key), "status.process_output_removed")
+			))
+	var output_option := _value_option()
+	var allocation_option := _parameter_option(function_type)
+	inspector.add_child(_labeled_control(tr("ui.output"), output_option))
+	inspector.add_child(_labeled_control(tr("ui.allocation"), allocation_option))
+	if outputs.is_empty():
+		var set_button := _button(tr("ui.set_process"), func() -> void:
+			_finish_edit(editor.set_function_process(function_type_id, _selected_option_id(input_option),
+				_selected_option_id(throughput_option), _selected_option_id(conversion_option),
+				_selected_option_id(output_option), _selected_option_id(allocation_option)), "status.process_set")
+		)
+		set_button.disabled = input_option.item_count == 0 or throughput_option.item_count == 0 or conversion_option.item_count == 0 or output_option.item_count == 0 or allocation_option.item_count == 0
+		inspector.add_child(set_button)
+	else:
+		var add_button := _button(tr("ui.add_process_output"), func() -> void:
+			_finish_edit(editor.add_function_process_output(function_type_id, _selected_option_id(output_option),
+				_selected_option_id(allocation_option)), "status.process_output_added")
+		)
+		add_button.disabled = output_option.item_count == 0 or allocation_option.item_count == 0
+		inspector.add_child(add_button)
 
 
 func _build_material_contributions(template_id: int) -> void:
@@ -1269,6 +1308,41 @@ func _unit_option(selected_id: int = 0) -> OptionButton:
 		if int(unit.id) == selected_id:
 			option.select(option.item_count - 1)
 	return option
+
+
+func _conversion_option(selected_id: int = 0) -> OptionButton:
+	var option := OptionButton.new()
+	for conversion in editor.get_unit_conversions():
+		option.add_item(_unit_conversion_text(conversion))
+		option.set_item_metadata(option.item_count - 1, int(conversion.id))
+		if int(conversion.id) == selected_id:
+			option.select(option.item_count - 1)
+	return option
+
+
+func _parameter_option(function_type: Dictionary, selected_id: int = 0) -> OptionButton:
+	var option := OptionButton.new()
+	for parameter in function_type.genome_parameters:
+		option.add_item("%s [#%d]" % [parameter.name, parameter.id])
+		option.set_item_metadata(option.item_count - 1, int(parameter.id))
+		if int(parameter.id) == selected_id:
+			option.select(option.item_count - 1)
+	for parameter in function_type.derived_parameters:
+		option.add_item("%s [#%d]" % [parameter.name, parameter.id])
+		option.set_item_metadata(option.item_count - 1, int(parameter.id))
+		if int(parameter.id) == selected_id:
+			option.select(option.item_count - 1)
+	return option
+
+
+func _parameter_name(function_type: Dictionary, parameter_id: int) -> String:
+	for parameter in function_type.genome_parameters:
+		if int(parameter.id) == parameter_id:
+			return str(parameter.name)
+	for parameter in function_type.derived_parameters:
+		if int(parameter.id) == parameter_id:
+			return str(parameter.name)
+	return tr("ui.unknown")
 
 
 func _function_type_option(selected_id: int = 0) -> OptionButton:

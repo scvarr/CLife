@@ -514,5 +514,32 @@ msgstr "Добавить преобразование"
 msgid "status.unit_conversion_added"
 msgstr "Преобразование единиц добавлено со стабильным ID #%d"
 
+msgid "ui.process"
+msgstr "Процесс"
+
+msgid "ui.process_outputs"
+msgstr "Выходы"
+
+msgid "ui.throughput"
+msgstr "Пропускная способность"
+
+msgid "ui.allocation"
+msgstr "Доля"
+
+msgid "ui.set_process"
+msgstr "Задать процесс"
+
+msgid "ui.add_process_output"
+msgstr "Добавить выход"
+
+msgid "status.process_set"
+msgstr "Процесс настроен"
+
+msgid "status.process_output_added"
+msgstr "Выход процесса добавлен"
+
+msgid "status.process_output_removed"
+msgstr "Выход процесса удалён"
+
 msgid "help.function_type_buffer"
 msgstr "Этот тип функции участвует в потоке Value как накопитель с состоянием."

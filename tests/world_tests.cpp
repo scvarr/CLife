@@ -828,6 +828,67 @@ bool test_unit_conversions_and_snapshot_compatibility()
                          "unit conversion rejects unknown UnitId");
 }
 
+bool test_multi_output_conversion_process()
+{
+    WorldDefinition definition;
+    const ValueKey light = definition.add_value("Light");
+    const ValueKey useful = definition.add_value("UsefulEnergy");
+    const ValueKey loss = definition.add_value("LossEnergy");
+    const UnitId l = definition.add_unit("L");
+    const UnitId e = definition.add_unit("E");
+    const UnitConversionId conversion = definition.add_unit_conversion(
+        {.components = {{.unit = l, .exponent = 1}}}, 1.0, {.components = {{.unit = e, .exponent = 1}}}, 0.1);
+    const TemplateId cell = definition.add_template("Cell");
+    const FunctionTypeId type = definition.add_function_type("Energy synthesis");
+    const ParameterId channel = definition.add_genome_parameter(type, "Channel", 1.0);
+    const ParameterId efficiency = definition.add_genome_parameter(type, "Efficiency", 0.8);
+    const ParameterId losses = definition.add_derived_parameter(type, "Losses", "1 - Efficiency");
+    definition.set_function_process(type, {
+                                              .input = light,
+                                              .throughput = channel,
+                                              .conversion = conversion,
+                                              .outputs = {{.output = useful, .allocation = efficiency},
+                                                          {.output = loss, .allocation = losses}},
+                                          });
+    (void)definition.add_genome_function(cell, type);
+    (void)definition.add_host_binding(cell, {.channel = "world.light", .direction = HostChannelDirection::input, .value = light});
+
+    RuntimeWorld runtime{definition};
+    const ObjectId object = runtime.instantiate(cell);
+    runtime.set_input(object, "world.light", 1.0);
+    runtime.step();
+    if (!expect_near(runtime.value(object, useful), 0.08, "conversion process produces useful output") ||
+        !expect_near(runtime.value(object, loss), 0.02, "conversion process produces loss output")) {
+        return false;
+    }
+
+    const auto snapshot = definition.snapshot();
+    const WorldDefinition restored = WorldDefinition::from_snapshot(snapshot);
+    if (!expect_true(restored.function_type(type).process->conversion == conversion &&
+                         restored.function_type(type).process->outputs.size() == 2,
+                     "multi-output process survives snapshot round trip")) {
+        return false;
+    }
+
+    WorldDefinition underallocated = definition;
+    underallocated.set_function_process(type, {.input = light, .throughput = channel, .conversion = conversion,
+                                                .outputs = {{.output = useful, .allocation = efficiency}}});
+    (void)compile_phenotype(underallocated, cell);
+    WorldDefinition overallocated = definition;
+    const ParameterId too_much = overallocated.add_genome_parameter(type, "TooMuch", 0.3);
+    overallocated.set_function_process(type, {.input = light, .throughput = channel, .conversion = conversion,
+                                               .outputs = {{.output = useful, .allocation = efficiency},
+                                                           {.output = loss, .allocation = too_much}}});
+    WorldDefinition negative = definition;
+    negative.set_genome_parameter(cell, 0, efficiency, -0.1);
+    return expect_throws([&] { (void)compile_phenotype(overallocated, cell); },
+                         "process allocations above one are rejected") &&
+           expect_throws([&] { (void)compile_phenotype(negative, cell); },
+                         "negative process allocation is rejected") &&
+           expect_throws([&] { negative.set_genome_parameter(cell, 0, efficiency, std::numeric_limits<double>::infinity()); },
+                         "non-finite process allocation is rejected");
+}
+
 bool test_utf8_expression_names()
 {
     const ParameterId light{1};
@@ -913,6 +974,7 @@ int main()
                    test_snapshot_preserves_next_ids_and_rejects_invalid_data() &&
                    test_world_units_and_snapshot_compatibility() &&
                    test_unit_conversions_and_snapshot_compatibility() &&
+                   test_multi_output_conversion_process() &&
                    test_utf8_expression_names() &&
                    test_expression_operations_and_validation() &&
                    test_invalid_derived_results_are_rejected()

@@ -71,17 +71,47 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
         }
         if (type.process) {
             const Amount throughput = parameter_value(resolved, type.process->throughput);
-            const Amount result_per_input = parameter_value(resolved, type.process->result_per_input);
             if (!std::isfinite(throughput) || throughput <= 0.0) {
                 throw std::invalid_argument{"compiled process throughput must be finite and positive"};
             }
-            if (!std::isfinite(result_per_input) || result_per_input < 0.0) {
-                throw std::invalid_argument{"compiled process result_per_input must be finite and non-negative"};
+            if (type.process->conversion.value == 0) {
+                const Amount result_per_input = parameter_value(resolved, type.process->result_per_input);
+                if (!std::isfinite(result_per_input) || result_per_input < 0.0) {
+                    throw std::invalid_argument{"compiled process result_per_input must be finite and non-negative"};
+                }
+                function.process_parameters_ = CompiledProcessParameters{
+                    .throughput = throughput,
+                    .outputs = {{.output = type.process->output, .result_per_input = result_per_input}},
+                };
+            } else {
+            const UnitConversionDefinition& conversion = definition.unit_conversion(type.process->conversion);
+            const Amount conversion_ratio = conversion.target_amount / conversion.source_amount;
+            if (!std::isfinite(conversion_ratio) || conversion_ratio < 0.0) {
+                throw std::invalid_argument{"compiled unit conversion ratio must be finite and non-negative"};
             }
-            function.process_parameters_ = CompiledProcessParameters{
-                .throughput = throughput,
-                .result_per_input = result_per_input,
-            };
+            CompiledProcessParameters parameters{.throughput = throughput};
+            Amount allocation_sum{};
+            for (const FunctionProcessOutputDefinition& output : type.process->outputs) {
+                const Amount allocation = parameter_value(resolved, output.allocation);
+                if (!std::isfinite(allocation) || allocation < 0.0) {
+                    throw std::invalid_argument{"compiled process allocation must be finite and non-negative"};
+                }
+                allocation_sum += allocation;
+                if (!std::isfinite(allocation_sum)) {
+                    throw std::overflow_error{"compiled process allocation total overflow"};
+                }
+                const Amount result_per_input = conversion_ratio * allocation;
+                if (!std::isfinite(result_per_input)) {
+                    throw std::overflow_error{"compiled process output overflow"};
+                }
+                parameters.outputs.push_back({.output = output.output, .result_per_input = result_per_input});
+            }
+            constexpr Amount kAllocationTolerance = 1e-12;
+            if (allocation_sum > 1.0 + kAllocationTolerance) {
+                throw std::invalid_argument{"compiled process allocations must not exceed one"};
+            }
+            function.process_parameters_ = std::move(parameters);
+            }
         }
         if (type.buffer_process) {
             const Amount capacity = parameter_value(resolved, type.buffer_process->capacity);

@@ -55,11 +55,19 @@ struct DerivedParameterDefinition final {
     Expression expression;
 };
 
+struct FunctionProcessOutputDefinition final {
+    ValueKey output;
+    ParameterId allocation;
+};
+
 struct FunctionProcessDefinition final {
     ValueKey input;
-    ValueKey output;
+    // Retained only to migrate snapshots created before schema version 4.
+    ValueKey output{};
     ParameterId throughput;
-    ParameterId result_per_input;
+    ParameterId result_per_input{};
+    UnitConversionId conversion;
+    std::vector<FunctionProcessOutputDefinition> outputs;
 };
 
 struct BufferProcessDefinition final {
@@ -181,7 +189,7 @@ struct CalculationSnapshot final {
 };
 
 struct WorldDefinitionSnapshot final {
-    std::uint32_t schema_version{3};
+    std::uint32_t schema_version{4};
     std::vector<ValueDefinition> values;
     std::vector<UnitDefinition> units;
     std::vector<UnitConversionDefinition> unit_conversions;
@@ -224,6 +232,8 @@ public:
     void set_derived_parameter_expression(FunctionTypeId type, ParameterId parameter, std::string_view expression);
     void rename_parameter(FunctionTypeId type, ParameterId parameter, std::string name);
     void set_function_process(FunctionTypeId type, FunctionProcessDefinition process);
+    void add_function_process_output(FunctionTypeId type, FunctionProcessOutputDefinition output);
+    void remove_function_process_output(FunctionTypeId type, ValueKey output);
     void set_buffer_process(FunctionTypeId type, BufferProcessDefinition process);
     void add_function_material_contribution(FunctionTypeId type, ValueKey value, std::string_view expression);
     void set_function_material_contribution(FunctionTypeId type, ValueKey value, std::string_view expression);
@@ -249,6 +259,7 @@ public:
     [[nodiscard]] const std::vector<ValueDefinition>& values() const noexcept;
     [[nodiscard]] const std::vector<UnitDefinition>& units() const noexcept;
     [[nodiscard]] const std::vector<UnitConversionDefinition>& unit_conversions() const noexcept;
+    [[nodiscard]] const UnitConversionDefinition& unit_conversion(UnitConversionId id) const;
     [[nodiscard]] const std::vector<ObjectTemplate>& templates() const noexcept;
     [[nodiscard]] const std::vector<FunctionTypeDefinition>& function_types() const noexcept;
     [[nodiscard]] const std::vector<CalculationDefinition>& calculations() const noexcept;

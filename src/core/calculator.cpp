@@ -41,19 +41,39 @@ Calculator::Calculator(Program program)
 
     for (const Function& function : program_.functions) {
         validate_value(function.input, "function input");
-        validate_value(function.output, "function output");
         if (!std::isfinite(function.throughput) || function.throughput <= 0.0) {
             throw std::invalid_argument{"function throughput must be finite and positive"};
         }
-        if (!std::isfinite(function.result_per_input) || function.result_per_input < 0.0) {
-            throw std::invalid_argument{"function result_per_input must be finite and non-negative"};
+        const bool legacy_output = function.outputs.empty();
+        const std::span<const FunctionOutput> outputs = legacy_output
+                                                           ? std::span<const FunctionOutput>{}
+                                                           : std::span<const FunctionOutput>{function.outputs};
+        if (legacy_output) {
+            validate_value(function.output, "function output");
+            if (!std::isfinite(function.result_per_input) || function.result_per_input < 0.0) {
+                throw std::invalid_argument{"function result_per_input must be finite and non-negative"};
+            }
+            generated_[function.output.index] = true;
+            continue;
         }
-        generated_[function.output.index] = true;
+        for (const FunctionOutput& output : outputs) {
+            validate_value(output.value, "function output");
+            if (!std::isfinite(output.result_per_input) || output.result_per_input < 0.0) {
+                throw std::invalid_argument{"function result_per_input must be finite and non-negative"};
+            }
+            generated_[output.value.index] = true;
+        }
+    }
+
+    for (Function& function : program_.functions) {
+        if (function.outputs.empty()) {
+            function.outputs.push_back({.value = function.output, .result_per_input = function.result_per_input});
+        }
     }
 
     std::sort(program_.functions.begin(), program_.functions.end(), [](const Function& left, const Function& right) {
-        return std::tie(left.input.index, left.output.index, left.throughput, left.result_per_input) <
-               std::tie(right.input.index, right.output.index, right.throughput, right.result_per_input);
+        return std::tuple{left.input.index, left.throughput, left.outputs.size()} <
+               std::tuple{right.input.index, right.throughput, right.outputs.size()};
     });
 
     for (std::size_t index = 0; index < program_.buffers.size(); ++index) {
@@ -172,7 +192,9 @@ void Calculator::step(std::span<const ValueAmount> external_values)
         if (available >= normal_demand) {
             for (const std::size_t function_index : outgoing) {
                 const Function& function = program_.functions[function_index];
-                values_[function.output.index] += function.throughput * function.result_per_input;
+                for (const FunctionOutput& output : function.outputs) {
+                    values_[output.value.index] += function.throughput * output.result_per_input;
+                }
             }
 
             const Amount surplus = available - normal_demand;
@@ -214,7 +236,9 @@ void Calculator::step(std::span<const ValueAmount> external_values)
             for (const std::size_t function_index : outgoing) {
                 const Function& function = program_.functions[function_index];
                 const Amount taken = function.throughput * demand_fraction;
-                values_[function.output.index] += taken * function.result_per_input;
+                for (const FunctionOutput& output : function.outputs) {
+                    values_[output.value.index] += taken * output.result_per_input;
+                }
             }
             for (const std::size_t buffer_index : buffers) {
                 const BufferProcess& buffer = program_.buffers[buffer_index];
@@ -305,7 +329,9 @@ void Calculator::compile_pipeline()
     for (std::size_t function_index = 0; function_index < program_.functions.size(); ++function_index) {
         const Function& function = program_.functions[function_index];
         outgoing_[function.input.index].push_back(function_index);
-        ++indegree[function.output.index];
+        for (const FunctionOutput& output : function.outputs) {
+            ++indegree[output.value.index];
+        }
     }
     for (std::size_t buffer_index = 0; buffer_index < program_.buffers.size(); ++buffer_index) {
         buffers_by_value_[program_.buffers[buffer_index].value.index].push_back(buffer_index);
@@ -333,10 +359,11 @@ void Calculator::compile_pipeline()
         evaluation_order_.push_back(value);
 
         for (const std::size_t function_index : outgoing_[value.index]) {
-            const ValueId output = program_.functions[function_index].output;
-            --indegree[output.index];
-            if (indegree[output.index] == 0) {
-                ready.push_back(output);
+            for (const FunctionOutput& output : program_.functions[function_index].outputs) {
+                --indegree[output.value.index];
+                if (indegree[output.value.index] == 0) {
+                    ready.push_back(output.value);
+                }
             }
         }
     }

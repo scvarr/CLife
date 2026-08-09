@@ -21,11 +21,18 @@ struct ValueAmount final {
     Amount amount;
 };
 
+struct FunctionOutput final {
+    ValueId value;
+    Amount result_per_input{1.0};
+};
+
 struct Function final {
     ValueId input;
-    ValueId output;
+    // Kept to read programs authored before multi-output functions.
+    ValueId output{};
     Amount throughput;
     Amount result_per_input{1.0};
+    std::vector<FunctionOutput> outputs;
 };
 
 struct BufferProcess final {

@@ -48,6 +48,8 @@ actual throughput = ThroughputFactor * world base processing rate
 
 `UnitConversionDefinition` уже хранит отдельный мировой закон между `UnitExpression`: исходное и целевое выражения, authored amounts и стабильный `UnitConversionId`. Например, `10 L -> 1 E` — именно conversion law мира, а не conversion одной физической величины. Сейчас эта запись описывает данные мира и не применяется `Calculator`, `FunctionTypeDefinition` или runtime.
 
+`FunctionProcessDefinition` может использовать один `UnitConversionDefinition`: он потребляет один input с общей throughput и направляет численный ideal result в несколько output `Value`. Каждый output ссылается на phenotype parameter-allocation; при компиляции `result_per_input = target_amount / source_amount * allocation`. Сумма allocation может быть меньше единицы, но не больше единицы; нераспределённая часть пока не материализуется. Core получает только готовые числа multi-output Function и не знает `UnitConversionId`.
+
 Compound-unit authoring, свойства материалов, привязка world conversion к функциям и dimensional checking выражений пока не реализованы. `WorldRuleDefinition` остаётся отдельным end-of-tick правилом переноса `Value`, а не записью unit conversion.
 
 Следует различать три уровня количественной семантики:

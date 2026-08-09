@@ -36,7 +36,11 @@ RuntimeWorld::RuntimeWorld(const WorldDefinition& definition)
             const bool produced_by_process =
                 std::ranges::any_of(source.genome, [&](const GenomeFunctionInstance& function) {
                     const FunctionTypeDefinition& type = definition.function_type(function.type);
-                    return type.process && type.process->output == binding.value;
+                    return type.process && ((type.process->conversion.value == 0 && type.process->output == binding.value) ||
+                                            std::ranges::any_of(type.process->outputs,
+                                                                [&](const FunctionProcessOutputDefinition& output) {
+                                                                    return output.output == binding.value;
+                                                                }));
                 });
             if (binding.direction == HostChannelDirection::input && produced_by_process) {
                 throw std::invalid_argument{"host input cannot target a genome-produced value"};
@@ -53,10 +57,15 @@ RuntimeWorld::RuntimeWorld(const WorldDefinition& definition)
                 const CompiledProcessParameters& parameters = *function.process_parameters();
                 program.functions.push_back({
                     .input = require_value_id(type.process->input),
-                    .output = require_value_id(type.process->output),
                     .throughput = parameters.throughput,
-                    .result_per_input = parameters.result_per_input,
                 });
+                Function& compiled = program.functions.back();
+                for (const CompiledProcessOutput& output : parameters.outputs) {
+                    compiled.outputs.push_back({
+                        .value = require_value_id(output.output),
+                        .result_per_input = output.result_per_input,
+                    });
+                }
             }
             if (type.buffer_process) {
                 const CompiledBufferParameters& parameters = *function.buffer_parameters();
