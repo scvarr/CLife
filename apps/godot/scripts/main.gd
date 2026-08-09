@@ -24,8 +24,7 @@ var play_button: Button
 var pause_button: Button
 var step_button: Button
 var reset_button: Button
-var run_button: Button
-var stop_button: Button
+var back_to_editor_button: Button
 var new_name: LineEdit
 var add_value_button: Button
 var add_template_button: Button
@@ -171,10 +170,6 @@ func _build_header() -> Control:
 		_on_locale_selected(index, locale_selector)
 	)
 	header.add_child(locale_selector)
-	run_button = _button(tr("ui.run"), _on_run)
-	stop_button = _button(tr("ui.stop"), _on_stop)
-	header.add_child(run_button)
-	header.add_child(stop_button)
 	return header
 
 
@@ -266,10 +261,12 @@ func _build_status_area() -> Control:
 	pause_button = _button(tr("ui.pause"), _on_pause)
 	step_button = _button(tr("ui.step"), _on_step)
 	reset_button = _button(tr("ui.reset"), _on_reset)
+	back_to_editor_button = _button(tr("ui.back_to_editor"), _on_back_to_editor)
 	controls.add_child(play_button)
 	controls.add_child(pause_button)
 	controls.add_child(step_button)
 	controls.add_child(reset_button)
+	controls.add_child(back_to_editor_button)
 	tick_label = Label.new()
 	tick_label.custom_minimum_size.x = 90.0
 	controls.add_child(tick_label)
@@ -723,21 +720,7 @@ func _on_add_rule() -> void:
 	_show_rule_inspector(-1, true)
 
 
-func _on_run() -> void:
-	if not editor.run():
-		_show_facade_error_if_any()
-		return
-	object_views.clear()
-	$Cell.scale = Vector3.ONE
-	object_views[editor.get_preview_object_id()] = $Cell
-	runtime_object_selected = false
-	_set_status("status.run_started")
-	_rebuild_host_inputs()
-	_refresh_mode()
-	_show_run_inspector_help()
-
-
-func _on_stop() -> void:
+func _on_back_to_editor() -> void:
 	editor.stop()
 	object_views.clear()
 	runtime_object_selected = false
@@ -749,6 +732,15 @@ func _on_stop() -> void:
 
 
 func _on_play() -> void:
+	if not editor.is_run_active():
+		if not editor.run():
+			_show_facade_error_if_any()
+			return
+		_select_preview_runtime_object()
+		_set_status("status.run_started")
+		_rebuild_host_inputs()
+		_refresh_mode()
+		return
 	if editor.play():
 		_set_status("status.runtime_playing")
 	else:
@@ -763,21 +755,43 @@ func _on_pause() -> void:
 
 
 func _on_step() -> void:
+	if not editor.is_run_active():
+		if not editor.run():
+			_show_facade_error_if_any()
+			return
+		editor.pause()
+		_rebuild_host_inputs()
+		_select_preview_runtime_object()
 	if editor.step_once():
 		_set_status("status.tick_advanced")
 	else:
 		_show_facade_error_if_any()
+	_refresh_runtime_display()
 
 
 func _on_reset() -> void:
 	if not editor.reset_runtime():
 		_show_facade_error_if_any()
 		return
+	editor.pause()
+	_select_preview_runtime_object()
+	_set_status("status.runtime_reset")
+	_refresh_runtime_display()
+
+
+func _select_preview_runtime_object() -> void:
 	object_views.clear()
+	$Cell.scale = Vector3.ONE
 	object_views[editor.get_preview_object_id()] = $Cell
 	runtime_object_selected = true
-	_set_status("status.runtime_reset")
 	_show_runtime_inspector()
+
+
+func _refresh_runtime_display() -> void:
+	_apply_runtime_to_views()
+	tick_label.text = tr("ui.tick_format") % editor.get_tick()
+	if runtime_object_selected:
+		_refresh_runtime_values()
 	_refresh_mode()
 
 
@@ -807,12 +821,11 @@ func _restore_edit_inspector() -> void:
 func _refresh_mode() -> void:
 	var running := editor.is_run_active()
 	mode_label.text = tr("ui.mode_run") if running else tr("ui.mode_edit")
-	run_button.disabled = running
-	stop_button.disabled = not running
-	play_button.disabled = not running or editor.is_playing()
+	play_button.disabled = running and editor.is_playing()
 	pause_button.disabled = not running or not editor.is_playing()
-	step_button.disabled = not running
+	step_button.disabled = running and editor.is_playing()
 	reset_button.disabled = not running
+	back_to_editor_button.disabled = not running
 	new_name.editable = not running
 	add_value_button.disabled = running
 	add_template_button.disabled = running

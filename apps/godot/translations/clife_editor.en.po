@@ -135,6 +135,9 @@ msgstr "Step"
 msgid "ui.reset"
 msgstr "Reset"
 
+msgid "ui.back_to_editor"
+msgstr "Back to editor"
+
 msgid "ui.add_value"
 msgstr "+ Value"
 

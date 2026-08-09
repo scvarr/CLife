@@ -125,7 +125,7 @@ msgid "ui.stop"
 msgstr "Остановить"
 
 msgid "ui.play"
-msgstr "Продолжить"
+msgstr "Пуск"
 
 msgid "ui.pause"
 msgstr "Пауза"
@@ -135,6 +135,9 @@ msgstr "Шаг"
 
 msgid "ui.reset"
 msgstr "Сброс"
+
+msgid "ui.back_to_editor"
+msgstr "В редактор"
 
 msgid "ui.add_value"
 msgstr "+ Значение"
