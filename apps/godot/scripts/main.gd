@@ -435,8 +435,64 @@ func _show_function_type_inspector(function_type_id: int) -> void:
 			parameter.name, parameter.id, float(parameter.default_value),
 		])
 	_add_heading(inspector, tr("ui.derived_parameters"))
+	var available_parameters := PackedStringArray()
+	for parameter in function_type.genome_parameters:
+		available_parameters.append(str(parameter.name))
 	for parameter in function_type.derived_parameters:
 		_add_wrapped_label(inspector, tr("ui.parameter_identity_format") % [parameter.name, parameter.id])
+		_add_wrapped_label(inspector, tr("ui.available_parameters_format") % ", ".join(available_parameters))
+		var expression := LineEdit.new()
+		expression.text = str(parameter.expression_source)
+		expression.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var expression_row := HBoxContainer.new()
+		expression_row.add_child(_labeled_control(tr("ui.expression"), expression))
+		expression_row.add_child(_button(tr("ui.update_formula"), func() -> void:
+			_finish_edit(editor.set_derived_parameter_expression(function_type_id, int(parameter.id), expression.text),
+				"status.derived_parameter_expression_updated")
+		))
+		inspector.add_child(expression_row)
+		available_parameters.append(str(parameter.name))
+	_add_heading(inspector, tr("ui.new_derived_parameter"))
+	_add_wrapped_label(inspector, tr("ui.available_parameters_format") % ", ".join(available_parameters))
+	var new_derived_name := LineEdit.new()
+	new_derived_name.placeholder_text = tr("ui.new_name_placeholder")
+	var new_derived_expression := LineEdit.new()
+	new_derived_expression.placeholder_text = tr("ui.expression")
+	inspector.add_child(_labeled_control(tr("ui.name"), new_derived_name))
+	inspector.add_child(_labeled_control(tr("ui.expression"), new_derived_expression))
+	inspector.add_child(_button(tr("ui.add"), func() -> void:
+		_finish_edit(editor.add_derived_parameter(function_type_id, new_derived_name.text, new_derived_expression.text) != 0,
+			"status.derived_parameter_added")
+	))
+	_add_separator(inspector)
+	_add_heading(inspector, tr("ui.material_cost"))
+	_add_wrapped_label(inspector, tr("ui.available_parameters_format") % ", ".join(available_parameters))
+	for contribution in function_type.material_contributions:
+		var value_key := int(contribution.value_key)
+		_add_wrapped_label(inspector, "%s [#%d]" % [_value_name(value_key), value_key])
+		var material_expression := LineEdit.new()
+		material_expression.text = str(contribution.expression_source)
+		material_expression.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var material_row := HBoxContainer.new()
+		material_row.add_child(_labeled_control(tr("ui.expression"), material_expression))
+		material_row.add_child(_button(tr("ui.update"), func() -> void:
+			_finish_edit(editor.set_function_material_contribution(function_type_id, value_key, material_expression.text),
+				"status.function_material_contribution_updated")
+		))
+		material_row.add_child(_button(tr("ui.remove"), func() -> void:
+			_finish_edit(editor.remove_function_material_contribution(function_type_id, value_key),
+				"status.function_material_contribution_removed")
+		))
+		inspector.add_child(material_row)
+	var material_value := _value_option()
+	var new_material_expression := LineEdit.new()
+	new_material_expression.placeholder_text = tr("ui.expression")
+	inspector.add_child(_labeled_control(tr("ui.value"), material_value))
+	inspector.add_child(_labeled_control(tr("ui.expression"), new_material_expression))
+	inspector.add_child(_button(tr("ui.set_or_add"), func() -> void:
+		_finish_edit(editor.set_function_material_contribution(function_type_id, _selected_option_id(material_value),
+			new_material_expression.text), "status.function_material_contribution_updated")
+	))
 	if bool(function_type.has_process):
 		_add_wrapped_label(inspector, tr("help.function_type_process"))
 	if bool(function_type.has_buffer):

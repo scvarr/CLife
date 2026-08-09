@@ -51,6 +51,24 @@ msgstr "Derived parameters"
 msgid "ui.derived_parameters_read_only"
 msgstr "Derived parameters (read-only)"
 
+msgid "ui.expression"
+msgstr "Expression"
+
+msgid "ui.update_formula"
+msgstr "Update formula"
+
+msgid "ui.new_derived_parameter"
+msgstr "New derived parameter"
+
+msgid "ui.available_parameters_format"
+msgstr "Available parameters: %s"
+
+msgid "ui.name"
+msgstr "Name"
+
+msgid "ui.add"
+msgstr "Add"
+
 msgid "ui.function_type"
 msgstr "Function type"
 
@@ -281,6 +299,18 @@ msgstr "Genome function removed"
 
 msgid "status.genome_function_added"
 msgstr "Genome function added"
+
+msgid "status.derived_parameter_added"
+msgstr "Derived parameter added"
+
+msgid "status.derived_parameter_expression_updated"
+msgstr "Derived parameter formula updated"
+
+msgid "status.function_material_contribution_updated"
+msgstr "Function material contribution updated"
+
+msgid "status.function_material_contribution_removed"
+msgstr "Function material contribution removed"
 
 msgid "status.legacy_binding_removed"
 msgstr "Legacy binding removed"

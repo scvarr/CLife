@@ -47,10 +47,28 @@ msgid "ui.genome_parameters"
 msgstr "Параметры генома"
 
 msgid "ui.derived_parameters"
-msgstr "Производные параметры"
+msgstr "Вычисляемые параметры"
 
 msgid "ui.derived_parameters_read_only"
 msgstr "Производные параметры (только чтение)"
+
+msgid "ui.expression"
+msgstr "Формула"
+
+msgid "ui.update_formula"
+msgstr "Обновить формулу"
+
+msgid "ui.new_derived_parameter"
+msgstr "Новый вычисляемый параметр"
+
+msgid "ui.available_parameters_format"
+msgstr "Доступные параметры: %s"
+
+msgid "ui.name"
+msgstr "Имя"
+
+msgid "ui.add"
+msgstr "Добавить"
 
 msgid "ui.function_type"
 msgstr "Тип функции"
@@ -282,6 +300,18 @@ msgstr "Функция генома удалена"
 
 msgid "status.genome_function_added"
 msgstr "Функция генома добавлена"
+
+msgid "status.derived_parameter_added"
+msgstr "Вычисляемый параметр добавлен"
+
+msgid "status.derived_parameter_expression_updated"
+msgstr "Формула вычисляемого параметра обновлена"
+
+msgid "status.function_material_contribution_updated"
+msgstr "Материальная стоимость функции обновлена"
+
+msgid "status.function_material_contribution_removed"
+msgstr "Материальная стоимость функции удалена"
 
 msgid "status.legacy_binding_removed"
 msgstr "Устаревшая привязка удалена"

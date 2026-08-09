@@ -176,10 +176,19 @@ godot::Array CLifeWorldEditor::get_function_types()
                 godot::Dictionary entry;
                 entry["id"] = static_cast<std::int64_t>(parameter.id.value);
                 entry["name"] = to_godot_string(parameter.name);
+                entry["expression_source"] = to_godot_string(parameter.expression_source);
                 derived_parameters.push_back(entry);
+            }
+            godot::Array material_contributions;
+            for (const world::MaterialContributionDefinition& contribution : type.material_contributions) {
+                godot::Dictionary entry;
+                entry["value_key"] = static_cast<std::int64_t>(contribution.value.value);
+                entry["expression_source"] = to_godot_string(contribution.expression_source);
+                material_contributions.push_back(entry);
             }
             item["genome_parameters"] = genome_parameters;
             item["derived_parameters"] = derived_parameters;
+            item["material_contributions"] = material_contributions;
             item["has_process"] = type.process.has_value();
             item["has_buffer"] = type.buffer_process.has_value();
             result.push_back(item);
@@ -405,6 +414,49 @@ bool CLifeWorldEditor::set_initial_value(std::int64_t raw_template_id, std::int6
 bool CLifeWorldEditor::remove_initial_value(std::int64_t raw_template_id, std::int64_t raw_value_key)
 {
     return edit([&] { definition_.remove_initial_value(template_id(raw_template_id), value_key(raw_value_key)); });
+}
+
+std::int64_t CLifeWorldEditor::add_derived_parameter(std::int64_t raw_function_type_id, const godot::String& name,
+                                                      const godot::String& expression)
+{
+    try {
+        require_edit_mode();
+        const world::ParameterId id = definition_.add_derived_parameter(function_type_id(raw_function_type_id),
+                                                                         to_std_string(name), to_std_string(expression));
+        clear_error();
+        return static_cast<std::int64_t>(id.value);
+    } catch (...) {
+        capture_current_error();
+        return 0;
+    }
+}
+
+bool CLifeWorldEditor::set_derived_parameter_expression(std::int64_t raw_function_type_id,
+                                                         std::int64_t raw_parameter_id,
+                                                         const godot::String& expression)
+{
+    return edit([&] {
+        definition_.set_derived_parameter_expression(function_type_id(raw_function_type_id),
+                                                      parameter_id(raw_parameter_id), to_std_string(expression));
+    });
+}
+
+bool CLifeWorldEditor::set_function_material_contribution(std::int64_t raw_function_type_id,
+                                                           std::int64_t raw_value_key,
+                                                           const godot::String& expression)
+{
+    return edit([&] {
+        definition_.set_function_material_contribution(function_type_id(raw_function_type_id), value_key(raw_value_key),
+                                                       to_std_string(expression));
+    });
+}
+
+bool CLifeWorldEditor::remove_function_material_contribution(std::int64_t raw_function_type_id,
+                                                              std::int64_t raw_value_key)
+{
+    return edit([&] {
+        definition_.remove_function_material_contribution(function_type_id(raw_function_type_id), value_key(raw_value_key));
+    });
 }
 
 bool CLifeWorldEditor::add_genome_function(std::int64_t raw_template_id, std::int64_t raw_function_type_id)
@@ -910,6 +962,17 @@ void CLifeWorldEditor::_bind_methods()
                                 &CLifeWorldEditor::set_initial_value);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_initial_value", "template_id", "value_key"),
                                 &CLifeWorldEditor::remove_initial_value);
+    godot::ClassDB::bind_method(godot::D_METHOD("add_derived_parameter", "function_type_id", "name", "expression"),
+                                &CLifeWorldEditor::add_derived_parameter);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("set_derived_parameter_expression", "function_type_id", "parameter_id", "expression"),
+        &CLifeWorldEditor::set_derived_parameter_expression);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("set_function_material_contribution", "function_type_id", "value_key", "expression"),
+        &CLifeWorldEditor::set_function_material_contribution);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("remove_function_material_contribution", "function_type_id", "value_key"),
+        &CLifeWorldEditor::remove_function_material_contribution);
     godot::ClassDB::bind_method(godot::D_METHOD("add_genome_function", "template_id", "function_type_id"),
                                 &CLifeWorldEditor::add_genome_function);
     godot::ClassDB::bind_method(
