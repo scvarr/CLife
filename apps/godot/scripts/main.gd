@@ -30,6 +30,7 @@ var save_world_button: Button
 var new_name: LineEdit
 var add_value_button: Button
 var add_template_button: Button
+var add_function_type_button: Button
 var add_calculation_button: Button
 var add_rule_button: Button
 var host_inputs_box: HBoxContainer
@@ -272,10 +273,12 @@ func _build_world_panel() -> Control:
 	column.add_child(new_name)
 	var buttons := HBoxContainer.new()
 	add_value_button = _button(tr("ui.add_value"), _on_add_value)
+	add_function_type_button = _button(tr("ui.add_function_type"), _on_add_function_type)
 	add_calculation_button = _button(tr("ui.add_calculation"), _on_add_calculation)
 	add_template_button = _button(tr("ui.add_template"), _on_add_template)
 	add_rule_button = _button(tr("ui.add_rule"), _on_add_rule)
 	buttons.add_child(add_value_button)
+	buttons.add_child(add_function_type_button)
 	buttons.add_child(add_calculation_button)
 	buttons.add_child(add_template_button)
 	buttons.add_child(add_rule_button)
@@ -866,6 +869,19 @@ func _on_add_value() -> void:
 	_show_value_inspector(key)
 
 
+func _on_add_function_type() -> void:
+	var function_type_id := editor.add_function_type(new_name.text)
+	if function_type_id == 0:
+		_show_facade_error_if_any()
+		return
+	new_name.clear()
+	selected_kind = "function_type"
+	selected_identity = function_type_id
+	_set_status("status.function_type_added", [function_type_id])
+	_rebuild_world_tree()
+	_show_function_type_inspector(function_type_id)
+
+
 func _on_add_calculation() -> void:
 	var calculation_id := editor.add_calculation(new_name.text)
 	if calculation_id == 0:
@@ -1026,6 +1042,7 @@ func _refresh_mode() -> void:
 	save_world_button.disabled = running
 	new_name.editable = not running
 	add_value_button.disabled = running
+	add_function_type_button.disabled = running
 	add_calculation_button.disabled = running
 	add_template_button.disabled = running
 	add_rule_button.disabled = running

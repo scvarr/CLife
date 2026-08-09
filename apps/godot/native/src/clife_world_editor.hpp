@@ -37,6 +37,7 @@ public:
     bool rename_value(std::int64_t key, const godot::String& name);
     bool remove_value(std::int64_t key);
     [[nodiscard]] std::int64_t add_template(const godot::String& name);
+    [[nodiscard]] std::int64_t add_function_type(const godot::String& name);
     [[nodiscard]] std::int64_t add_calculation(const godot::String& name);
     [[nodiscard]] std::int64_t add_calculation_input(std::int64_t calculation_id, const godot::String& name);
     [[nodiscard]] std::int64_t add_calculation_output(std::int64_t calculation_id, const godot::String& name,

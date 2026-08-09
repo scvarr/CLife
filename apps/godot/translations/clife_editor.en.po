@@ -210,6 +210,9 @@ msgstr "Back to editor"
 msgid "ui.add_value"
 msgstr "+ Value"
 
+msgid "ui.add_function_type"
+msgstr "+ Function Type"
+
 msgid "ui.add_template"
 msgstr "+ Template"
 
@@ -235,7 +238,7 @@ msgid "ui.remove_legacy_binding"
 msgstr "Remove Legacy Binding"
 
 msgid "ui.new_name_placeholder"
-msgstr "New value or template name"
+msgstr "New value, calculation, template, or function type name"
 
 msgid "ui.new_function"
 msgstr "New function"
@@ -314,6 +317,9 @@ msgstr "Ready"
 
 msgid "status.value_added"
 msgstr "Value added with stable key #%d"
+
+msgid "status.function_type_added"
+msgstr "Function type added with stable id #%d"
 
 msgid "status.value_renamed"
 msgstr "Value renamed"

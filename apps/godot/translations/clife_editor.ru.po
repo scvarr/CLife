@@ -211,6 +211,9 @@ msgstr "В редактор"
 msgid "ui.add_value"
 msgstr "+ Значение"
 
+msgid "ui.add_function_type"
+msgstr "+ Тип функции"
+
 msgid "ui.add_template"
 msgstr "+ Шаблон"
 
@@ -236,7 +239,7 @@ msgid "ui.remove_legacy_binding"
 msgstr "Удалить устаревшую привязку"
 
 msgid "ui.new_name_placeholder"
-msgstr "Имя нового значения или шаблона"
+msgstr "Имя нового значения, формулы, шаблона или типа функции"
 
 msgid "ui.new_function"
 msgstr "Новая функция"
@@ -315,6 +318,9 @@ msgstr "Готово"
 
 msgid "status.value_added"
 msgstr "Добавлено значение со стабильным ключом №%d"
+
+msgid "status.function_type_added"
+msgstr "Добавлен тип функции со стабильным идентификатором №%d"
 
 msgid "status.value_renamed"
 msgstr "Значение переименовано"
