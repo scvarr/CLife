@@ -96,6 +96,15 @@ msgstr "Genome"
 msgid "ui.genome_parameters"
 msgstr "Genome parameters"
 
+msgid "ui.new_genome_parameter"
+msgstr "New independent parameter"
+
+msgid "ui.default_value"
+msgstr "Default value"
+
+msgid "ui.add_genome_parameter"
+msgstr "Add parameter"
+
 msgid "ui.derived_parameters"
 msgstr "Derived parameters"
 
@@ -350,6 +359,9 @@ msgstr "Genome function updated"
 
 msgid "status.genome_parameter_updated"
 msgstr "Genome parameter updated; phenotype recompiled"
+
+msgid "status.genome_parameter_added"
+msgstr "Genome parameter added"
 
 msgid "status.genome_function_removed"
 msgstr "Genome function removed"

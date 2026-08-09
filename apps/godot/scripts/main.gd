@@ -531,6 +531,16 @@ func _show_function_type_inspector(function_type_id: int) -> void:
 		_add_wrapped_label(inspector, tr("ui.parameter_default_format") % [
 			parameter.name, parameter.id, float(parameter.default_value),
 		])
+	_add_heading(inspector, tr("ui.new_genome_parameter"))
+	var new_genome_parameter_name := LineEdit.new()
+	new_genome_parameter_name.placeholder_text = tr("ui.name")
+	var new_genome_parameter_default := _amount_spin(1.0)
+	inspector.add_child(_labeled_control(tr("ui.name"), new_genome_parameter_name))
+	inspector.add_child(_labeled_control(tr("ui.default_value"), new_genome_parameter_default))
+	inspector.add_child(_button(tr("ui.add_genome_parameter"), func() -> void:
+		_finish_edit(editor.add_genome_parameter(function_type_id, new_genome_parameter_name.text,
+			new_genome_parameter_default.value) != 0, "status.genome_parameter_added")
+	))
 	_add_heading(inspector, tr("ui.derived_parameters"))
 	var available_parameters := PackedStringArray()
 	for parameter in function_type.genome_parameters:

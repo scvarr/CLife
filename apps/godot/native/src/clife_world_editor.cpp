@@ -512,6 +512,21 @@ std::int64_t CLifeWorldEditor::add_function_type(const godot::String& name)
     }
 }
 
+std::int64_t CLifeWorldEditor::add_genome_parameter(std::int64_t raw_function_type_id, const godot::String& name,
+                                                     double default_value)
+{
+    try {
+        require_edit_mode();
+        const world::ParameterId id = definition_.add_genome_parameter(function_type_id(raw_function_type_id),
+                                                                         to_std_string(name), default_value);
+        clear_error();
+        return static_cast<std::int64_t>(id.value);
+    } catch (...) {
+        capture_current_error();
+        return 0;
+    }
+}
+
 std::int64_t CLifeWorldEditor::add_calculation(const godot::String& name)
 {
     try {
@@ -1463,6 +1478,8 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("remove_value", "key"), &CLifeWorldEditor::remove_value);
     godot::ClassDB::bind_method(godot::D_METHOD("add_template", "name"), &CLifeWorldEditor::add_template);
     godot::ClassDB::bind_method(godot::D_METHOD("add_function_type", "name"), &CLifeWorldEditor::add_function_type);
+    godot::ClassDB::bind_method(godot::D_METHOD("add_genome_parameter", "function_type_id", "name", "default_value"),
+                                &CLifeWorldEditor::add_genome_parameter);
     godot::ClassDB::bind_method(godot::D_METHOD("add_calculation", "name"), &CLifeWorldEditor::add_calculation);
     godot::ClassDB::bind_method(godot::D_METHOD("add_calculation_input", "calculation_id", "name"),
                                 &CLifeWorldEditor::add_calculation_input);

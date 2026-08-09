@@ -97,6 +97,15 @@ msgstr "Геном"
 msgid "ui.genome_parameters"
 msgstr "Параметры генома"
 
+msgid "ui.new_genome_parameter"
+msgstr "Новый независимый параметр"
+
+msgid "ui.default_value"
+msgstr "Значение по умолчанию"
+
+msgid "ui.add_genome_parameter"
+msgstr "Добавить параметр"
+
 msgid "ui.derived_parameters"
 msgstr "Вычисляемые параметры"
 
@@ -351,6 +360,9 @@ msgstr "Функция генома обновлена"
 
 msgid "status.genome_parameter_updated"
 msgstr "Параметр генома обновлён; фенотип пересобран"
+
+msgid "status.genome_parameter_added"
+msgstr "Параметр генома добавлен"
 
 msgid "status.genome_function_removed"
 msgstr "Функция генома удалена"
