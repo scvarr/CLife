@@ -39,7 +39,9 @@ public:
     [[nodiscard]] godot::Array get_host_capabilities();
 
     [[nodiscard]] std::int64_t add_value(const godot::String& name);
-    [[nodiscard]] std::int64_t add_unit(const godot::String& symbol);
+    [[nodiscard]] std::int64_t add_unit(const godot::String& symbol, const godot::String& description = godot::String{});
+    bool update_unit(std::int64_t unit_id, const godot::String& symbol, const godot::String& description);
+    bool remove_unit(std::int64_t unit_id);
     [[nodiscard]] std::int64_t add_unit_conversion(std::int64_t source_unit_id, double source_amount,
                                                     std::int64_t target_unit_id, double target_amount);
     bool set_value_unit(std::int64_t value_key, std::int64_t unit_id);

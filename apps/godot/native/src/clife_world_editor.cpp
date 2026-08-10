@@ -342,6 +342,7 @@ godot::Array CLifeWorldEditor::get_units()
             godot::Dictionary item;
             item["id"] = static_cast<std::int64_t>(unit.id.value);
             item["symbol"] = to_godot_string(unit.symbol);
+            item["description"] = to_godot_string(unit.description);
             result.push_back(item);
         }
         clear_error();
@@ -775,17 +776,27 @@ std::int64_t CLifeWorldEditor::add_value(const godot::String& name)
     }
 }
 
-std::int64_t CLifeWorldEditor::add_unit(const godot::String& symbol)
+std::int64_t CLifeWorldEditor::add_unit(const godot::String& symbol, const godot::String& description)
 {
     try {
         require_edit_mode();
-        const world::UnitId id = definition_.add_unit(to_std_string(symbol));
+        const world::UnitId id = definition_.add_unit(to_std_string(symbol), to_std_string(description));
         clear_error();
         return static_cast<std::int64_t>(id.value);
     } catch (...) {
         capture_current_error();
         return 0;
     }
+}
+
+bool CLifeWorldEditor::update_unit(std::int64_t raw_unit_id, const godot::String& symbol, const godot::String& description)
+{
+    return edit([&] { definition_.update_unit(unit_id(raw_unit_id), to_std_string(symbol), to_std_string(description)); });
+}
+
+bool CLifeWorldEditor::remove_unit(std::int64_t raw_unit_id)
+{
+    return edit([&] { definition_.remove_unit(unit_id(raw_unit_id)); });
 }
 
 std::int64_t CLifeWorldEditor::add_unit_conversion(std::int64_t raw_source_unit_id, double source_amount,
@@ -1653,6 +1664,7 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
             godot::Dictionary entry;
             entry["id"] = static_cast<std::int64_t>(unit.id.value);
             entry["symbol"] = to_godot_string(unit.symbol);
+            entry["description"] = to_godot_string(unit.description);
             units.push_back(entry);
         }
         result["units"] = units;
@@ -1891,7 +1903,7 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
         require_edit_mode();
         world::WorldDefinitionSnapshot snapshot;
         snapshot.schema_version = required_uint32(required_field(serialized, "schema_version"), "schema_version");
-        if (snapshot.schema_version != 6) {
+        if (snapshot.schema_version != 7) {
             throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version; recreate the test world"};
         }
         snapshot.next_value_key = required_uint32(required_field(serialized, "next_value_key"), "next_value_key");
@@ -1910,6 +1922,7 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                 snapshot.units.push_back({
                     .id = {required_uint32(required_field(item, "id"), "unit id")},
                     .symbol = required_string(required_field(item, "symbol"), "unit symbol"),
+                    .description = required_string(required_field(item, "description"), "unit description"),
                 });
         }
         for (const godot::Variant& value : required_array(required_field(serialized, "object_characteristics"), "object characteristics")) {
@@ -2257,7 +2270,9 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("get_template_characteristic_preview", "template_id"), &CLifeWorldEditor::get_template_characteristic_preview);
     godot::ClassDB::bind_method(godot::D_METHOD("get_host_capabilities"), &CLifeWorldEditor::get_host_capabilities);
     godot::ClassDB::bind_method(godot::D_METHOD("add_value", "name"), &CLifeWorldEditor::add_value);
-    godot::ClassDB::bind_method(godot::D_METHOD("add_unit", "symbol"), &CLifeWorldEditor::add_unit);
+    godot::ClassDB::bind_method(godot::D_METHOD("add_unit", "symbol", "description"), &CLifeWorldEditor::add_unit, DEFVAL(godot::String{}));
+    godot::ClassDB::bind_method(godot::D_METHOD("update_unit", "unit_id", "symbol", "description"), &CLifeWorldEditor::update_unit);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_unit", "unit_id"), &CLifeWorldEditor::remove_unit);
     godot::ClassDB::bind_method(godot::D_METHOD("add_unit_conversion", "source_unit_id", "source_amount",
                                                 "target_unit_id", "target_amount"),
                                 &CLifeWorldEditor::add_unit_conversion);

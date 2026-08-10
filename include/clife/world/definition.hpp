@@ -17,6 +17,7 @@ namespace clife::world {
 struct UnitDefinition final {
     UnitId id;
     std::string symbol;
+    std::string description;
 };
 
 struct UnitComponent final {
@@ -235,7 +236,7 @@ struct CalculationSnapshot final {
 };
 
 struct WorldDefinitionSnapshot final {
-    std::uint32_t schema_version{6};
+    std::uint32_t schema_version{7};
     std::vector<ValueDefinition> values;
     std::vector<UnitDefinition> units;
     std::vector<UnitConversionDefinition> unit_conversions;
@@ -259,7 +260,9 @@ struct WorldDefinitionSnapshot final {
 class WorldDefinition final {
 public:
     [[nodiscard]] ValueKey add_value(std::string name);
-    [[nodiscard]] UnitId add_unit(std::string symbol);
+    [[nodiscard]] UnitId add_unit(std::string symbol, std::string description = {});
+    void update_unit(UnitId id, std::string symbol, std::string description);
+    void remove_unit(UnitId id);
     [[nodiscard]] UnitConversionId add_unit_conversion(UnitExpression source_unit, Amount source_amount,
                                                         UnitExpression target_unit, Amount target_amount);
     void set_value_unit(ValueKey value, UnitExpression unit);

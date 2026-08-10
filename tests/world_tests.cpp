@@ -304,8 +304,8 @@ bool test_snapshot_round_trip()
     const CompiledPhenotype phenotype = compile_phenotype(restored, original.cell);
     const CompiledFunctionPhenotype& function = phenotype.function(0);
     WorldDefinitionSnapshot old = snapshot;
-    old.schema_version = 5;
-    return expect(snapshot.schema_version == 6, "current snapshot schema") &&
+    old.schema_version = 6;
+    return expect(snapshot.schema_version == 7, "current snapshot schema") &&
            expect(type.calculations.size() == 1, "calculation binding round trip") &&
            expect(type.process->outputs.size() == 2, "process round trip") &&
            expect(type.material_contributions.size() == 1, "material source round trip") &&
@@ -353,6 +353,22 @@ bool test_object_characteristic_construction()
            rejects([&] { definition.remove_object_characteristic(volume); }, "referenced characteristic removal must fail");
 }
 
+bool test_unit_lifecycle()
+{
+    WorldDefinition definition;
+    const UnitId unit = definition.add_unit("L", "light unit");
+    definition.update_unit(unit, "LU", "updated");
+    const bool updated = definition.unit(unit).symbol == "LU" && definition.unit(unit).description == "updated";
+    const WorldDefinition restored = WorldDefinition::from_snapshot(definition.snapshot());
+    const bool round_trip = restored.unit(unit).description == "updated";
+    definition.set_value_unit(definition.add_value("Light"), {{{unit, 1}}});
+    const bool referenced = rejects([&] { definition.remove_unit(unit); }, "referenced unit removal must fail");
+    WorldDefinition unused;
+    const UnitId removable = unused.add_unit("E", "energy");
+    unused.remove_unit(removable);
+    return updated && round_trip && referenced && rejects([&] { (void)unused.unit(removable); }, "unused unit removal must work");
+}
+
 } // namespace
 
 int main()
@@ -383,5 +399,6 @@ int main()
     run(test_snapshot_round_trip, "snapshot round trip");
     run(test_snapshot_invalid_source_and_next_ids, "snapshot invalid source and next IDs");
     run(test_object_characteristic_construction, "object characteristic construction");
+    run(test_unit_lifecycle, "unit lifecycle");
     return success ? 0 : 1;
 }

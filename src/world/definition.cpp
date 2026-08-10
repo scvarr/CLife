@@ -118,7 +118,7 @@ ValueKey WorldDefinition::add_value(std::string name)
     return key;
 }
 
-UnitId WorldDefinition::add_unit(std::string symbol)
+UnitId WorldDefinition::add_unit(std::string symbol, std::string description)
 {
     require_name(symbol, "unit");
     if (std::ranges::any_of(units_, [&symbol](const UnitDefinition& entry) { return entry.symbol == symbol; })) {
@@ -128,8 +128,34 @@ UnitId WorldDefinition::add_unit(std::string symbol)
         throw std::overflow_error{"UnitId space exhausted"};
     }
     const UnitId id{next_unit_id_++};
-    units_.push_back({.id = id, .symbol = std::move(symbol)});
+    units_.push_back({.id = id, .symbol = std::move(symbol), .description = std::move(description)});
     return id;
+}
+
+void WorldDefinition::update_unit(UnitId id, std::string symbol, std::string description)
+{
+    require_name(symbol, "unit");
+    if (std::ranges::any_of(units_, [id, &symbol](const auto& item) { return item.id != id && item.symbol == symbol; })) {
+        throw std::invalid_argument{"unit symbol must be unique"};
+    }
+    auto& unit_definition = const_cast<UnitDefinition&>(unit(id));
+    unit_definition.symbol = std::move(symbol);
+    unit_definition.description = std::move(description);
+}
+
+void WorldDefinition::remove_unit(UnitId id)
+{
+    (void)unit(id);
+    const auto used = [id](const UnitExpression& expression) {
+        return std::ranges::any_of(expression.components, [id](const UnitComponent& component) { return component.unit == id; });
+    };
+    if (std::ranges::any_of(values_, [&](const ValueDefinition& value) { return value.unit && used(*value.unit); }) ||
+        std::ranges::any_of(unit_conversions_, [&](const UnitConversionDefinition& conversion) {
+            return used(conversion.source_unit) || used(conversion.target_unit);
+        })) {
+        throw std::invalid_argument{"cannot remove a referenced unit"};
+    }
+    std::erase_if(units_, [id](const UnitDefinition& item) { return item.id == id; });
 }
 
 UnitConversionId WorldDefinition::add_unit_conversion(UnitExpression source_unit, Amount source_amount,
@@ -1039,7 +1065,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
 
 WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& source)
 {
-    if (source.schema_version != 6) {
+    if (source.schema_version != 7) {
         throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version"};
     }
     require_unique_snapshot_ids(source.values, &ValueDefinition::key, "ValueKey");

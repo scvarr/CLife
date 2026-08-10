@@ -21,5 +21,8 @@ func _ready() -> void:
 func _on_pending_action() -> void:
 	message.text = tr("menu.coming_next")
 
+func _on_new_world() -> void:
+	get_tree().change_scene_to_file("res://scenes/world_definition_editor.tscn")
+
 func _on_exit_pressed() -> void:
 	get_tree().quit()
