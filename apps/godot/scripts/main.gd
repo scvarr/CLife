@@ -348,11 +348,13 @@ func _build_world_panel() -> Control:
 	add_calculation_button = _button(tr("ui.add_calculation"), _on_add_calculation)
 	add_template_button = _button(tr("ui.add_template"), _on_add_template)
 	add_rule_button = _button(tr("ui.add_rule"), _on_add_rule)
+	var add_characteristic_button := _button(tr("ui.add_object_characteristic"), _on_add_object_characteristic)
 	buttons.add_child(add_value_button)
 	buttons.add_child(add_unit_button)
 	buttons.add_child(add_calculation_button)
 	buttons.add_child(add_template_button)
 	buttons.add_child(add_rule_button)
+	buttons.add_child(add_characteristic_button)
 	column.add_child(buttons)
 	return panel
 
@@ -445,6 +447,17 @@ func _rebuild_world_tree() -> void:
 		item.set_text(0, "%s%s  [#%d]" % [value.name, _value_unit_suffix(value), value.key])
 		item.set_metadata(0, {"kind": "value", "id": int(value.key)})
 	values_root.collapsed = false
+	var characteristics_root := world_tree.create_item(root)
+	characteristics_root.set_text(0, tr("ui.object_characteristics"))
+	characteristics_root.set_metadata(0, {"kind": "section"})
+	for characteristic in editor.get_object_characteristics():
+		var characteristic_item := world_tree.create_item(characteristics_root)
+		characteristic_item.set_text(0, str(characteristic.name))
+		characteristic_item.set_metadata(0, {"kind": "object_characteristic", "id": int(characteristic.id)})
+	characteristics_root.collapsed = false
+	var construction_item := world_tree.create_item(root)
+	construction_item.set_text(0, tr("ui.object_construction"))
+	construction_item.set_metadata(0, {"kind": "object_construction"})
 
 	var calculations_root := world_tree.create_item(root)
 	calculations_root.set_text(0, tr("ui.calculations"))
@@ -500,6 +513,8 @@ func _on_world_item_selected() -> void:
 	match selected_kind:
 		"value":
 			_show_value_inspector(selected_identity)
+		"object_characteristic": _show_object_characteristic_inspector(selected_identity)
+		"object_construction": _show_object_construction_inspector()
 		"unit_conversions":
 			_show_unit_conversion_creator()
 		"unit_conversion":
@@ -884,7 +899,7 @@ func _build_bindings_editor(template_id: int) -> void:
 		var actions := HBoxContainer.new()
 		actions.add_child(_button(tr("ui.update"), func() -> void:
 			_finish_edit(editor.change_host_binding(template_id, index, _selected_capability_channel(channel),
-				_selected_option_id(direction), _selected_option_id(value_option)), "status.binding_updated")
+				_selected_option_id(direction), {"kind": "value", "value_key": _selected_option_id(value_option)}), "status.binding_updated")
 		))
 		actions.add_child(_button(tr("ui.remove"), func() -> void:
 			_finish_edit(editor.remove_host_binding(template_id, index), "status.binding_removed")
@@ -903,7 +918,7 @@ func _build_bindings_editor(template_id: int) -> void:
 	inspector.add_child(_button(tr("ui.add_binding"), func() -> void:
 		_finish_edit(editor.add_host_binding(template_id, _selected_capability_channel(new_channel),
 			_selected_option_id(new_direction),
-			_selected_option_id(new_value)), "status.binding_added")
+			{"kind": "value", "value_key": _selected_option_id(new_value)}), "status.binding_added")
 	))
 
 
@@ -1069,6 +1084,39 @@ func _on_add_unit() -> void:
 	_set_status("status.unit_added", [unit_id])
 	_rebuild_world_tree()
 	_show_welcome_inspector()
+
+func _on_add_object_characteristic() -> void:
+	var id := editor.add_object_characteristic(new_name.text)
+	if id == 0:
+		_show_facade_error_if_any()
+		return
+	new_name.clear()
+	selected_kind = "object_characteristic"
+	selected_identity = id
+	_rebuild_world_tree()
+	_show_object_characteristic_inspector(id)
+
+func _show_object_characteristic_inspector(id: int) -> void:
+	var characteristic := _find_by(editor.get_object_characteristics(), "id", id)
+	if characteristic.is_empty():
+		_show_welcome_inspector()
+		return
+	_clear_children(inspector)
+	_add_heading(inspector, str(characteristic.name))
+	var name := LineEdit.new()
+	name.text = str(characteristic.name)
+	inspector.add_child(name)
+	inspector.add_child(_button(tr("ui.rename"), func() -> void:
+		_finish_edit(editor.rename_object_characteristic(id, name.text), "status.object_characteristic_updated")
+	))
+	inspector.add_child(_button(tr("ui.delete"), func() -> void:
+		_finish_deletion(editor.remove_object_characteristic(id), "status.object_characteristic_removed")
+	))
+
+func _show_object_construction_inspector() -> void:
+	_clear_children(inspector)
+	_add_heading(inspector, tr("ui.object_construction"))
+	_add_wrapped_label(inspector, tr("help.object_construction"))
 
 
 func _on_add_calculation() -> void:

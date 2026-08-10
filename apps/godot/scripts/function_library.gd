@@ -272,6 +272,32 @@ func _build_construction(parent: VBoxContainer, function_type: Dictionary) -> vo
 	)
 	bind.disabled = calculation_option.item_count == 0
 	parent.add_child(bind)
+	_separator(parent)
+	_add_heading(parent, tr("ui.function_characteristic_contributions"))
+	for contribution in function_type.get("characteristic_contributions", []):
+		var characteristic_id := int(contribution.characteristic_id)
+		var card := _card(_characteristic_name(characteristic_id))
+		var box := card.get_child(0) as VBoxContainer
+		var source := _source_option(function_type, contribution.amount_source)
+		box.add_child(_labeled(tr("ui.amount_source"), source))
+		box.add_child(_button(tr("ui.update"), func() -> void:
+			_finish(editor.set_function_characteristic_contribution(selected_function_id, characteristic_id, _selected_source(source)), "status.function_characteristic_updated")
+		))
+		card.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT and (event as InputEventMouseButton).pressed:
+				_show_context_menu("characteristic", selected_function_id, characteristic_id, card.get_global_position() + (event as InputEventMouseButton).position, tr("ui.remove"), false)
+		)
+		parent.add_child(card)
+	var characteristic_card := _card(tr("ui.new_contribution"))
+	var characteristic_box := characteristic_card.get_child(0) as VBoxContainer
+	var characteristic := _characteristic_option()
+	var characteristic_source := _source_option(function_type)
+	characteristic_box.add_child(_labeled(tr("ui.object_characteristic"), characteristic))
+	characteristic_box.add_child(_labeled(tr("ui.amount_source"), characteristic_source))
+	characteristic_box.add_child(_button(tr("ui.set_or_add"), func() -> void:
+		_finish(editor.set_function_characteristic_contribution(selected_function_id, _selected_id(characteristic), _selected_source(characteristic_source)), "status.function_characteristic_updated")
+	))
+	parent.add_child(characteristic_card)
 
 
 func _build_process(parent: VBoxContainer, function_type: Dictionary) -> void:
@@ -445,6 +471,7 @@ func _on_context_menu_pressed(id: int) -> void:
 		"process": _finish(editor.remove_function_process(context_function_id), "status.process_removed")
 		"process_output": _finish(editor.remove_function_process_output(context_function_id, context_value_key), "status.process_output_removed")
 		"material": _finish(editor.remove_function_material_contribution(context_function_id, context_value_key), "status.function_material_contribution_removed")
+		"characteristic": _finish(editor.remove_function_characteristic_contribution(context_function_id, context_value_key), "status.function_characteristic_removed")
 		"buffer": _finish(editor.remove_buffer_process(context_function_id), "status.buffer_process_removed")
 
 
@@ -568,6 +595,17 @@ func _value_option(selected: int = 0) -> OptionButton:
 		if int(value.key) == selected:
 			option.select(option.item_count - 1)
 	return option
+
+func _characteristic_option(selected: int = 0) -> OptionButton:
+	var option := OptionButton.new()
+	for characteristic in editor.get_object_characteristics():
+		option.add_item(str(characteristic.name))
+		option.set_item_metadata(option.item_count - 1, int(characteristic.id))
+		if int(characteristic.id) == selected: option.select(option.item_count - 1)
+	return option
+
+func _characteristic_name(id: int) -> String:
+	return str(_find(editor.get_object_characteristics(), "id", id).get("name", tr("ui.unknown")))
 
 
 func _conversion_option(selected: int = 0) -> OptionButton:

@@ -180,6 +180,20 @@ godot::String direction_name(world::HostChannelDirection direction)
     return direction == world::HostChannelDirection::input ? godot::String{"Input"} : godot::String{"Output"};
 }
 
+world::HostBinding host_binding(const godot::String& channel, std::int64_t direction, const godot::Dictionary& source)
+{
+    const std::string kind = required_string(required_field(source, "kind"), "host binding source kind");
+    world::HostBinding result{.channel = to_std_string(channel), .direction = host_direction(direction)};
+    if (kind == "value") {
+        result.source_kind = world::HostBinding::SourceKind::value;
+        result.value = value_key(required_uint32(required_field(source, "value_key"), "host binding value key"));
+    } else if (kind == "characteristic") {
+        result.source_kind = world::HostBinding::SourceKind::object_characteristic;
+        result.characteristic = object_characteristic_id(required_uint32(required_field(source, "characteristic_id"), "host binding characteristic id"));
+    } else { throw std::invalid_argument{"host binding source kind must be value or characteristic"}; }
+    return result;
+}
+
 godot::Variant required_field(const godot::Dictionary& object, const char* name)
 {
     if (!object.has(name)) {
@@ -698,6 +712,8 @@ godot::Array CLifeWorldEditor::get_bindings(std::int64_t raw_template_id)
             item["direction_id"] =
                 binding.direction == world::HostChannelDirection::input ? kInputDirection : kOutputDirection;
             item["value_key"] = static_cast<std::int64_t>(binding.value.value);
+            item["characteristic_id"] = static_cast<std::int64_t>(binding.characteristic.value);
+            item["source_kind"] = binding.source_kind == world::HostBinding::SourceKind::value ? "value" : "characteristic";
             result.push_back(item);
         }
         clear_error();
@@ -705,6 +721,23 @@ godot::Array CLifeWorldEditor::get_bindings(std::int64_t raw_template_id)
         capture_current_error();
         result.clear();
     }
+    return result;
+}
+
+godot::Dictionary CLifeWorldEditor::get_template_characteristic_preview(std::int64_t raw_template_id)
+{
+    godot::Dictionary result;
+    try {
+        const auto phenotype = world::compile_phenotype(definition_, template_id(raw_template_id));
+        godot::Array sums; godot::Array characteristics;
+        for (const auto& item : definition_.object_characteristics()) {
+            godot::Dictionary sum; sum["characteristic_id"] = static_cast<std::int64_t>(item.id.value);
+            sum["amount"] = phenotype.function_contribution_sum(item.id); sums.push_back(sum);
+            godot::Dictionary final; final["characteristic_id"] = static_cast<std::int64_t>(item.id.value);
+            final["amount"] = phenotype.characteristic(item.id); characteristics.push_back(final);
+        }
+        result["function_sums"] = sums; result["characteristics"] = characteristics; clear_error();
+    } catch (...) { capture_current_error(); }
     return result;
 }
 
@@ -1190,31 +1223,22 @@ bool CLifeWorldEditor::remove_world_rule(std::int64_t index)
 }
 
 bool CLifeWorldEditor::add_host_binding(std::int64_t raw_template_id, const godot::String& channel,
-                                        std::int64_t direction, std::int64_t raw_value_key)
+                                        std::int64_t direction, const godot::Dictionary& source)
 {
     return edit([&] {
         const world::TemplateId id = template_id(raw_template_id);
-        (void)definition_.add_host_binding(id, {
-                                                   .channel = to_std_string(channel),
-                                                   .direction = host_direction(direction),
-                                                   .value = value_key(raw_value_key),
-                                               });
+        (void)definition_.add_host_binding(id, host_binding(channel, direction, source));
         ensure_host_inputs(definition_, id);
     });
 }
 
 bool CLifeWorldEditor::change_host_binding(std::int64_t raw_template_id, std::int64_t index,
                                            const godot::String& channel, std::int64_t direction,
-                                           std::int64_t raw_value_key)
+                                           const godot::Dictionary& source)
 {
     return edit([&] {
         const world::TemplateId id = template_id(raw_template_id);
-        definition_.change_host_binding(id, item_index(index),
-                                        {
-                                            .channel = to_std_string(channel),
-                                            .direction = host_direction(direction),
-                                            .value = value_key(raw_value_key),
-                                        });
+        definition_.change_host_binding(id, item_index(index), host_binding(channel, direction, source));
         ensure_host_inputs(definition_, id);
     });
 }
@@ -1809,6 +1833,8 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
                 stored["channel"] = to_godot_string(binding.channel);
                 stored["direction"] = snapshot_direction_name(binding.direction);
                 stored["value_key"] = static_cast<std::int64_t>(binding.value.value);
+                stored["source_kind"] = binding.source_kind == world::HostBinding::SourceKind::value ? "value" : "characteristic";
+                stored["characteristic_id"] = static_cast<std::int64_t>(binding.characteristic.value);
                 bindings.push_back(stored);
             }
             entry["initial_values"] = initials;
@@ -2087,11 +2113,13 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
             }
             for (const godot::Variant& binding_value : required_array(required_field(item, "host_bindings"), "host bindings")) {
                 const godot::Dictionary binding = required_dictionary(binding_value, "host binding");
-                object.host_bindings.push_back({
-                    .channel = required_string(required_field(binding, "channel"), "host binding channel"),
-                    .direction = snapshot_direction(required_field(binding, "direction")),
-                    .value = {required_uint32(required_field(binding, "value_key"), "host binding value key")},
-                });
+                const std::string source_kind = required_string(required_field(binding, "source_kind"), "host binding source kind");
+                world::HostBinding stored{.channel = required_string(required_field(binding, "channel"), "host binding channel"),
+                    .direction = snapshot_direction(required_field(binding, "direction"))};
+                if (source_kind == "value") stored.value = {required_uint32(required_field(binding, "value_key"), "host binding value key")};
+                else if (source_kind == "characteristic") { stored.source_kind = world::HostBinding::SourceKind::object_characteristic; stored.characteristic = {required_uint32(required_field(binding, "characteristic_id"), "host binding characteristic id")}; }
+                else throw std::invalid_argument{"host binding source kind is invalid"};
+                object.host_bindings.push_back(std::move(stored));
             }
             snapshot.templates.push_back(std::move(object));
         }
@@ -2226,6 +2254,7 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("get_genome", "template_id"), &CLifeWorldEditor::get_genome);
     godot::ClassDB::bind_method(godot::D_METHOD("get_world_rules"), &CLifeWorldEditor::get_world_rules);
     godot::ClassDB::bind_method(godot::D_METHOD("get_bindings", "template_id"), &CLifeWorldEditor::get_bindings);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_template_characteristic_preview", "template_id"), &CLifeWorldEditor::get_template_characteristic_preview);
     godot::ClassDB::bind_method(godot::D_METHOD("get_host_capabilities"), &CLifeWorldEditor::get_host_capabilities);
     godot::ClassDB::bind_method(godot::D_METHOD("add_value", "name"), &CLifeWorldEditor::add_value);
     godot::ClassDB::bind_method(godot::D_METHOD("add_unit", "symbol"), &CLifeWorldEditor::add_unit);

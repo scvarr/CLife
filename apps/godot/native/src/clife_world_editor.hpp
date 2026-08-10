@@ -35,6 +35,7 @@ public:
     [[nodiscard]] godot::Array get_genome(std::int64_t template_id);
     [[nodiscard]] godot::Array get_world_rules();
     [[nodiscard]] godot::Array get_bindings(std::int64_t template_id);
+    [[nodiscard]] godot::Dictionary get_template_characteristic_preview(std::int64_t template_id);
     [[nodiscard]] godot::Array get_host_capabilities();
 
     [[nodiscard]] std::int64_t add_value(const godot::String& name);
@@ -103,9 +104,9 @@ public:
                            double target_per_source);
     bool remove_world_rule(std::int64_t index);
     bool add_host_binding(std::int64_t template_id, const godot::String& channel, std::int64_t direction,
-                          std::int64_t value_key);
+                          const godot::Dictionary& source);
     bool change_host_binding(std::int64_t template_id, std::int64_t index, const godot::String& channel,
-                             std::int64_t direction, std::int64_t value_key);
+                             std::int64_t direction, const godot::Dictionary& source);
     bool remove_host_binding(std::int64_t template_id, std::int64_t index);
     bool set_object_construction(std::int64_t calculation_id, const godot::Array& inputs, const godot::Array& outputs);
     bool remove_object_construction();
