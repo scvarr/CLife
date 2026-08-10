@@ -199,7 +199,7 @@ func _build_editor_ui() -> void:
 	page.add_theme_constant_override("separation", 8)
 	margin.add_child(page)
 	page.add_child(_build_header())
-	workspace_host = Control.new()
+	workspace_host = VBoxContainer.new()
 	workspace_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	workspace_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	page.add_child(workspace_host)
