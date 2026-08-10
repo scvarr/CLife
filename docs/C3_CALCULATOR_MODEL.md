@@ -149,7 +149,7 @@ END Heat = +0.1 Temperature
 Temperature delta = END Heat * 0.1
 ```
 
-Если правило мира учитывает материал клетки, формула может зависеть и от его числовых значений. Это всё равно world rule: клетка не обязана иметь геномную функцию «нагреться».
+**Future/example only:** если будущий world-rule механизм будет учитывать material phenotype объекта, его формула может зависеть от числовых значений материала. Текущий `WorldRuleDefinition` этим документом не объявляется произвольной material-dependent формулой. Принципиально это всё равно был бы world law, а не обязательная геномная функция «нагреться».
 
 ## 7. World rules — неизбежные последствия
 
@@ -165,7 +165,7 @@ World rules
 
 World rules задаются определением мира и применяются независимо от конкретного genome там, где это предусмотрено миром.
 
-Примеры первого клеточного мира могут включать:
+Следующие примеры первого клеточного мира — **future/example only**, не описание текущего API:
 
 ```text
 unused Energy -> Temperature change
@@ -269,3 +269,9 @@ Temperature change
 ## Current synchronization
 
 `Function` has one input and one throughput demand, but may have multiple outputs. Input is consumed once; after proportional arbitration each output receives `taken * result_per_input`. Every output participates in pipeline dependencies. Calculator receives ready numeric parameters; expressions, phenotype Calculations and UnitConversions belong to `clife_world`.
+
+## Current host-input and geometry boundary
+
+Two input paths now intentionally coexist. Declared legacy host input uses `set_input(...)` and requires a matching input `ObjectTemplate::HostBinding`. Direct environmental input uses `set_external_input(ObjectId, ValueKey, Amount)`; it validates object, ValueKey and finite amount, stages input for the next step and does not require HostBinding. A Godot mapping such as `world.light -> Свет` is host-side data and becomes a direct input for a specific runtime object. `clife_core` does not assign a special meaning to light.
+
+Calculator still owns the numeric tick semantics above. It does not define a canonical biological shape and must not interpret render meshes. A host may render geometry from numbers, but historical examples where an arbitrary runtime value such as `Proportion` changes a mesh are host/example interpretations, not the current target canonical geometry model. The engine-neutral ShapePhenotype target is specified separately in `C8_SHAPE_PHENOTYPE.md`; no shape algorithm is selected there.

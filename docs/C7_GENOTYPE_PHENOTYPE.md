@@ -1,56 +1,88 @@
-# C7 — genotype, phenotype и construction
+# C7 — Genome, phenotype и construction
 
-Статус: **CURRENT / NORMATIVE**. Этот документ различает реализованный semantic слой master и принятую target-модель физического genome.
+Статус: **CURRENT / NORMATIVE**. Этот документ различает реализованный semantic слой master, принятую target-модель physical genome и открытые детали.
 
-## Реализовано сейчас
+## Реализовано сейчас: semantic genome
 
-`GenomeFunctionInstance`, `FunctionTypeId` и независимые `ParameterId -> Amount` образуют **semantic genotype** текущего master. Это рабочий implementation scaffold, не физическая byte/string последовательность.
-
-`compile_phenotype(template)` детерминированно применяет world-defined `CalculationDefinition`, `FunctionValueSource`, process и contributions. Результат — статический adult phenotype; runtime calculator хранит отдельное состояние, меняющееся на tick. Обычный tick не перестраивает adult phenotype.
-
-`CalculationDefinition` — единственное место пользовательской математики. Она принадлежит миру: FunctionType может привязать независимые genome parameters к её inputs, а outputs использовать как throughput, allocation, параметры buffer, material contribution или function characteristic contribution. `FunctionProcessDefinition` выбирает `UnitConversionId`; compilation превращает его target/source ratio и allocations в числовой `result_per_input` для calculator.
-
-Function Calculation output (например пользовательский `Размер`, `КПД` или `Утечка`) — характеристика одной функции, а не `ObjectCharacteristic` объекта.
-
-## Construction phenotype
-
-Template задаёт base characteristics. Каждый экземпляр FunctionType может дать статический contribution; вклады одинаковой характеристики суммируются только как промежуточная агрегация.
-
-`ObjectConstructionDefinition` связывает обычную `CalculationDefinition` с base characteristics и function contribution sums и публикует её outputs как final `ObjectCharacteristic`. Поэтому итоговая характеристика не является hardcoded SUM:
+`ObjectTemplate` хранит упорядоченные `GenomeFunctionInstance`. Каждый instance содержит `FunctionTypeId` и упорядоченные semantic parameter values. Godot показывает это как semantic preview, например:
 
 ```text
-base Volume = 5
-function contribution = 2
-Calculation: Volume = Base + Functions
-final Volume = 7
+02 | 5.0
+02 | 2.0
 ```
 
-Мир может включить packaging cost или иной закон, не меняя архитектуру. Host output может экспортировать runtime `Value` либо static `ObjectCharacteristic`; например `ObjectCharacteristic.Объём -> geometry.volume`.
+Порядок entries сохраняется. Identifier в таком preview — текущий `FunctionTypeId`, показанный в hexadecimal для удобства; это не зафиксированный physical opcode и не physical HEX genome.
 
-## Принятая target-модель genome
+`compile_phenotype(template)` детерминированно применяет world-defined Calculations, FunctionValueSources, processes и contributions. Результат — статический adult phenotype; runtime calculator хранит отдельное состояние, которое меняется по tick. Обычный tick не перестраивает adult phenotype.
 
-Физический genome — каноническая свёрнутая hex/byte последовательность, например `A3 02 17 00 04 ...`. Это сам genome, а не JSON/debug serialization. Человеческие имена (`Свет`, `Энергия`, `Накопитель`, `ЭнергоСинтез`) в нём не хранятся: decoder/compiler интерпретирует encoded значения, opcodes, identifiers и параметры относительно `WorldDefinition`, а UI показывает декодированное semantic представление.
+`CalculationDefinition` — world-authored математика. FunctionType может связать genome parameters с её inputs, а outputs использовать как throughput, allocation, buffer parameter, material contribution или function characteristic contribution. `FunctionProcessDefinition` выбирает `UnitConversionId`; compilation передаёт calculator уже числовые `result_per_input` и allocations.
 
-Целевой genome состоит из небольших мутируемых primitives. В будущем mutation сможет вставлять, удалять, дублировать primitive или менять его encoded parameter; сложная способность возникает из композиции primitives. Текущий крупный `FunctionType` — полезный scaffold, но не гарантированный окончательный атом мутации.
+Function Calculation output (например, пользовательский `КПД` или `Утечка`) — результат конкретной функции, а не ObjectCharacteristic всего объекта.
 
-Точный binary/hex format, opcode table, размеры записей, набор primitives, encoder, decoder и mutation engine **не реализованы и не проектируются этим документом**.
+## Function definition не является genome entry
 
-## World laws и параметры
+World-defined FunctionType может содержать runtime input, throughput source, conversion, Calculation binding, output allocations и material contribution. В целевом physical genome entry концептуально остаются только identity function/primitive и mutable inherited parameter values. Имена World Quantities, formula expression, conversions, bindings, allocations, material bindings и host bindings в genome не дублируются.
 
-Genome содержит мутируемые encoded primitives и наследуемые параметры. World laws неизменяемы для данного мира и интерпретируют эти параметры; phenotype — результат такого применения. Например `throughput = 5` может мутировать, а `КПД = f(throughput)` и `Утечка = 1 - КПД` являются законами мира, выраженными через `CalculationDefinition`, а не содержимым genome.
+## Runtime projection — реализовано сейчас
 
-Для первого мира допустим world law: основной функциональный параметр модуля одновременно задаёт его requirement structural organic — `throughput = 5 -> requirement = 5`, `capacity = 12 -> requirement = 12`. Изменение параметра тогда меняет способность, construction requirement и потенциально итоговый объём. Это не universal law `clife_core`.
+Следующая вертикальная цепочка уже работает:
 
-`GenomeLength` — физическая длина канонического encoded genome. Она не равна physical structural requirement decoded механизмов. Будущий world law может использовать GenomeLength для maintenance, construction overhead или mutation mechanics; коэффициенты и формулы пока открыты.
+```text
+Godot environmental value
+  ↓
+World Quantity / ValueKey
+  ↓
+RuntimeObject
+  ↓
+semantic genome
+  ↓
+FunctionTypeDefinition / FunctionProcess
+  ↓
+runtime outputs
+```
 
-## Объекты и adult/embryo
+Godot-side mapping `world.light -> Свет` хранится отдельно от WorldDefinition. Для конкретного object он подаётся через direct `RuntimeWorld::set_external_input(ObjectId, ValueKey, Amount)`, а не через ObjectTemplate HostBinding. Это не придаёт core специальную семантику света.
 
-Архитектурный язык универсален: `Object`, `ObjectTemplate`, `Genome`, `Phenotype`. «Клетка» — объект первого world preset, а не обязательный universal core type.
+## Material and construction projection — реализовано сейчас
 
-Для первого мира целевая цепочка может быть `decoded genome -> functional parameters -> total StructuralOrganic requirement -> world Calculation -> ObjectCharacteristic Volume`; например `Volume = total StructuralOrganic` при unit «куб». Это пример world law, не hardcoded физика. В дальнейшем объём может участвовать в замедлении процессов, но его формула не определена.
+`MaterialContributionDefinition` явно связывает пользовательский material `ValueKey` и `FunctionValueSource`, например:
 
-Adult object не растёт на обычном runtime tick. Будущий embryo/bud получает требуемые миром материалы от parent; после выполнения requirements genome компилируется и embryo становится adult object. Embryo subsystem пока не реализован.
+```text
+СтруктурнаяОрганика <- genome.Канал
+```
+
+Поэтому entry `02 | 5.0` может дать compiled material `СтруктурнаяОрганика = 5.0`; две entries `02 | 5.0` и `02 | 2.0` дают aggregate `СтруктурнаяОрганика = 7.0`. `StructuralOrganic` не hardcoded и не лежит в genome: это user-defined World Quantity. Связь material = parameter также не универсальна — её выбирает author функции.
+
+`ObjectConstructionDefinition` запускает обычную Calculation над base characteristics, function-contribution sums и aggregate materials. Источник `ObjectConstructionSourceKind::material_amount` передаёт `CompiledPhenotype::material_amount(ValueKey)` во вход Calculation. Например, world law может получить material `СтруктурнаяОрганика`, вычислить `ОбъёмИзОрганики` и опубликовать final `ObjectCharacteristic Объём = 7`. Ни StructuralOrganic, ни Volume, ни эта формула не являются hardcoded.
+
+Function characteristic contributions продолжают быть отдельным путём: их SUM — лишь промежуточная агрегация; final characteristic определяется ObjectConstruction Calculation, а не встроенным SUM.
+
+## Принятая target-модель physical genome
+
+Physical genome — каноническая encoded byte/hex sequence, а не JSON/debug serialization. Human-readable names в нём не лежат. Decoder/compiler интерпретирует encoded identity и parameters относительно WorldDefinition.
+
+Целевое направление — маленькие мутируемые primitives и их композиция. Текущий крупный FunctionType — implementation scaffold, не гарантированный окончательный атом мутации. Canonical physical genome уже принят как target, но точные byte layout, opcode width, record width, float representation, endian, primitive alphabet, encoder, decoder и mutation engine остаются **OPEN / NOT YET DESIGNED**.
+
+`GenomeLength` означает физическую длину будущей canonical encoded sequence; оно не равно material requirement decoded mechanisms. Возможные laws для maintenance или construction overhead пока не определены.
+
+## Несколько phenotype-проекций
+
+Один physical genome является входом нескольких независимых детерминированных проекций:
+
+```text
+                 Physical Genome
+                  /      |      \
+                 ↓       ↓       ↓
+          Functional  Construction  Shape
+          projection  projection   projection
+```
+
+Они читают один byte stream и могут интерпретировать его по-разному. Поэтому одна mutation потенциально имеет функциональное, конструктивное и морфологическое следствие; порядок physical records также *может* влиять на будущую Shape projection. Это accepted architectural possibility, а не выбранный Shape algorithm. Нормативная граница shape находится в [C8](C8_SHAPE_PHENOTYPE.md).
+
+## Objects and adult/embryo
+
+Universal vocabulary: `Object`, `ObjectTemplate`, `Genome`, `Phenotype`. «Клетка» — пример первого world preset. Adult object не растёт на обычном tick. Будущий embryo/bud получает определённые миром материалы от parent, после выполнения requirements компилирует genome и дискретно становится adult object. Embryo subsystem пока не реализован.
 
 ## Persistence
 
-Сохраняется authoring `WorldDefinitionSnapshot`; expressions сохраняются как source и компилируются заново. Backward compatibility snapshot schema пока не гарантируется. RuntimeWorld и физический biological genome не сохраняются.
+`WorldDefinitionSnapshot` сохраняет authoring semantic genome и definitions; expressions хранятся source-текстом и компилируются заново. RuntimeWorld и physical biological genome пока не сохраняются. Backward compatibility snapshot schema не гарантируется до отдельного этапа стабилизации.

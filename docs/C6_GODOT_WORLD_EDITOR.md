@@ -1,17 +1,45 @@
 # C6 — Godot world editor
 
-Application startup is `scenes/main_menu.tscn`: it offers New World, Load World and Exit without creating or opening a world. `scenes/main.tscn` remains the legacy/development world-editor scene during the gradual UX transition and can still be opened manually in Godot.
-
-New World now opens the separate `world_definition_editor.tscn` with a new empty definition. Its current user-facing navigation contains **Units**, **Conversions** and **Formulas**. Units are authored inline; Conversions intentionally show an empty workflow placeholder until a world has a meaningful conversion to define. Formulas are a two-pane library/editor for existing `CalculationDefinition`: named formulas, inputs, ordered outputs, expression edits and dependency-safe deletion. The legacy editor remains the development stand.
-
 Статус: **CURRENT / NORMATIVE**.
 
-Editor starts with an empty `WorldDefinition`; `first_world` remains an example/test preset. The world workspace contains Values, Units, Unit Conversions, Calculations, Templates, Function Types shortcuts, World Rules, Object Characteristics and Object Construction.
+Приложение стартует с `scenes/main_menu.tscn`. Главное меню предлагает **Новый мир**, **Загрузить мир** и **Выход**; до выбора пользователь не создаёт и не открывает мир. Новый мир открывает пустой `scenes/world_definition_editor.tscn`.
 
-Function Types open the separate Function Library workspace. It keeps selection, has Construction, Process and Materials tabs, and edits genome parameters, Calculation bindings/sources, processes, material contributions and function characteristic contributions. Context deletion is used where lifecycle API exists.
+Новый user-facing editor имеет sidebar с разделами:
 
-Calculation remains an inspector editor in the world workspace: inputs, ordered outputs, expression editing, test evaluation and dependency-safe deletion.
+```text
+Единицы
+Величины мира
+Преобразования
+Формулы
+Функции
+Характеристики объектов
+Конструкция
+Объекты
+Внешние входы
 
-Template authoring remains visible even if phenotype compilation fails. Templates hold raw genome, base characteristics and host bindings; a best-effort phenotype preview exposes function sums and final characteristics. Host input selectors offer runtime Values only. Output selectors can use a runtime Value or ObjectCharacteristic, including `geometry.volume`.
+Сохранить
+```
 
-The editor persists one host JSON snapshot. It is a working file, not a project browser; runtime state, camera, UI selection and staged inputs are not saved.
+## Реализованные authoring sections
+
+- **Единицы** — user-authored UnitDefinition с обозначением и комментарием.
+- **Величины мира** — текущие backend `ValueDefinition`; это не genome parameters.
+- **Преобразования** — `UnitConversionDefinition` между единицами.
+- **Формулы** — `CalculationDefinition`: inputs, ordered outputs и expressions. Поздний output может ссылаться на предыдущий.
+- **Функции** — текущий semantic scaffold `FunctionTypeDefinition`: genome parameters, Calculation binding, process, multiple outputs и material construction contributions. Preview вида `02 | 1.0` — семантическая запись, не physical hex genome.
+- **Характеристики объектов** — `ObjectCharacteristicDefinition`.
+- **Конструкция** — singleton `ObjectConstructionDefinition`; её inputs могут использовать base/function contributions и `material_amount`.
+- **Объекты** — `ObjectTemplate` с ordered `GenomeFunctionInstance`, semantic genome preview, one-step runtime proof и read-only material/characteristic preview.
+- **Внешние входы** — Godot host configuration: host channel → World Quantity (`ValueKey`) + test value. Она не записывается в ObjectTemplate HostBinding.
+
+One-step proof временно запускает выбранный template, подаёт внешние inputs для preview object через facade/direct runtime input, выполняет один tick, читает runtime values и останавливает runtime. Он не создаёт постоянный runtime object или simulation screen.
+
+## Persistence and lifecycle
+
+**Сохранить** записывает committed `WorldDefinitionSnapshot` в `user://current_world.clife.json` и Godot-specific external-input config в `user://current_world.godot.json`. **Загрузить мир** загружает единственный current world и, если существует, его host config. **Новый мир** всегда получает пустую definition и пустое host-config state; он не загружает сохранённый мир автоматически.
+
+Пока нет multi-world browser, Save As, autosave и dirty tracking.
+
+## Legacy development stand
+
+`scenes/main.tscn`, `scripts/main.gd` и его Function Library остаются legacy/development stand и всё ещё могут быть открыты вручную в Godot. Они не являются основным current UX.

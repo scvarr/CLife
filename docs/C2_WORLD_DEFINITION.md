@@ -1,8 +1,6 @@
 # C2 — определение мира как данных
 
-> **Статус: исторический / заменён последующей архитектурой.** Этот документ описывает ранний этап проектирования с `Field / Resource / State / Matter` и `Measure / Property`; это не текущий API. Актуальная модель опирается на `ValueDefinition`, `CalculationDefinition`, `FunctionTypeDefinition`, `ObjectTemplate`, `WorldRuleDefinition`, `HostBinding` и `WorldDefinitionSnapshot`; см. `C1_ARCHITECTURE.md`, `C4_HOST_WORLD_EDITOR_MODEL.md`, `C6_GODOT_WORLD_EDITOR.md` и `C7_GENOTYPE_PHENOTYPE.md`.
-
-Статус: **принято / начало реализации**
+> **HISTORICAL / SUPERSEDED — not current API or specification.** Этот документ описывает ранний этап проектирования с `Field / Resource / State / Matter` и `Measure / Property`; это не текущий API. Актуальная модель описана в `C1_ARCHITECTURE.md`, `C4_HOST_WORLD_EDITOR_MODEL.md`, `C6_GODOT_WORLD_EDITOR.md`, `C7_GENOTYPE_PHENOTYPE.md` и `C8_SHAPE_PHENOTYPE.md`.
 
 Этот документ фиксирует промежуточный этап проектирования, на котором мир уже был вынесен в данные, но core всё ещё делил числа на роли `Field / Resource / State / Matter` и вводил `Measure / Property`.
 

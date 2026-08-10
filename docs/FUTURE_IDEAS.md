@@ -1,45 +1,35 @@
 # CLife — журнал будущих идей
 
-Этот файл **не является roadmap или спецификацией**. Записи не требуют реализации; идея переносится в normative documentation только после конкретной задачи и принятого решения.
+Этот файл **NON-NORMATIVE**: он не является roadmap или спецификацией. Идея попадает в normative documentation только после отдельного принятого решения.
 
-## Physical genome encoding
+## Physical genome implementation
 
-Статус: идея.
+Canonical physical byte/hex genome уже принят как target-модель; semantic genotype master — лишь scaffold. Открыты и не выбраны формат записей, opcode table, widths, encoding чисел, decoding errors, encoder/decoder и mutation implementation. `WorldDefinition` JSON snapshot не является biological genome.
 
-Semantic genotype уже существует. Future string/byte encoding должен отдельно определить формат, decoding errors, determinism и mutation relation. `WorldDefinition` JSON save file не является biological genome encoding.
+## Mutations and primitive composition
 
-## Mutations and function composition
+Направление к малым мутируемым primitives и их композиции принято. Точный alphabet primitives, операторы, вероятности и последствия mutations остаются открытыми. Не принято, что текущий FunctionType обязательно станет macro или что genome обязательно станет graph.
 
-Статус: открытый вопрос.
+## World instances
 
-Mutation может потребовать числовые и структурные операции, а сложные functions — композицию конечного alphabet primitives. Не принято, что FunctionType станет macro или что genome станет graph.
+Template — library definition, а не размещённый world object. Placement, transforms, multi-object world и spatial simulation пока не спроектированы.
 
-## Cell library and world instances
+## Units and dimensions
 
-Статус: отложено.
+World-authored Units, UnitExpressions и UnitConversions реализованы; FunctionProcess уже использует UnitConversion при phenotype compilation. Compound-unit authoring, conversion paths и полная dimensional checking system остаются будущей работой.
 
-Template — library definition, а не размещённый world object. Placement, transforms и multi-cell world ещё не спроектированы.
+## Material physics and construction properties
 
-## Units, dimensions and world scales
+Function material contributions, aggregate materials и `material_amount` source для ObjectConstruction уже реализованы. Future остаются material properties и physics: density, mass, membrane, thickness, strength, permeability, surface/volume relations и их world-authored formulas.
 
-Статус: частично реализовано; дальнейшее направление открыто.
+## Shape phenotype
 
-World-authored Units, UnitExpressions и UnitConversions существуют. FunctionProcess уже использует UnitConversion при phenotype compilation. Compound-unit authoring, conversion paths, material properties и dimension checking expressions пока не реализованы.
+Архитектурная граница ShapePhenotype принята, алгоритм остаётся открытым; см. [C8](C8_SHAPE_PHENOTYPE.md). Конкретные SDF, basis или tessellation formats не выбраны.
 
-## Structural materials and construction properties
+## Editor workspaces
 
-Статус: открытый вопрос.
-
-Structural organic, membrane и material properties могут стать inputs `ObjectConstruction` Calculations для объёма, массы, толщины, прочности, проницаемости и surface/volume relations. Конкретные свойства и формулы не приняты.
-
-## Editor libraries
-
-Статус: частично реализовано.
-
-Function Library уже отдельный workspace. Calculation Library, Template Library и World Library остаются future workspaces по мере необходимости; основной экран остаётся simulation/world screen.
+Новый `world_definition_editor` уже author-ит Units, World Quantities, Conversions, Formulas, Functions, Object Characteristics, Construction, Objects и External Inputs. Старый Function Library — legacy/development stand, не основной UX. Отдельные более широкие libraries и будущий simulation/world screen вводятся только при реальной необходимости.
 
 ## Structural operations
 
-Статус: отложено.
-
-CreateNode, division, topology changes и structural mutations at tick boundary требуют отдельной задачи и модели последствий.
+Division, topology changes и structural mutations at tick boundary требуют отдельной модели последствий и будущей задачи.
