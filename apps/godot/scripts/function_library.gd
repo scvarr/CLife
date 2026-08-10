@@ -5,6 +5,7 @@ signal world_changed
 signal status_requested(message_key: String, arguments: Array)
 signal error_requested(message: String)
 signal function_selected(function_type_id: int)
+signal tab_selected(function_type_id: int, tab: int)
 
 var editor: CLifeWorldEditor
 var selected_function_id := -1
@@ -14,11 +15,16 @@ var context_menu: PopupMenu
 var context_kind := ""
 var context_function_id := -1
 var context_value_key := -1
+var active_tab_by_function: Dictionary = {}
+var buffer_editor_open_by_function: Dictionary = {}
+var last_selected_list_index := 0
 
 
-func configure(world_editor: CLifeWorldEditor, function_type_id: int = -1) -> void:
+func configure(world_editor: CLifeWorldEditor, function_type_id: int = -1, active_tab: int = 0) -> void:
 	editor = world_editor
-	selected_function_id = function_type_id
+	if function_type_id > 0:
+		selected_function_id = function_type_id
+		active_tab_by_function[selected_function_id] = active_tab
 	_rebuild()
 
 
@@ -58,6 +64,7 @@ func _rebuild() -> void:
 	context_menu.id_pressed.connect(_on_context_menu_pressed)
 	add_child(context_menu)
 	_refresh_list()
+	_show_selected_function()
 
 
 func _build_list_panel() -> Control:
@@ -73,7 +80,10 @@ func _build_list_panel() -> Control:
 	function_list = ItemList.new()
 	function_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	function_list.item_selected.connect(func(index: int) -> void:
+		last_selected_list_index = index
 		selected_function_id = int(function_list.get_item_metadata(index))
+		if not active_tab_by_function.has(selected_function_id):
+			active_tab_by_function[selected_function_id] = 0
 		function_selected.emit(selected_function_id)
 		_show_selected_function()
 	)
@@ -81,6 +91,9 @@ func _build_list_panel() -> Control:
 		if mouse_button != MOUSE_BUTTON_RIGHT:
 			return
 		selected_function_id = int(function_list.get_item_metadata(index))
+		last_selected_list_index = index
+		if not active_tab_by_function.has(selected_function_id):
+			active_tab_by_function[selected_function_id] = 0
 		function_list.select(index)
 		function_selected.emit(selected_function_id)
 		_show_context_menu("function", selected_function_id, -1,
@@ -126,15 +139,32 @@ func _refresh_list() -> void:
 	if function_list == null:
 		return
 	function_list.clear()
+	var function_types := editor.get_function_types()
+	if not editor.get_last_error().is_empty():
+		_emit_facade_error()
+		return
+	var previous_index := last_selected_list_index
+	var selected_index := -1
+	for index in function_types.size():
+		if int(function_types[index].id) == selected_function_id:
+			previous_index = index
 	var exists := false
-	for function_type in editor.get_function_types():
+	for index in function_types.size():
+		var function_type = function_types[index]
 		function_list.add_item("%s  [#%d]" % [function_type.name, function_type.id])
 		function_list.set_item_metadata(function_list.item_count - 1, int(function_type.id))
 		if int(function_type.id) == selected_function_id:
-			function_list.select(function_list.item_count - 1)
+			selected_index = index
 			exists = true
-	if not exists:
-		selected_function_id = -1
+	if not exists and not function_types.is_empty():
+		selected_index = mini(previous_index, function_types.size() - 1)
+		selected_function_id = int(function_types[selected_index].id)
+		if not active_tab_by_function.has(selected_function_id):
+			active_tab_by_function[selected_function_id] = 0
+	if selected_index >= 0:
+		function_list.select(selected_index)
+		last_selected_list_index = selected_index
+		function_selected.emit(selected_function_id)
 
 
 func _show_selected_function() -> void:
@@ -142,7 +172,7 @@ func _show_selected_function() -> void:
 	var function_type := _function_type()
 	if function_type.is_empty():
 		var welcome := Label.new()
-		welcome.text = tr("help.select_function")
+		welcome.text = tr("help.create_first_function")
 		welcome.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		editor_host.add_child(welcome)
 		return
@@ -150,14 +180,12 @@ func _show_selected_function() -> void:
 	var name := LineEdit.new()
 	name.text = str(function_type.name)
 	name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name.tooltip_text = tr("ui.function_id_tooltip") % selected_function_id
 	name_row.add_child(name)
 	name_row.add_child(_button(tr("ui.rename"), func() -> void:
 		_finish(editor.rename_function_type(selected_function_id, name.text), "status.function_type_renamed")
 	))
 	editor_host.add_child(name_row)
-	var stable := Label.new()
-	stable.text = tr("ui.stable_function_type_id") % selected_function_id
-	editor_host.add_child(stable)
 	var tabs := TabContainer.new()
 	tabs.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -174,6 +202,12 @@ func _show_selected_function() -> void:
 	materials.name = tr("ui.materials")
 	tabs.add_child(materials)
 	_build_materials(materials, function_type)
+	var requested_tab := clampi(int(active_tab_by_function.get(selected_function_id, 0)), 0, tabs.get_tab_count() - 1)
+	tabs.current_tab = requested_tab
+	tabs.tab_changed.connect(func(tab: int) -> void:
+		active_tab_by_function[selected_function_id] = tab
+		tab_selected.emit(selected_function_id, tab)
+	)
 
 
 func _build_construction(parent: VBoxContainer, function_type: Dictionary) -> void:
@@ -243,16 +277,20 @@ func _build_construction(parent: VBoxContainer, function_type: Dictionary) -> vo
 func _build_process(parent: VBoxContainer, function_type: Dictionary) -> void:
 	var process_value: Variant = function_type.get("process")
 	var process: Dictionary = process_value if process_value is Dictionary else {}
-	var process_card := _card(tr("ui.process"))
+	_add_heading(parent, tr("ui.process"))
+	var process_card := _card(tr("ui.process_configured") if not process.is_empty() else tr("ui.process_not_configured"))
 	var box := process_card.get_child(0) as VBoxContainer
 	var input_option := _value_option(int(process.get("input_key", 0)))
 	var throughput := _source_option(function_type, process.get("throughput_source", {}))
 	var conversion := _conversion_option(int(process.get("conversion_id", 0)))
+	_add_section(box, tr("ui.process_input"))
 	box.add_child(_labeled(tr("ui.input"), input_option))
+	_add_section(box, tr("ui.process_processing"))
 	box.add_child(_labeled(tr("ui.throughput"), throughput))
 	box.add_child(_labeled(tr("ui.unit_conversion"), conversion))
 	var outputs: Array = process.get("outputs", [])
 	if outputs.is_empty():
+		_add_section(box, tr("ui.new_process_output"))
 		var first_output := _value_option()
 		var first_allocation := _source_option(function_type)
 		box.add_child(_labeled(tr("ui.first_output"), first_output))
@@ -301,22 +339,31 @@ func _build_process(parent: VBoxContainer, function_type: Dictionary) -> void:
 							output_card.get_global_position() + mouse.position, tr("ui.remove"), outputs.size() == 1)
 			)
 			parent.add_child(output_card)
+		var new_output_card := _card(tr("ui.new_process_output"))
+		var new_output_box := new_output_card.get_child(0) as VBoxContainer
 		var new_output := _value_option()
 		var new_allocation := _source_option(function_type)
-		parent.add_child(_labeled(tr("ui.output"), new_output))
-		parent.add_child(_labeled(tr("ui.allocation"), new_allocation))
-		parent.add_child(_button(tr("ui.add_process_output"), func() -> void:
+		new_output_box.add_child(_labeled(tr("ui.value"), new_output))
+		new_output_box.add_child(_labeled(tr("ui.allocation"), new_allocation))
+		new_output_box.add_child(_button(tr("ui.add_process_output"), func() -> void:
 			_finish(editor.add_function_process_output(selected_function_id, _selected_id(new_output), _selected_source(new_allocation)),
 				"status.process_output_added")
 		))
+		parent.add_child(new_output_card)
 	_separator(parent)
 	_build_buffer(parent, function_type)
 
 
 func _build_buffer(parent: VBoxContainer, function_type: Dictionary) -> void:
-	_add_heading(parent, tr("ui.buffer_process"))
+	_add_heading(parent, tr("ui.additional"))
 	var buffer_value: Variant = function_type.get("buffer")
 	var buffer: Dictionary = buffer_value if buffer_value is Dictionary else {}
+	if buffer.is_empty() and not bool(buffer_editor_open_by_function.get(selected_function_id, false)):
+		parent.add_child(_button(tr("ui.configure_buffer"), func() -> void:
+			buffer_editor_open_by_function[selected_function_id] = true
+			_show_selected_function()
+		))
+		return
 	var card := _card(tr("ui.buffer_process"))
 	var box := card.get_child(0) as VBoxContainer
 	var value := _value_option(int(buffer.get("value_key", 0)))
@@ -346,7 +393,7 @@ func _build_buffer(parent: VBoxContainer, function_type: Dictionary) -> void:
 
 
 func _build_materials(parent: VBoxContainer, function_type: Dictionary) -> void:
-	_add_heading(parent, tr("ui.material_cost"))
+	_add_heading(parent, tr("ui.construction_contributions"))
 	for contribution in function_type.material_contributions:
 		var value_key := int(contribution.value_key)
 		var card := _card(_value_name(value_key))
@@ -365,14 +412,17 @@ func _build_materials(parent: VBoxContainer, function_type: Dictionary) -> void:
 						card.get_global_position() + mouse.position, tr("ui.remove"), false)
 		)
 		parent.add_child(card)
+	var new_card := _card(tr("ui.new_contribution"))
+	var new_box := new_card.get_child(0) as VBoxContainer
 	var value := _value_option()
 	var source := _source_option(function_type)
-	parent.add_child(_labeled(tr("ui.value"), value))
-	parent.add_child(_labeled(tr("ui.amount_source"), source))
-	parent.add_child(_button(tr("ui.set_or_add"), func() -> void:
+	new_box.add_child(_labeled(tr("ui.value"), value))
+	new_box.add_child(_labeled(tr("ui.amount_source"), source))
+	new_box.add_child(_button(tr("ui.set_or_add"), func() -> void:
 		_finish(editor.set_function_material_contribution(selected_function_id, _selected_id(value), _selected_source(source)),
 			"status.function_material_contribution_updated")
 	))
+	parent.add_child(new_card)
 
 
 func _show_context_menu(kind: String, function_id: int, value_key: int, position: Vector2, caption: String, disabled: bool) -> void:
@@ -403,6 +453,8 @@ func _finish(success: bool, status_key: String) -> void:
 		_emit_facade_error()
 		return
 	status_requested.emit(status_key, [])
+	if status_key == "status.buffer_process_removed":
+		buffer_editor_open_by_function[selected_function_id] = false
 	world_changed.emit()
 	_refresh_list()
 	_show_selected_function()
@@ -452,6 +504,14 @@ func _add_heading(parent: VBoxContainer, text: String) -> void:
 	label.text = text
 	label.add_theme_font_size_override("font_size", 18)
 	parent.add_child(label)
+
+
+func _add_section(parent: VBoxContainer, text: String) -> void:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_size_override("font_size", 15)
+	parent.add_child(label)
+	parent.add_child(HSeparator.new())
 
 
 func _separator(parent: VBoxContainer) -> void:
@@ -556,11 +616,15 @@ func _calculation_option() -> OptionButton:
 func _source_option(function_type: Dictionary, selected_value: Variant = null) -> OptionButton:
 	var option := OptionButton.new()
 	var selected: Dictionary = selected_value if selected_value is Dictionary else {}
+	if not function_type.genome_parameters.is_empty():
+		option.add_separator(tr("ui.genome_parameters"))
 	for parameter in function_type.genome_parameters:
 		var source := {"kind": "genome", "genome_parameter_id": int(parameter.id), "calculation_id": 0, "calculation_output_id": 0}
 		option.add_item(str(parameter.name))
 		option.set_item_metadata(option.item_count - 1, source)
 		if _same_source(source, selected): option.select(option.item_count - 1)
+	if not function_type.calculations.is_empty():
+		option.add_separator(tr("ui.calculated_characteristics"))
 	for binding in function_type.calculations:
 		var calculation := _find(editor.get_calculations(), "id", int(binding.calculation_id))
 		for output in calculation.get("outputs", []):

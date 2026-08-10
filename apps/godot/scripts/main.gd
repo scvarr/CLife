@@ -52,6 +52,7 @@ var function_library
 var function_library_button: Button
 var active_workspace := "world"
 var function_library_selection := -1
+var function_library_tabs: Dictionary = {}
 
 
 func _ready() -> void:
@@ -296,7 +297,11 @@ func _show_function_library(selected_id: int = -1) -> void:
 	function_library.function_selected.connect(func(id: int) -> void:
 		function_library_selection = id
 	)
-	function_library.configure(editor, function_library_selection)
+	function_library.tab_selected.connect(func(function_id: int, tab: int) -> void:
+		function_library_tabs[function_id] = tab
+	)
+	function_library.configure(editor, function_library_selection,
+		int(function_library_tabs.get(function_library_selection, 0)))
 	_refresh_mode()
 
 

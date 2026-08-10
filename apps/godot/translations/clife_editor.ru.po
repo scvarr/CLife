@@ -656,7 +656,7 @@ msgid "ui.materials"
 msgstr "Материалы"
 
 msgid "ui.default_value_format"
-msgstr "default: %.6f"
+msgstr "значение по умолчанию: %.6f"
 
 msgid "ui.first_output"
 msgstr "Первый выход"
@@ -669,3 +669,39 @@ msgstr "Тип функции переименован"
 
 msgid "status.buffer_process_removed"
 msgstr "Буферный процесс удалён"
+
+msgid "help.create_first_function"
+msgstr "Создайте первую функцию, чтобы начать редактирование."
+
+msgid "ui.function_id_tooltip"
+msgstr "FunctionTypeId #%d"
+
+msgid "ui.process_configured"
+msgstr "ПРОЦЕСС"
+
+msgid "ui.process_not_configured"
+msgstr "ПРОЦЕСС НЕ НАСТРОЕН"
+
+msgid "ui.process_input"
+msgstr "Вход"
+
+msgid "ui.process_processing"
+msgstr "Обработка"
+
+msgid "ui.new_process_output"
+msgstr "+ НОВЫЙ ВЫХОД"
+
+msgid "ui.additional"
+msgstr "ДОПОЛНИТЕЛЬНО"
+
+msgid "ui.configure_buffer"
+msgstr "Настроить буфер"
+
+msgid "ui.construction_contributions"
+msgstr "Вклады конструкции"
+
+msgid "ui.new_contribution"
+msgstr "+ НОВЫЙ ВКЛАД"
+
+msgid "ui.calculated_characteristics"
+msgstr "Рассчитанные характеристики"

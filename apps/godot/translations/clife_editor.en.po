@@ -668,3 +668,39 @@ msgstr "Function type renamed"
 
 msgid "status.buffer_process_removed"
 msgstr "Buffer process removed"
+
+msgid "help.create_first_function"
+msgstr "Create the first function to begin editing."
+
+msgid "ui.function_id_tooltip"
+msgstr "FunctionTypeId #%d"
+
+msgid "ui.process_configured"
+msgstr "PROCESS"
+
+msgid "ui.process_not_configured"
+msgstr "PROCESS NOT CONFIGURED"
+
+msgid "ui.process_input"
+msgstr "Input"
+
+msgid "ui.process_processing"
+msgstr "Processing"
+
+msgid "ui.new_process_output"
+msgstr "+ NEW OUTPUT"
+
+msgid "ui.additional"
+msgstr "ADDITIONAL"
+
+msgid "ui.configure_buffer"
+msgstr "Configure Buffer"
+
+msgid "ui.construction_contributions"
+msgstr "Construction Contributions"
+
+msgid "ui.new_contribution"
+msgstr "+ NEW CONTRIBUTION"
+
+msgid "ui.calculated_characteristics"
+msgstr "Calculated Characteristics"
