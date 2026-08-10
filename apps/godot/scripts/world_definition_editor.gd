@@ -16,6 +16,7 @@ var selected_function_id := 0
 var new_function_active := false
 var new_parameter_active := false
 var new_process_output_active := false
+var new_function_material_active := false
 var new_external_input_active := false
 var external_inputs: Array[Dictionary] = []
 var selected_template_id := 0
@@ -25,6 +26,8 @@ var draft_genome_function_type_id := 0
 var editing_genome_index := -1
 var last_test_inputs: Array[Dictionary] = []
 var last_runtime_values: Array[Dictionary] = []
+var new_characteristic_active := false
+var selected_construction_calculation_id := 0
 var selected_formula_id_by_function: Dictionary = {}
 var deletion_context: Dictionary = {}
 var startup_status := ""
@@ -40,6 +43,8 @@ func _ready() -> void:
 	$Layout/Sidebar/Conversions.text = tr("ux.conversions")
 	$Layout/Sidebar/Formulas.text = tr("ux.formulas")
 	$Layout/Sidebar/Functions.text = tr("ux.functions")
+	$Layout/Sidebar/Characteristics.text = tr("ux.object_characteristics")
+	$Layout/Sidebar/Construction.text = tr("ux.construction")
 	$Layout/Sidebar/Objects.text = tr("ux.objects")
 	$Layout/Sidebar/ExternalInputs.text = tr("ux.external_inputs")
 	$Layout/Sidebar/Save.text = tr("ux.save_world")
@@ -353,6 +358,130 @@ func _has_value_key(value_key: int) -> bool:
 			return true
 	return false
 
+func _show_characteristics() -> void:
+	_clear_workspace()
+	_add_title(tr("ux.object_characteristics"))
+	for characteristic in editor.get_object_characteristics():
+		_add_characteristic_row(characteristic)
+	if new_characteristic_active:
+		_add_new_characteristic_row()
+	var add := Button.new(); add.text = "+ " + tr("ux.add_new"); add.disabled = new_characteristic_active
+	add.pressed.connect(func(): new_characteristic_active = true; _show_characteristics())
+	workspace.add_child(add)
+
+func _add_characteristic_row(characteristic: Dictionary) -> void:
+	var row := HBoxContainer.new(); var name := Label.new(); name.text = str(characteristic.name); name.size_flags_horizontal = Control.SIZE_EXPAND_FILL; row.add_child(name)
+	row.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
+			if (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT: _edit_characteristic_row(row, characteristic)
+			elif (event as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT: _show_delete_menu({"kind": "characteristic", "characteristic": characteristic}, row.get_global_position() + (event as InputEventMouseButton).position)
+	)
+	workspace.add_child(row)
+
+func _edit_characteristic_row(row: HBoxContainer, characteristic: Dictionary) -> void:
+	for child in row.get_children(): child.queue_free()
+	var name := LineEdit.new(); name.text = str(characteristic.name); name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var save := Button.new(); save.text = tr("ux.save"); var cancel := Button.new(); cancel.text = tr("ux.cancel")
+	save.pressed.connect(func():
+		if not editor.rename_object_characteristic(int(characteristic.id), name.text): _show_error(); return
+		_show_characteristics()
+	)
+	cancel.pressed.connect(_show_characteristics)
+	row.add_child(name); row.add_child(save); row.add_child(cancel)
+
+func _add_new_characteristic_row() -> void:
+	var row := HBoxContainer.new(); var name := LineEdit.new(); name.placeholder_text = tr("ux.characteristic_name"); name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var save := Button.new(); save.text = tr("ux.save"); var cancel := Button.new(); cancel.text = tr("ux.cancel")
+	save.pressed.connect(func():
+		if editor.add_object_characteristic(name.text) == 0: _show_error(); return
+		new_characteristic_active = false; _show_characteristics()
+	)
+	cancel.pressed.connect(func(): new_characteristic_active = false; _show_characteristics())
+	row.add_child(name); row.add_child(save); row.add_child(cancel); workspace.add_child(row)
+
+func _show_construction() -> void:
+	_clear_workspace()
+	_add_title(tr("ux.construction"))
+	var existing := editor.get_object_construction()
+	var calculations := editor.get_calculations()
+	if selected_construction_calculation_id == 0 and existing is Dictionary and not existing.is_empty(): selected_construction_calculation_id = int(existing.get("calculation_id", 0))
+	if selected_construction_calculation_id == 0 and not calculations.is_empty(): selected_construction_calculation_id = int(calculations[0].id)
+	var selector := OptionButton.new(); selector.add_item(tr("ux.none"), 0)
+	for calculation in calculations:
+		selector.add_item(str(calculation.name), int(calculation.id))
+		if int(calculation.id) == selected_construction_calculation_id: selector.select(selector.item_count - 1)
+	selector.item_selected.connect(func(index: int): selected_construction_calculation_id = selector.get_item_id(index); _show_construction())
+	workspace.add_child(_labeled_row(tr("ux.formula"), selector))
+	if selected_construction_calculation_id == 0:
+		return
+	var calculation := _find_calculation(selected_construction_calculation_id)
+	var existing_inputs: Array = existing.get("inputs", []) if existing is Dictionary else []
+	var existing_outputs: Array = existing.get("outputs", []) if existing is Dictionary else []
+	_add_section(workspace, tr("ux.inputs"))
+	var input_fields := []
+	for input in calculation.get("inputs", []):
+		var source := _construction_source_selector(_find_construction_input(existing_inputs, int(input.id)))
+		workspace.add_child(_labeled_row(str(input.name), source)); input_fields.append({"input_id": int(input.id), "selector": source})
+	_add_section(workspace, tr("ux.outputs"))
+	var output_fields := []
+	for output in calculation.get("outputs", []):
+		var target := _characteristic_selector(_construction_output_characteristic(existing_outputs, int(output.id)), true)
+		workspace.add_child(_labeled_row(str(output.name), target)); output_fields.append({"output_id": int(output.id), "selector": target})
+	var save := Button.new(); save.text = tr("ux.save")
+	save.pressed.connect(func():
+		var inputs := []; var outputs := []
+		for field in input_fields:
+			var source = field.selector.get_item_metadata(field.selector.selected) if field.selector.selected >= 0 else {}
+			if not (source is Dictionary) or source.is_empty(): status.text = tr("status.construction_input_required"); return
+			var item := {"input_id": field.input_id, "kind": source.kind}
+			if str(source.kind) == "material": item["value_key"] = int(source.value_key)
+			else: item["characteristic_id"] = int(source.characteristic_id)
+			inputs.append(item)
+		for field in output_fields:
+			var characteristic_id := _selected_unit_id(field.selector)
+			if characteristic_id != 0: outputs.append({"output_id": field.output_id, "characteristic_id": characteristic_id})
+		if not editor.set_object_construction(selected_construction_calculation_id, inputs, outputs): _show_error(); return
+		_show_construction()
+	)
+	workspace.add_child(save)
+	if not existing.is_empty():
+		var remove := Button.new(); remove.text = tr("ux.delete_construction")
+		remove.pressed.connect(func(): _show_delete_menu({"kind": "construction"}, remove.get_global_position()))
+		workspace.add_child(remove)
+
+func _construction_source_selector(selected: Dictionary) -> OptionButton:
+	var selector := OptionButton.new(); selector.add_item(tr("ux.none")); selector.set_item_metadata(0, {})
+	for value in editor.get_values():
+		var source := {"kind": "material", "value_key": int(value.key)}
+		selector.add_item(tr("ux.material_source") % str(value.name)); selector.set_item_metadata(selector.item_count - 1, source)
+		if selected == source: selector.select(selector.item_count - 1)
+	for characteristic in editor.get_object_characteristics():
+		for kind in ["base", "function_sum"]:
+			var source := {"kind": kind, "characteristic_id": int(characteristic.id)}
+			selector.add_item((tr("ux.base_source") if kind == "base" else tr("ux.function_sum_source")) % str(characteristic.name)); selector.set_item_metadata(selector.item_count - 1, source)
+			if selected == source: selector.select(selector.item_count - 1)
+	return selector
+
+func _characteristic_selector(selected_id: int, allow_none: bool) -> OptionButton:
+	var selector := OptionButton.new()
+	if allow_none: selector.add_item(tr("ux.none"), 0)
+	for characteristic in editor.get_object_characteristics():
+		selector.add_item(str(characteristic.name), int(characteristic.id))
+		if int(characteristic.id) == selected_id: selector.select(selector.item_count - 1)
+	return selector
+
+func _find_construction_input(inputs: Array, input_id: int) -> Dictionary:
+	for input in inputs:
+		if int((input as Dictionary).get("input_id", 0)) == input_id:
+			var item: Dictionary = input
+			return {"kind": str(item.get("kind", "")), "value_key": int(item.get("value_key", 0))} if str(item.get("kind", "")) == "material" else {"kind": str(item.get("kind", "")), "characteristic_id": int(item.get("characteristic_id", 0))}
+	return {}
+
+func _construction_output_characteristic(outputs: Array, output_id: int) -> int:
+	for output in outputs:
+		if int((output as Dictionary).get("output_id", 0)) == output_id: return int((output as Dictionary).get("characteristic_id", 0))
+	return 0
+
 func _show_objects() -> void:
 	_clear_workspace()
 	var split := HBoxContainer.new(); split.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -413,7 +542,23 @@ func _build_object_editor(parent: VBoxContainer, template: Dictionary) -> void:
 	var add := Button.new(); add.text = "+ " + tr("ux.add_function"); add.disabled = new_genome_function_active
 	add.pressed.connect(func(): new_genome_function_active = true; draft_genome_function_type_id = 0; _show_objects())
 	parent.add_child(add)
+	_add_object_construction_preview(parent, template)
 	_add_one_step_test(parent, template)
+
+func _add_object_construction_preview(parent: VBoxContainer, template: Dictionary) -> void:
+	_add_section(parent, tr("ux.object_construction_preview"))
+	var materials := editor.get_material_contributions(int(template.id))
+	if materials.is_empty() and not editor.get_last_error().is_empty():
+		var unavailable := Label.new(); unavailable.text = editor.get_last_error(); parent.add_child(unavailable); return
+	var materials_title := Label.new(); materials_title.text = tr("ux.materials"); parent.add_child(materials_title)
+	for material in materials:
+		var item := Label.new(); item.text = "%s = %s" % [_value_name(int(material.value_key)), str(material.amount)]; parent.add_child(item)
+	var preview := editor.get_template_characteristic_preview(int(template.id))
+	if preview.is_empty() and not editor.get_last_error().is_empty():
+		var unavailable := Label.new(); unavailable.text = editor.get_last_error(); parent.add_child(unavailable); return
+	var characteristics_title := Label.new(); characteristics_title.text = tr("ux.object_characteristics"); parent.add_child(characteristics_title)
+	for characteristic in preview.get("characteristics", []):
+		var item := Label.new(); item.text = "%s = %s" % [_characteristic_name(int((characteristic as Dictionary).get("characteristic_id", 0))), str((characteristic as Dictionary).get("amount", 0.0))]; parent.add_child(item)
 
 func _semantic_genome_entry(entry: Dictionary) -> String:
 	var parts := ["%02X" % int(entry.get("function_type_id", 0))]
@@ -579,6 +724,44 @@ func _build_function_editor(parent: VBoxContainer, function_type: Dictionary) ->
 	var preview := Label.new(); preview.text = tr("ux.semantic_record") % _semantic_genome_preview(function_type); parent.add_child(preview)
 	_build_function_formula(parent, function_type)
 	_build_function_process(parent, function_type)
+	_build_function_materials(parent, function_type)
+
+func _build_function_materials(parent: VBoxContainer, function_type: Dictionary) -> void:
+	_add_section(parent, tr("ux.construction_materials"))
+	for contribution in function_type.get("material_contributions", []):
+		_add_function_material_card(parent, function_type, contribution)
+	if new_function_material_active:
+		_add_new_function_material_row(parent, function_type)
+	var add := Button.new(); add.text = "+ " + tr("ux.add"); add.disabled = new_function_material_active
+	add.pressed.connect(func(): new_function_material_active = true; _show_functions())
+	parent.add_child(add)
+
+func _add_function_material_card(parent: VBoxContainer, function_type: Dictionary, contribution: Dictionary) -> void:
+	var card := PanelContainer.new(); var row := HBoxContainer.new(); card.add_child(row)
+	var material := _value_selector(int(contribution.get("value_key", 0))); material.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var amount := _source_selector(function_type, contribution.get("amount_source", {})); amount.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var save := Button.new(); save.text = tr("ux.save")
+	save.pressed.connect(func():
+		if not editor.set_function_material_contribution(int(function_type.id), _selected_unit_id(material), _selected_source(amount)): _show_error(); return
+		_show_functions()
+	)
+	row.add_child(material); row.add_child(amount); row.add_child(save)
+	card.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and (event as InputEventMouseButton).pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT:
+			_show_delete_menu({"kind": "function_material", "function_id": int(function_type.id), "contribution": contribution}, card.get_global_position() + (event as InputEventMouseButton).position)
+	)
+	parent.add_child(card)
+
+func _add_new_function_material_row(parent: VBoxContainer, function_type: Dictionary) -> void:
+	var row := HBoxContainer.new(); var material := _value_selector(0); material.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var amount := _source_selector(function_type, {}); amount.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var save := Button.new(); save.text = tr("ux.save"); var cancel := Button.new(); cancel.text = tr("ux.cancel")
+	save.pressed.connect(func():
+		if not editor.set_function_material_contribution(int(function_type.id), _selected_unit_id(material), _selected_source(amount)): _show_error(); return
+		new_function_material_active = false; _show_functions()
+	)
+	cancel.pressed.connect(func(): new_function_material_active = false; _show_functions())
+	row.add_child(material); row.add_child(amount); row.add_child(save); row.add_child(cancel); parent.add_child(row)
 
 func _add_parameter_card(parent: VBoxContainer, function_type: Dictionary, parameter: Dictionary) -> void:
 	var card := PanelContainer.new(); var row := HBoxContainer.new(); card.add_child(row)
@@ -901,9 +1084,12 @@ func _on_context_menu_pressed(id: int) -> void:
 		"value": name = str((deletion_context.get("value", {}) as Dictionary).get("name", ""))
 		"conversion": name = tr("ux.conversion")
 		"function": name = str((deletion_context.get("function", {}) as Dictionary).get("name", ""))
+		"characteristic": name = str((deletion_context.get("characteristic", {}) as Dictionary).get("name", ""))
+		"construction": name = tr("ux.construction")
 		"template": name = str((deletion_context.get("template", {}) as Dictionary).get("name", ""))
 		"parameter": name = str((deletion_context.get("parameter", {}) as Dictionary).get("name", ""))
 		"process_output": name = _value_name(int((deletion_context.get("output", {}) as Dictionary).get("output_key", 0)))
+		"function_material": name = _value_name(int((deletion_context.get("contribution", {}) as Dictionary).get("value_key", 0)))
 		"formula": name = str((deletion_context.get("calculation", {}) as Dictionary).get("name", ""))
 		"external_input": name = str((deletion_context.get("mapping", {}) as Dictionary).get("channel", ""))
 		"genome_entry": name = _semantic_genome_entry(deletion_context.get("entry", {}) as Dictionary)
@@ -922,11 +1108,14 @@ func _confirm_deletion() -> void:
 		"function":
 			removed = editor.remove_function_type(int((context.get("function", {}) as Dictionary).get("id", 0)))
 			if removed and selected_function_id == int((context.get("function", {}) as Dictionary).get("id", 0)): selected_function_id = 0
+		"characteristic": removed = editor.remove_object_characteristic(int((context.get("characteristic", {}) as Dictionary).get("id", 0)))
+		"construction": removed = editor.remove_object_construction()
 		"template":
 			removed = editor.remove_template(int((context.get("template", {}) as Dictionary).get("id", 0)))
 			if removed and selected_template_id == int((context.get("template", {}) as Dictionary).get("id", 0)): selected_template_id = 0
 		"parameter": removed = editor.remove_genome_parameter(int(context.get("function_id", 0)), int((context.get("parameter", {}) as Dictionary).get("id", 0)))
 		"process_output": removed = editor.remove_function_process_output(int(context.get("function_id", 0)), int((context.get("output", {}) as Dictionary).get("output_key", 0)))
+		"function_material": removed = editor.remove_function_material_contribution(int(context.get("function_id", 0)), int((context.get("contribution", {}) as Dictionary).get("value_key", 0)))
 		"formula":
 			removed = editor.remove_calculation(int((context.get("calculation", {}) as Dictionary).get("id", 0)))
 			if removed and selected_calculation_id == int((context.get("calculation", {}) as Dictionary).get("id", 0)): selected_calculation_id = 0
@@ -942,6 +1131,9 @@ func _confirm_deletion() -> void:
 	elif str(context.get("kind", "")) == "value": _show_world_quantities()
 	elif str(context.get("kind", "")) == "conversion": _show_conversions()
 	elif str(context.get("kind", "")) in ["function", "parameter", "process_output"]: _show_functions()
+	elif str(context.get("kind", "")) == "function_material": _show_functions()
+	elif str(context.get("kind", "")) == "characteristic": _show_characteristics()
+	elif str(context.get("kind", "")) == "construction": _show_construction()
 	elif str(context.get("kind", "")) in ["template", "genome_entry"]: _show_objects()
 	elif str(context.get("kind", "")) == "external_input": _show_external_inputs()
 	else: _show_formulas()
@@ -957,6 +1149,11 @@ func _show_error() -> void:
 func _value_name(key: int) -> String:
 	for value in editor.get_values():
 		if int(value.key) == key: return str(value.name)
+	return tr("ux.unknown")
+
+func _characteristic_name(id: int) -> String:
+	for characteristic in editor.get_object_characteristics():
+		if int(characteristic.id) == id: return str(characteristic.name)
 	return tr("ux.unknown")
 
 func _save_current_world() -> void:

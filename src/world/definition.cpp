@@ -307,6 +307,11 @@ void WorldDefinition::remove_value(ValueKey key)
         })) {
         throw std::invalid_argument{"cannot remove a referenced value"};
     }
+    if (object_construction_ && std::ranges::any_of(object_construction_->inputs, [&](const auto& item) {
+            return item.source.kind == ObjectConstructionSourceKind::material_amount && referenced(item.source.value);
+        })) {
+        throw std::invalid_argument{"cannot remove a referenced value"};
+    }
     std::erase_if(values_, [key](const ValueDefinition& entry) { return entry.key == key; });
 }
 
@@ -1525,11 +1530,14 @@ void WorldDefinition::validate_object_construction(const ObjectConstructionDefin
         if (std::ranges::none_of(calculation_definition.inputs, [&](const auto& input) { return input.id == binding.input; })) {
             throw std::invalid_argument{"object construction contains an unknown calculation input"};
         }
-        if (binding.source.kind != ObjectConstructionSourceKind::base_characteristic &&
-            binding.source.kind != ObjectConstructionSourceKind::function_contribution_sum) {
+        if (binding.source.kind == ObjectConstructionSourceKind::material_amount) {
+            (void)value(binding.source.value);
+        } else if (binding.source.kind == ObjectConstructionSourceKind::base_characteristic ||
+                   binding.source.kind == ObjectConstructionSourceKind::function_contribution_sum) {
+            (void)object_characteristic(binding.source.characteristic);
+        } else {
             throw std::invalid_argument{"object construction source kind is invalid"};
         }
-        (void)object_characteristic(binding.source.characteristic);
     }
     for (const ObjectConstructionOutputBinding& binding : construction.outputs) {
         if (std::ranges::none_of(calculation_definition.outputs, [&](const auto& output) { return output.id == binding.output; })) {

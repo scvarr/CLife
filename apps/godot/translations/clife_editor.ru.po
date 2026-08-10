@@ -984,3 +984,36 @@ msgstr "Переданные входы"
 
 msgid "ux.runtime_values"
 msgstr "Runtime величины"
+
+msgid "ux.object_characteristics"
+msgstr "Характеристики объектов"
+
+msgid "ux.characteristic_name"
+msgstr "Название характеристики"
+
+msgid "ux.construction"
+msgstr "Конструкция"
+
+msgid "ux.construction_materials"
+msgstr "МАТЕРИАЛЫ КОНСТРУКЦИИ"
+
+msgid "ux.materials"
+msgstr "Материалы"
+
+msgid "ux.material_source"
+msgstr "Материал: %s"
+
+msgid "ux.base_source"
+msgstr "Базовая характеристика: %s"
+
+msgid "ux.function_sum_source"
+msgstr "Сумма вкладов функций: %s"
+
+msgid "ux.delete_construction"
+msgstr "Удалить конструкцию"
+
+msgid "ux.object_construction_preview"
+msgstr "КОНСТРУКЦИЯ ОБЪЕКТА"
+
+msgid "status.construction_input_required"
+msgstr "Выберите источник для каждого входа конструкции."

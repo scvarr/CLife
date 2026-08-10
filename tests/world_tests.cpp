@@ -371,6 +371,36 @@ bool test_object_characteristic_construction()
            rejects([&] { definition.remove_object_characteristic(volume); }, "referenced characteristic removal must fail");
 }
 
+bool test_material_construction_source()
+{
+    WorldDefinition definition;
+    const ValueKey organic = definition.add_value("StructuralOrganic");
+    const ObjectCharacteristicId volume = definition.add_object_characteristic("Volume");
+    const CalculationId calculation = definition.add_calculation("Volume from material");
+    const CalculationPortId input = definition.add_calculation_input(calculation, "StructuralOrganic");
+    const CalculationPortId output = definition.add_calculation_output(calculation, "Volume", "StructuralOrganic");
+    const FunctionTypeId type = definition.add_function_type("Channel");
+    const ParameterId channel = definition.add_genome_parameter(type, "Channel", 2.0);
+    definition.set_function_material_contribution(type, organic, genome(channel));
+    const TemplateId object = definition.add_template("Object");
+    (void)definition.add_genome_function(object, type);
+    (void)definition.add_genome_function(object, type);
+    definition.set_genome_parameter(object, 1, channel, 3.0);
+    definition.set_object_construction({.calculation = calculation,
+        .inputs = {{.input = input, .source = {.kind = ObjectConstructionSourceKind::material_amount, .value = organic}}},
+        .outputs = {{.output = output, .characteristic = volume}}});
+    const CompiledPhenotype phenotype = compile_phenotype(definition, object);
+    const bool compiled = near(phenotype.material_amount(organic), 5.0, "genome material contributions must aggregate") &&
+                          near(phenotype.characteristic(volume), 5.0, "material construction source must resolve") &&
+                          rejects([&] { definition.remove_value(organic); },
+                                  "construction material source must prevent value removal");
+    const WorldDefinition restored = WorldDefinition::from_snapshot(definition.snapshot());
+    return compiled && near(compile_phenotype(restored, object).material_amount(organic), 5.0,
+                            "material construction snapshot material round trip") &&
+           near(compile_phenotype(restored, object).characteristic(volume), 5.0,
+                "material construction snapshot characteristic round trip");
+}
+
 bool test_unit_lifecycle()
 {
     WorldDefinition definition;
@@ -469,6 +499,7 @@ int main()
     run(test_snapshot_round_trip, "snapshot round trip");
     run(test_snapshot_invalid_source_and_next_ids, "snapshot invalid source and next IDs");
     run(test_object_characteristic_construction, "object characteristic construction");
+    run(test_material_construction_source, "material construction source");
     run(test_unit_lifecycle, "unit lifecycle");
     run(test_genome_parameter_lifecycle, "genome parameter lifecycle");
     run(test_unit_conversion_lifecycle, "unit conversion lifecycle");

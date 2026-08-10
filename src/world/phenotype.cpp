@@ -184,10 +184,16 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
         std::vector<CalculationPortAmount> inputs;
         inputs.reserve(construction.inputs.size());
         for (const ObjectConstructionInputBinding& binding : construction.inputs) {
-            const Amount amount = binding.source.kind == ObjectConstructionSourceKind::base_characteristic
-                                      ? characteristic_value(base_characteristics, binding.source.characteristic)
-                                      : characteristic_value(phenotype.function_contribution_sums_,
-                                                             binding.source.characteristic);
+            Amount amount{};
+            if (binding.source.kind == ObjectConstructionSourceKind::base_characteristic) {
+                amount = characteristic_value(base_characteristics, binding.source.characteristic);
+            } else if (binding.source.kind == ObjectConstructionSourceKind::function_contribution_sum) {
+                amount = characteristic_value(phenotype.function_contribution_sums_, binding.source.characteristic);
+            } else if (binding.source.kind == ObjectConstructionSourceKind::material_amount) {
+                amount = phenotype.material_amount(binding.source.value);
+            } else {
+                throw std::invalid_argument{"object construction source kind is invalid"};
+            }
             inputs.push_back({.port = binding.input, .amount = amount});
         }
         for (const CalculationPortAmount& output : evaluate_calculation(definition.calculation(construction.calculation), inputs)) {

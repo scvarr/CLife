@@ -974,3 +974,36 @@ msgstr "Sent inputs"
 
 msgid "ux.runtime_values"
 msgstr "Runtime values"
+
+msgid "ux.object_characteristics"
+msgstr "Object characteristics"
+
+msgid "ux.characteristic_name"
+msgstr "Characteristic name"
+
+msgid "ux.construction"
+msgstr "Construction"
+
+msgid "ux.construction_materials"
+msgstr "CONSTRUCTION MATERIALS"
+
+msgid "ux.materials"
+msgstr "Materials"
+
+msgid "ux.material_source"
+msgstr "Material: %s"
+
+msgid "ux.base_source"
+msgstr "Base characteristic: %s"
+
+msgid "ux.function_sum_source"
+msgstr "Function contribution sum: %s"
+
+msgid "ux.delete_construction"
+msgstr "Delete construction"
+
+msgid "ux.object_construction_preview"
+msgstr "OBJECT CONSTRUCTION"
+
+msgid "status.construction_input_required"
+msgstr "Select a source for every construction input."

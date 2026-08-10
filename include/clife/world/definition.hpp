@@ -158,11 +158,13 @@ struct BaseObjectCharacteristicDefinition final {
 enum class ObjectConstructionSourceKind {
     base_characteristic,
     function_contribution_sum,
+    material_amount,
 };
 
 struct ObjectConstructionSource final {
     ObjectConstructionSourceKind kind;
-    ObjectCharacteristicId characteristic;
+    ObjectCharacteristicId characteristic{};
+    ValueKey value{};
 };
 
 struct ObjectConstructionInputBinding final {

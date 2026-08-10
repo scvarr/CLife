@@ -440,8 +440,18 @@ godot::Dictionary CLifeWorldEditor::get_object_construction()
         for (const auto& binding : construction.inputs) {
             godot::Dictionary item;
             item["input_id"] = static_cast<std::int64_t>(binding.input.value);
-            item["kind"] = binding.source.kind == world::ObjectConstructionSourceKind::base_characteristic ? "base" : "function_sum";
-            item["characteristic_id"] = static_cast<std::int64_t>(binding.source.characteristic.value);
+            if (binding.source.kind == world::ObjectConstructionSourceKind::base_characteristic) {
+                item["kind"] = "base";
+                item["characteristic_id"] = static_cast<std::int64_t>(binding.source.characteristic.value);
+            } else if (binding.source.kind == world::ObjectConstructionSourceKind::function_contribution_sum) {
+                item["kind"] = "function_sum";
+                item["characteristic_id"] = static_cast<std::int64_t>(binding.source.characteristic.value);
+            } else if (binding.source.kind == world::ObjectConstructionSourceKind::material_amount) {
+                item["kind"] = "material";
+                item["value_key"] = static_cast<std::int64_t>(binding.source.value.value);
+            } else {
+                throw std::invalid_argument{"invalid construction source kind"};
+            }
             inputs.push_back(item);
         }
         godot::Array outputs;
@@ -1316,15 +1326,16 @@ bool CLifeWorldEditor::set_object_construction(std::int64_t raw_calculation_id, 
         for (const godot::Variant& value : inputs) {
             const auto item = required_dictionary(value, "construction input");
             const std::string kind = required_string(required_field(item, "kind"), "construction source kind");
-            if (kind != "base" && kind != "function_sum") {
-                throw std::invalid_argument{"construction source kind must be base or function_sum"};
+            if (kind != "base" && kind != "function_sum" && kind != "material") {
+                throw std::invalid_argument{"construction source kind must be base, function_sum, or material"};
             }
             construction.inputs.push_back({
                 .input = calculation_port_id(required_uint32(required_field(item, "input_id"), "construction input id")),
-                .source = {.kind = kind == "base" ? world::ObjectConstructionSourceKind::base_characteristic :
-                                                     world::ObjectConstructionSourceKind::function_contribution_sum,
-                           .characteristic = object_characteristic_id(required_uint32(
-                               required_field(item, "characteristic_id"), "construction characteristic id"))},
+                .source = kind == "material"
+                              ? world::ObjectConstructionSource{.kind = world::ObjectConstructionSourceKind::material_amount,
+                                                                .value = value_key(required_uint32(required_field(item, "value_key"), "construction material value key"))}
+                              : world::ObjectConstructionSource{.kind = kind == "base" ? world::ObjectConstructionSourceKind::base_characteristic : world::ObjectConstructionSourceKind::function_contribution_sum,
+                                                                .characteristic = object_characteristic_id(required_uint32(required_field(item, "characteristic_id"), "construction characteristic id"))},
             });
         }
         for (const godot::Variant& value : outputs) {
@@ -1939,8 +1950,18 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
             for (const auto& binding : snapshot.object_construction->inputs) {
                 godot::Dictionary item;
                 item["input_id"] = static_cast<std::int64_t>(binding.input.value);
-                item["kind"] = binding.source.kind == world::ObjectConstructionSourceKind::base_characteristic ? "base" : "function_sum";
-                item["characteristic_id"] = static_cast<std::int64_t>(binding.source.characteristic.value);
+                if (binding.source.kind == world::ObjectConstructionSourceKind::base_characteristic) {
+                    item["kind"] = "base";
+                    item["characteristic_id"] = static_cast<std::int64_t>(binding.source.characteristic.value);
+                } else if (binding.source.kind == world::ObjectConstructionSourceKind::function_contribution_sum) {
+                    item["kind"] = "function_sum";
+                    item["characteristic_id"] = static_cast<std::int64_t>(binding.source.characteristic.value);
+                } else if (binding.source.kind == world::ObjectConstructionSourceKind::material_amount) {
+                    item["kind"] = "material";
+                    item["value_key"] = static_cast<std::int64_t>(binding.source.value.value);
+                } else {
+                    throw std::invalid_argument{"invalid construction source kind"};
+                }
                 inputs.push_back(item);
             }
             godot::Array outputs;
@@ -2216,10 +2237,13 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
             for (const godot::Variant& input_value : required_array(required_field(construction, "inputs"), "construction inputs")) {
                 const auto input = required_dictionary(input_value, "construction input");
                 const auto kind = required_string(required_field(input, "kind"), "construction source kind");
-                if (kind != "base" && kind != "function_sum") throw std::invalid_argument{"invalid construction source kind"};
+                if (kind != "base" && kind != "function_sum" && kind != "material") throw std::invalid_argument{"invalid construction source kind"};
                 stored.inputs.push_back({.input = {required_uint32(required_field(input, "input_id"), "construction input id")},
-                    .source = {.kind = kind == "base" ? world::ObjectConstructionSourceKind::base_characteristic : world::ObjectConstructionSourceKind::function_contribution_sum,
-                               .characteristic = {required_uint32(required_field(input, "characteristic_id"), "characteristic id")}}});
+                    .source = kind == "material"
+                                  ? world::ObjectConstructionSource{.kind = world::ObjectConstructionSourceKind::material_amount,
+                                                                    .value = {required_uint32(required_field(input, "value_key"), "material value key")}}
+                                  : world::ObjectConstructionSource{.kind = kind == "base" ? world::ObjectConstructionSourceKind::base_characteristic : world::ObjectConstructionSourceKind::function_contribution_sum,
+                                                                    .characteristic = {required_uint32(required_field(input, "characteristic_id"), "characteristic id")}}});
             }
             for (const godot::Variant& output_value : required_array(required_field(construction, "outputs"), "construction outputs")) {
                 const auto output = required_dictionary(output_value, "construction output");
