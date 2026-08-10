@@ -2,7 +2,7 @@
 
 Application startup is `scenes/main_menu.tscn`: it offers New World, Load World and Exit without creating or opening a world. `scenes/main.tscn` remains the legacy/development world-editor scene during the gradual UX transition and can still be opened manually in Godot.
 
-New World now opens the separate `world_definition_editor.tscn` with a new empty definition. Its first user-facing authoring section is Units only; the legacy editor remains the development stand.
+New World now opens the separate `world_definition_editor.tscn` with a new empty definition. Its current user-facing navigation contains **Units**, **Conversions** and **Formulas**. Units are authored inline; Conversions intentionally show an empty workflow placeholder until a world has a meaningful conversion to define. Formulas are a two-pane library/editor for existing `CalculationDefinition`: named formulas, inputs, ordered outputs, expression edits and dependency-safe deletion. The legacy editor remains the development stand.
 
 Статус: **CURRENT / NORMATIVE**.
 

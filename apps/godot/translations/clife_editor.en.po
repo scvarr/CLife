@@ -764,3 +764,48 @@ msgstr "Delete"
 
 msgid "ux.delete_unit_confirmation"
 msgstr "Delete unit \"%s\"?"
+
+msgid "ux.conversions"
+msgstr "Conversions"
+
+msgid "ux.no_conversions"
+msgstr "No conversions yet."
+
+msgid "ux.formulas"
+msgstr "Formulas"
+
+msgid "ux.formula_name"
+msgstr "Formula name"
+
+msgid "ux.create_first_formula"
+msgstr "Create the first formula."
+
+msgid "ux.formula_ports"
+msgstr "%d inputs • %d outputs"
+
+msgid "ux.inputs"
+msgstr "INPUTS"
+
+msgid "ux.outputs"
+msgstr "OUTPUTS"
+
+msgid "ux.add_input"
+msgstr "Add input"
+
+msgid "ux.add_output"
+msgstr "Add output"
+
+msgid "ux.input_name"
+msgstr "Input name"
+
+msgid "ux.output_name"
+msgstr "Output name"
+
+msgid "ux.expression"
+msgstr "Expression"
+
+msgid "ux.update_expression"
+msgstr "Update expression"
+
+msgid "ux.delete_confirmation"
+msgstr "Delete \"%s\"?"

@@ -774,3 +774,48 @@ msgstr "Удалить"
 
 msgid "ux.delete_unit_confirmation"
 msgstr "Удалить единицу «%s»?"
+
+msgid "ux.conversions"
+msgstr "Преобразования"
+
+msgid "ux.no_conversions"
+msgstr "Преобразований пока нет."
+
+msgid "ux.formulas"
+msgstr "Формулы"
+
+msgid "ux.formula_name"
+msgstr "Название формулы"
+
+msgid "ux.create_first_formula"
+msgstr "Создайте первую формулу."
+
+msgid "ux.formula_ports"
+msgstr "%d входов • %d выходов"
+
+msgid "ux.inputs"
+msgstr "ВХОДЫ"
+
+msgid "ux.outputs"
+msgstr "ВЫХОДЫ"
+
+msgid "ux.add_input"
+msgstr "Добавить вход"
+
+msgid "ux.add_output"
+msgstr "Добавить выход"
+
+msgid "ux.input_name"
+msgstr "Название входа"
+
+msgid "ux.output_name"
+msgstr "Название выхода"
+
+msgid "ux.expression"
+msgstr "Выражение"
+
+msgid "ux.update_expression"
+msgstr "Обновить выражение"
+
+msgid "ux.delete_confirmation"
+msgstr "Удалить «%s»?"
