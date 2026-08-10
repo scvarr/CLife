@@ -137,6 +137,24 @@ bool test_runtime_multi_output_scenario()
            near(runtime.value(object, world.loss), 0.0, "runtime loss output");
 }
 
+bool test_direct_external_input_without_host_binding()
+{
+    SynthesisWorld world = make_synthesis_world();
+    world.definition.remove_initial_value(world.cell, world.light);
+    RuntimeWorld runtime{world.definition};
+    const ObjectId object = runtime.instantiate(world.cell);
+    const bool host_bound_api_rejects = rejects(
+        [&] { runtime.set_input(object, world.light, 2.0); },
+        "host-bound input API must reject an unbound value");
+    runtime.set_external_input(object, world.light, 2.0);
+    runtime.step();
+    return host_bound_api_rejects &&
+           near(runtime.value(object, world.useful), 0.1,
+                "direct external input must reach the function process without a host binding") &&
+           near(runtime.value(object, world.loss), 0.0,
+                "direct external input must preserve process allocations");
+}
+
 bool test_allocation_validation()
 {
     SynthesisWorld valid = make_synthesis_world(2.0);
@@ -439,6 +457,7 @@ int main()
     };
     run(test_calculation_binding_and_sources, "calculation binding and sources");
     run(test_runtime_multi_output_scenario, "runtime multi-output scenario");
+    run(test_direct_external_input_without_host_binding, "direct external input without host binding");
     run(test_allocation_validation, "allocation validation");
     run(test_binding_validation_and_removal, "binding validation and removal");
     run(test_buffer_calculation_sources, "buffer calculation sources");

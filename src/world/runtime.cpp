@@ -174,25 +174,38 @@ void RuntimeWorld::set_input(ObjectId object_id, std::string_view channel, Amoun
     set_input(object_id, found->value, amount);
 }
 
+void RuntimeWorld::set_external_input(ObjectId object_id, ValueKey key, Amount amount)
+{
+    RuntimeObject& target = object(object_id);
+    if (!std::isfinite(amount)) {
+        throw std::invalid_argument{"external input must be finite"};
+    }
+    (void)require_value_id(key);
+    target.staged_inputs[key] = amount;
+}
+
 void RuntimeWorld::step()
 {
     for (RuntimeObject& target : objects_) {
-        std::vector<ValueAmount> external;
+        std::map<ValueKey, Amount> staged;
         for (const HostBinding& binding : target.bindings) {
             if (binding.direction != HostChannelDirection::input) {
                 continue;
             }
-            const auto staged = target.staged_inputs.find(binding.value);
-            external.push_back({
-                .value = require_value_id(binding.value),
-                .amount = staged == target.staged_inputs.end() ? 0.0 : staged->second,
-            });
+            const auto provided = target.staged_inputs.find(binding.value);
+            const bool inserted = staged.emplace(
+                binding.value, provided == target.staged_inputs.end() ? 0.0 : provided->second).second;
+            if (!inserted) {
+                throw std::invalid_argument{"a host input value is bound more than once"};
+            }
         }
-        std::ranges::sort(external, {}, [](const ValueAmount& item) { return item.value.index; });
-        const auto duplicate =
-            std::ranges::adjacent_find(external, {}, [](const ValueAmount& item) { return item.value.index; });
-        if (duplicate != external.end()) {
-            throw std::invalid_argument{"a host input value is bound more than once"};
+        for (const auto& [key, amount] : target.staged_inputs) {
+            staged.insert_or_assign(key, amount);
+        }
+        std::vector<ValueAmount> external;
+        external.reserve(staged.size());
+        for (const auto& [key, amount] : staged) {
+            external.push_back({.value = require_value_id(key), .amount = amount});
         }
         target.calculator.step(external);
         target.staged_inputs.clear();

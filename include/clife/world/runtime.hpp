@@ -32,6 +32,7 @@ public:
 
     void set_input(ObjectId object, ValueKey value, Amount amount);
     void set_input(ObjectId object, std::string_view channel, Amount amount);
+    void set_external_input(ObjectId object, ValueKey value, Amount amount);
     void step();
 
     [[nodiscard]] Amount value(ObjectId object, ValueKey value) const;

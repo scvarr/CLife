@@ -1680,7 +1680,7 @@ bool CLifeWorldEditor::set_preview_input(std::int64_t raw_value_key, double amou
         if (!runtime_ || !preview_object_) {
             throw std::logic_error{"setting a preview input requires an active runtime"};
         }
-        runtime_->set_input(*preview_object_, value_key(raw_value_key), amount);
+        runtime_->set_external_input(*preview_object_, value_key(raw_value_key), amount);
         clear_error();
         return true;
     } catch (...) {
