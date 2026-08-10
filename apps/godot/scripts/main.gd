@@ -10,6 +10,7 @@ const TRANSLATION_PATHS := [
 	"res://translations/clife_editor.en.po",
 	"res://translations/clife_editor.ru.po",
 ]
+const FUNCTION_LIBRARY_SCENE := preload("res://scenes/function_library.tscn")
 
 var editor: CLifeWorldEditor
 var object_views: Dictionary = {}
@@ -35,7 +36,6 @@ var new_name: LineEdit
 var add_value_button: Button
 var add_unit_button: Button
 var add_template_button: Button
-var add_function_type_button: Button
 var add_calculation_button: Button
 var add_rule_button: Button
 var host_inputs_box: HBoxContainer
@@ -47,6 +47,11 @@ var current_locale := DEFAULT_LOCALE
 var status_key := "status.ready"
 var status_arguments: Array = []
 var status_error := ""
+var workspace_host: Control
+var function_library
+var function_library_button: Button
+var active_workspace := "world"
+var function_library_selection := -1
 
 
 func _ready() -> void:
@@ -57,7 +62,7 @@ func _ready() -> void:
 	_load_saved_world()
 	_refresh_preview_visibility()
 	_build_editor_ui()
-	_rebuild_world_tree()
+	_show_world_workspace()
 	_rebuild_host_inputs()
 	_refresh_mode()
 	_show_welcome_inspector()
@@ -140,7 +145,10 @@ func _on_save_world() -> void:
 func _rebuild_localized_ui() -> void:
 	_clear_children($UI/Root)
 	_build_editor_ui()
-	_rebuild_world_tree()
+	if active_workspace == "functions":
+		_show_function_library(function_library_selection)
+	else:
+		_show_world_workspace()
 	_rebuild_host_inputs()
 	_refresh_mode()
 	if editor.is_run_active():
@@ -148,7 +156,7 @@ func _rebuild_localized_ui() -> void:
 			_show_runtime_inspector()
 		else:
 			_show_run_inspector_help()
-	else:
+	elif active_workspace != "functions":
 		_restore_edit_inspector()
 	_refresh_status()
 
@@ -191,7 +199,10 @@ func _build_editor_ui() -> void:
 	page.add_theme_constant_override("separation", 8)
 	margin.add_child(page)
 	page.add_child(_build_header())
-	page.add_child(_build_workspace())
+	workspace_host = Control.new()
+	workspace_host.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	workspace_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	page.add_child(workspace_host)
 	page.add_child(_build_status_area())
 
 
@@ -209,6 +220,10 @@ func _build_header() -> Control:
 	header.add_child(mode_label)
 	save_world_button = _button(tr("ui.save_world"), _on_save_world)
 	header.add_child(save_world_button)
+	function_library_button = _button(tr("ui.functions"), func() -> void:
+		_show_function_library(function_library_selection)
+	)
+	header.add_child(function_library_button)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	header.add_child(spacer)
@@ -252,6 +267,48 @@ func _build_workspace() -> Control:
 	return split
 
 
+func _show_world_workspace() -> void:
+	active_workspace = "world"
+	function_library = null
+	_clear_children(workspace_host)
+	workspace_host.add_child(_build_workspace())
+	_rebuild_world_tree()
+	_refresh_mode()
+	if not editor.is_run_active():
+		_restore_edit_inspector()
+
+
+func _show_function_library(selected_id: int = -1) -> void:
+	if editor.is_run_active():
+		return
+	active_workspace = "functions"
+	selected_kind = ""
+	selected_identity = -1
+	if selected_id > 0:
+		function_library_selection = selected_id
+	_clear_children(workspace_host)
+	function_library = FUNCTION_LIBRARY_SCENE.instantiate()
+	workspace_host.add_child(function_library)
+	function_library.close_requested.connect(_show_world_workspace)
+	function_library.world_changed.connect(_on_function_library_world_changed)
+	function_library.status_requested.connect(_on_function_library_status_requested)
+	function_library.error_requested.connect(_set_status_error)
+	function_library.function_selected.connect(func(id: int) -> void:
+		function_library_selection = id
+	)
+	function_library.configure(editor, function_library_selection)
+	_refresh_mode()
+
+
+func _on_function_library_world_changed() -> void:
+	if active_workspace == "world":
+		_rebuild_world_tree()
+
+
+func _on_function_library_status_requested(key: String, arguments: Array) -> void:
+	_set_status(key, arguments)
+
+
 func _build_world_panel() -> Control:
 	var panel := PanelContainer.new()
 	panel.custom_minimum_size.x = 230.0
@@ -283,13 +340,11 @@ func _build_world_panel() -> Control:
 	var buttons := HBoxContainer.new()
 	add_value_button = _button(tr("ui.add_value"), _on_add_value)
 	add_unit_button = _button(tr("ui.add_unit"), _on_add_unit)
-	add_function_type_button = _button(tr("ui.add_function_type"), _on_add_function_type)
 	add_calculation_button = _button(tr("ui.add_calculation"), _on_add_calculation)
 	add_template_button = _button(tr("ui.add_template"), _on_add_template)
 	add_rule_button = _button(tr("ui.add_rule"), _on_add_rule)
 	buttons.add_child(add_value_button)
 	buttons.add_child(add_unit_button)
-	buttons.add_child(add_function_type_button)
 	buttons.add_child(add_calculation_button)
 	buttons.add_child(add_template_button)
 	buttons.add_child(add_rule_button)
@@ -355,6 +410,8 @@ func _build_status_area() -> Control:
 
 
 func _rebuild_world_tree() -> void:
+	if world_tree == null:
+		return
 	world_tree.clear()
 	var root := world_tree.create_item()
 	var units_root := world_tree.create_item(root)
@@ -449,7 +506,7 @@ func _on_world_item_selected() -> void:
 			else:
 				_show_facade_error_if_any()
 		"function_type":
-			_show_function_type_inspector(selected_identity)
+			_show_function_library(selected_identity)
 		"calculation":
 			_show_calculation_inspector(selected_identity)
 		"rule":
@@ -720,200 +777,6 @@ func _build_calculation_test_editor(calculation_id: int, calculation: Dictionary
 				_add_wrapped_label(result_box, "%s = %.6f" % [output.name, float(results[output_index].amount)])
 	))
 	inspector.add_child(result_box)
-
-
-func _show_function_type_inspector(function_type_id: int) -> void:
-	var function_type := _find_by(editor.get_function_types(), "id", function_type_id)
-	if function_type.is_empty():
-		_show_welcome_inspector()
-		return
-	_clear_children(inspector)
-	_add_heading(inspector, str(function_type.name))
-	_add_wrapped_label(inspector, tr("ui.stable_function_type_id") % function_type_id)
-	_add_heading(inspector, tr("ui.genome_parameters"))
-	for parameter in function_type.genome_parameters:
-		_add_wrapped_label(inspector, tr("ui.parameter_default_format") % [
-			parameter.name, parameter.id, float(parameter.default_value),
-		])
-	_add_heading(inspector, tr("ui.new_genome_parameter"))
-	var new_genome_parameter_name := LineEdit.new()
-	new_genome_parameter_name.placeholder_text = tr("ui.name")
-	var new_genome_parameter_default := _amount_spin(1.0)
-	inspector.add_child(_labeled_control(tr("ui.name"), new_genome_parameter_name))
-	inspector.add_child(_labeled_control(tr("ui.default_value"), new_genome_parameter_default))
-	inspector.add_child(_button(tr("ui.add_genome_parameter"), func() -> void:
-		_finish_edit(editor.add_genome_parameter(function_type_id, new_genome_parameter_name.text,
-			new_genome_parameter_default.value) != 0, "status.genome_parameter_added")
-	))
-	_add_separator(inspector)
-	_build_function_calculations_editor(function_type_id, function_type)
-	_add_separator(inspector)
-	_add_heading(inspector, tr("ui.material_cost"))
-	for contribution in function_type.material_contributions:
-		var value_key := int(contribution.value_key)
-		_add_wrapped_label(inspector, "%s [#%d]" % [_value_name(value_key), value_key])
-		var material_source := _function_value_source_option(function_type, contribution.amount_source)
-		var material_row := HBoxContainer.new()
-		material_row.add_child(_labeled_control(tr("ui.amount_source"), material_source))
-		material_row.add_child(_button(tr("ui.update"), func() -> void:
-			_finish_edit(editor.set_function_material_contribution(function_type_id, value_key,
-				_selected_source(material_source)),
-				"status.function_material_contribution_updated")
-		))
-		material_row.add_child(_button(tr("ui.remove"), func() -> void:
-			_finish_edit(editor.remove_function_material_contribution(function_type_id, value_key),
-				"status.function_material_contribution_removed")
-		))
-		inspector.add_child(material_row)
-	var material_value := _value_option()
-	var new_material_source := _function_value_source_option(function_type)
-	inspector.add_child(_labeled_control(tr("ui.value"), material_value))
-	inspector.add_child(_labeled_control(tr("ui.amount_source"), new_material_source))
-	inspector.add_child(_button(tr("ui.set_or_add"), func() -> void:
-		_finish_edit(editor.set_function_material_contribution(function_type_id, _selected_option_id(material_value),
-			_selected_source(new_material_source)), "status.function_material_contribution_updated")
-	))
-	_add_separator(inspector)
-	_build_function_process_editor(function_type_id, function_type)
-	_add_separator(inspector)
-	_build_function_buffer_editor(function_type_id, function_type)
-
-
-func _build_function_calculations_editor(function_type_id: int, function_type: Dictionary) -> void:
-	_add_heading(inspector, tr("ui.function_calculations"))
-	for binding in function_type.calculations:
-		var calculation := _find_by(editor.get_calculations(), "id", int(binding.calculation_id))
-		_add_wrapped_label(inspector, str(calculation.get("name", tr("ui.unknown"))))
-		for input_binding in binding.inputs:
-			var input := _find_by(calculation.get("inputs", []), "id", int(input_binding.input_id))
-			_add_wrapped_label(inspector, "    %s <- %s" % [
-				input.get("name", tr("ui.unknown")),
-				_parameter_name(function_type, int(input_binding.genome_parameter_id)),
-			])
-		inspector.add_child(_button(tr("ui.remove_calculation_binding"), func() -> void:
-			_finish_edit(editor.remove_function_calculation_binding(function_type_id, int(binding.calculation_id)),
-				"status.calculation_binding_removed")
-		))
-	var calculation_option := _calculation_option()
-	var inputs_box := VBoxContainer.new()
-	var input_options: Array = []
-	if calculation_option.item_count > 0:
-		_populate_calculation_binding_inputs(inputs_box, _selected_option_id(calculation_option), function_type,
-			input_options)
-	calculation_option.item_selected.connect(func(_index: int) -> void:
-		_populate_calculation_binding_inputs(inputs_box, _selected_option_id(calculation_option), function_type,
-			input_options)
-	)
-	inspector.add_child(_labeled_control(tr("ui.calculation"), calculation_option))
-	inspector.add_child(inputs_box)
-	var bind_button := _button(tr("ui.bind_calculation"), func() -> void:
-		var bindings: Array = []
-		for entry in input_options:
-			bindings.append({"input_id": entry.input_id,
-				"genome_parameter_id": _selected_option_id(entry.option)})
-		_finish_edit(editor.set_function_calculation_binding(function_type_id,
-			_selected_option_id(calculation_option), bindings), "status.calculation_binding_updated")
-	)
-	bind_button.disabled = calculation_option.item_count == 0 or function_type.genome_parameters.is_empty()
-	inspector.add_child(bind_button)
-
-
-func _populate_calculation_binding_inputs(container: VBoxContainer, calculation_id: int,
-		function_type: Dictionary, input_options: Array) -> void:
-	_clear_children(container)
-	input_options.clear()
-	var calculation := _find_by(editor.get_calculations(), "id", calculation_id)
-	var existing := _find_by(function_type.calculations, "calculation_id", calculation_id)
-	var calculation_inputs: Array = calculation.get("inputs", [])
-	var existing_inputs: Array = existing.get("inputs", [])
-	for input in calculation_inputs:
-		var selected_parameter := 0
-		for binding in existing_inputs:
-			if int(binding.input_id) == int(input.id):
-				selected_parameter = int(binding.genome_parameter_id)
-		var option := _genome_parameter_option(function_type, selected_parameter)
-		container.add_child(_labeled_control(str(input.name), option))
-		input_options.append({"input_id": int(input.id), "option": option})
-
-
-func _build_function_process_editor(function_type_id: int, function_type: Dictionary) -> void:
-	_add_heading(inspector, tr("ui.process"))
-	var process: Dictionary = {}
-	var process_value: Variant = function_type.get("process")
-	if process_value is Dictionary:
-		process = process_value
-	var input_option := _value_option(int(process.get("input_key", 0)))
-	var throughput_option := _function_value_source_option(function_type, process.get("throughput_source", {}))
-	var conversion_option := _conversion_option(int(process.get("conversion_id", 0)))
-	inspector.add_child(_labeled_control(tr("ui.input"), input_option))
-	inspector.add_child(_labeled_control(tr("ui.throughput"), throughput_option))
-	inspector.add_child(_labeled_control(tr("ui.unit_conversion"), conversion_option))
-	var outputs: Array = process.get("outputs", [])
-	if not outputs.is_empty():
-		inspector.add_child(_button(tr("ui.update_process"), func() -> void:
-			_finish_edit(editor.change_function_process_settings(function_type_id, _selected_option_id(input_option),
-				_selected_source(throughput_option), _selected_option_id(conversion_option)), "status.process_updated")
-		))
-		inspector.add_child(_button(tr("ui.remove_process"), func() -> void:
-			_finish_edit(editor.remove_function_process(function_type_id), "status.process_removed")
-		))
-		_add_heading(inspector, tr("ui.process_outputs"))
-		for output in outputs:
-			var output_key := int(output.output_key)
-			var current_output := _value_option(output_key)
-			var current_allocation := _function_value_source_option(function_type, output.allocation_source)
-			inspector.add_child(_labeled_control(tr("ui.output"), current_output))
-			inspector.add_child(_labeled_control(tr("ui.allocation"), current_allocation))
-			var output_actions := HBoxContainer.new()
-			output_actions.add_child(_button(tr("ui.update"), func() -> void:
-				_finish_edit(editor.change_function_process_output(function_type_id, output_key,
-					_selected_option_id(current_output), _selected_source(current_allocation)), "status.process_output_updated")
-			))
-			var remove_output := _button(tr("ui.remove"), func() -> void:
-				_finish_edit(editor.remove_function_process_output(function_type_id, output_key), "status.process_output_removed")
-			)
-			remove_output.disabled = outputs.size() == 1
-			output_actions.add_child(remove_output)
-			inspector.add_child(output_actions)
-	var output_option := _value_option()
-	var allocation_option := _function_value_source_option(function_type)
-	inspector.add_child(_labeled_control(tr("ui.output"), output_option))
-	inspector.add_child(_labeled_control(tr("ui.allocation"), allocation_option))
-	if outputs.is_empty():
-		var set_button := _button(tr("ui.set_process"), func() -> void:
-			_finish_edit(editor.set_function_process(function_type_id, _selected_option_id(input_option),
-				_selected_source(throughput_option), _selected_option_id(conversion_option),
-				_selected_option_id(output_option), _selected_source(allocation_option)), "status.process_set")
-		)
-		set_button.disabled = input_option.item_count == 0 or throughput_option.item_count == 0 or conversion_option.item_count == 0 or output_option.item_count == 0 or allocation_option.item_count == 0
-		inspector.add_child(set_button)
-	else:
-		var add_button := _button(tr("ui.add_process_output"), func() -> void:
-			_finish_edit(editor.add_function_process_output(function_type_id, _selected_option_id(output_option),
-				_selected_source(allocation_option)), "status.process_output_added")
-		)
-		add_button.disabled = output_option.item_count == 0 or allocation_option.item_count == 0
-		inspector.add_child(add_button)
-
-
-func _build_function_buffer_editor(function_type_id: int, function_type: Dictionary) -> void:
-	_add_heading(inspector, tr("ui.buffer_process"))
-	var buffer: Dictionary = function_type.get("buffer", {}) if function_type.get("buffer", {}) is Dictionary else {}
-	var value_option := _value_option(int(buffer.get("value_key", 0)))
-	var capacity := _function_value_source_option(function_type, buffer.get("capacity_source", {}))
-	var throughput := _function_value_source_option(function_type, buffer.get("throughput_source", {}))
-	var leakage := _function_value_source_option(function_type, buffer.get("leakage_source", {}))
-	inspector.add_child(_labeled_control(tr("ui.value"), value_option))
-	inspector.add_child(_labeled_control(tr("ui.capacity"), capacity))
-	inspector.add_child(_labeled_control(tr("ui.throughput"), throughput))
-	inspector.add_child(_labeled_control(tr("ui.leakage"), leakage))
-	var set_button := _button(tr("ui.set_buffer_process"), func() -> void:
-		_finish_edit(editor.set_buffer_process(function_type_id, _selected_option_id(value_option),
-			_selected_source(capacity), _selected_source(throughput), _selected_source(leakage)),
-			"status.buffer_process_set")
-	)
-	set_button.disabled = value_option.item_count == 0 or capacity.item_count == 0
-	inspector.add_child(set_button)
 
 
 func _build_material_contributions(template_id: int) -> void:
@@ -1203,19 +1066,6 @@ func _on_add_unit() -> void:
 	_show_welcome_inspector()
 
 
-func _on_add_function_type() -> void:
-	var function_type_id := editor.add_function_type(new_name.text)
-	if function_type_id == 0:
-		_show_facade_error_if_any()
-		return
-	new_name.clear()
-	selected_kind = "function_type"
-	selected_identity = function_type_id
-	_set_status("status.function_type_added", [function_type_id])
-	_rebuild_world_tree()
-	_show_function_type_inspector(function_type_id)
-
-
 func _on_add_calculation() -> void:
 	var calculation_id := editor.add_calculation(new_name.text)
 	if calculation_id == 0:
@@ -1263,6 +1113,8 @@ func _on_back_to_editor() -> void:
 
 
 func _on_play() -> void:
+	if active_workspace == "functions":
+		_show_world_workspace()
 	if not editor.is_run_active():
 		if not editor.run():
 			_show_facade_error_if_any()
@@ -1286,6 +1138,8 @@ func _on_pause() -> void:
 
 
 func _on_step() -> void:
+	if active_workspace == "functions":
+		_show_world_workspace()
 	if not editor.is_run_active():
 		if not editor.run():
 			_show_facade_error_if_any()
@@ -1369,7 +1223,7 @@ func _restore_edit_inspector() -> void:
 		"template":
 			_show_template_inspector(selected_identity)
 		"function_type":
-			_show_function_type_inspector(selected_identity)
+			_show_function_library(selected_identity)
 		"calculation":
 			_show_calculation_inspector(selected_identity)
 		"rule":
@@ -1387,15 +1241,16 @@ func _refresh_mode() -> void:
 	reset_button.disabled = not running
 	back_to_editor_button.disabled = not running
 	save_world_button.disabled = running
-	new_name.editable = not running
-	add_value_button.disabled = running
-	add_unit_button.disabled = running
-	add_function_type_button.disabled = running
-	add_calculation_button.disabled = running
-	add_template_button.disabled = running
-	add_rule_button.disabled = running
-	world_tree.mouse_filter = Control.MOUSE_FILTER_IGNORE if running else Control.MOUSE_FILTER_STOP
-	world_tree.modulate = Color(0.65, 0.65, 0.65, 1.0) if running else Color.WHITE
+	function_library_button.disabled = running
+	if active_workspace == "world" and is_instance_valid(world_tree):
+		new_name.editable = not running
+		add_value_button.disabled = running
+		add_unit_button.disabled = running
+		add_calculation_button.disabled = running
+		add_template_button.disabled = running
+		add_rule_button.disabled = running
+		world_tree.mouse_filter = Control.MOUSE_FILTER_IGNORE if running else Control.MOUSE_FILTER_STOP
+		world_tree.modulate = Color(0.65, 0.65, 0.65, 1.0) if running else Color.WHITE
 	tick_label.text = tr("ui.tick_format") % editor.get_tick()
 
 
@@ -1511,79 +1366,6 @@ func _unit_option(selected_id: int = 0) -> OptionButton:
 		if int(unit.id) == selected_id:
 			option.select(option.item_count - 1)
 	return option
-
-
-func _conversion_option(selected_id: int = 0) -> OptionButton:
-	var option := OptionButton.new()
-	for conversion in editor.get_unit_conversions():
-		option.add_item(_unit_conversion_text(conversion))
-		option.set_item_metadata(option.item_count - 1, int(conversion.id))
-		if int(conversion.id) == selected_id:
-			option.select(option.item_count - 1)
-	return option
-
-
-func _genome_parameter_option(function_type: Dictionary, selected_id: int = 0) -> OptionButton:
-	var option := OptionButton.new()
-	for parameter in function_type.genome_parameters:
-		option.add_item("%s [#%d]" % [parameter.name, parameter.id])
-		option.set_item_metadata(option.item_count - 1, int(parameter.id))
-		if int(parameter.id) == selected_id:
-			option.select(option.item_count - 1)
-	return option
-
-
-func _parameter_name(function_type: Dictionary, parameter_id: int) -> String:
-	for parameter in function_type.genome_parameters:
-		if int(parameter.id) == parameter_id:
-			return str(parameter.name)
-	return tr("ui.unknown")
-
-
-func _calculation_option(selected_id: int = 0) -> OptionButton:
-	var option := OptionButton.new()
-	for calculation in editor.get_calculations():
-		option.add_item("%s [#%d]" % [calculation.name, calculation.id])
-		option.set_item_metadata(option.item_count - 1, int(calculation.id))
-		if int(calculation.id) == selected_id:
-			option.select(option.item_count - 1)
-	return option
-
-
-func _function_value_source_option(function_type: Dictionary, selected_value: Variant = null) -> OptionButton:
-	var option := OptionButton.new()
-	var selected: Dictionary = selected_value if selected_value is Dictionary else {}
-	for parameter in function_type.genome_parameters:
-		var source := {"kind": "genome", "genome_parameter_id": int(parameter.id),
-			"calculation_id": 0, "calculation_output_id": 0}
-		option.add_item(str(parameter.name))
-		option.set_item_metadata(option.item_count - 1, source)
-		if _same_source(source, selected):
-			option.select(option.item_count - 1)
-	for binding in function_type.calculations:
-		var calculation := _find_by(editor.get_calculations(), "id", int(binding.calculation_id))
-		for output in calculation.get("outputs", []):
-			var source := {"kind": "calculation", "genome_parameter_id": 0,
-				"calculation_id": int(calculation.id), "calculation_output_id": int(output.id)}
-			option.add_item("%s / %s" % [calculation.name, output.name])
-			option.set_item_metadata(option.item_count - 1, source)
-			if _same_source(source, selected):
-				option.select(option.item_count - 1)
-	return option
-
-
-func _same_source(left: Dictionary, right: Dictionary) -> bool:
-	return str(left.get("kind", "")) == str(right.get("kind", "")) and \
-		int(left.get("genome_parameter_id", 0)) == int(right.get("genome_parameter_id", 0)) and \
-		int(left.get("calculation_id", 0)) == int(right.get("calculation_id", 0)) and \
-		int(left.get("calculation_output_id", 0)) == int(right.get("calculation_output_id", 0))
-
-
-func _selected_source(option: OptionButton) -> Dictionary:
-	if option.selected < 0:
-		return {}
-	var metadata: Variant = option.get_item_metadata(option.selected)
-	return metadata if metadata is Dictionary else {}
 
 
 func _function_type_option(selected_id: int = 0) -> OptionButton:

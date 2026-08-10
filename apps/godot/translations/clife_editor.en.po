@@ -632,3 +632,39 @@ msgstr "Calculation output deleted"
 
 msgid "status.calculation_output_expression_updated"
 msgstr "Output formula updated"
+
+msgid "ui.functions"
+msgstr "Functions"
+
+msgid "ui.function_library"
+msgstr "FUNCTION LIBRARY"
+
+msgid "ui.back_to_world"
+msgstr "← Back to World"
+
+msgid "ui.new_function_name"
+msgstr "New function name"
+
+msgid "help.select_function"
+msgstr "Select or create a function type."
+
+msgid "ui.construction"
+msgstr "Construction"
+
+msgid "ui.materials"
+msgstr "Materials"
+
+msgid "ui.default_value_format"
+msgstr "default: %.6f"
+
+msgid "ui.first_output"
+msgstr "First Output"
+
+msgid "ui.remove_buffer_process"
+msgstr "Remove Buffer Process"
+
+msgid "status.function_type_renamed"
+msgstr "Function type renamed"
+
+msgid "status.buffer_process_removed"
+msgstr "Buffer process removed"

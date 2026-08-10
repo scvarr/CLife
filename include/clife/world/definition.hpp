@@ -241,6 +241,7 @@ public:
     void remove_function_process_output(FunctionTypeId type, ValueKey output);
     void remove_function_process(FunctionTypeId type);
     void set_buffer_process(FunctionTypeId type, BufferProcessDefinition process);
+    void remove_buffer_process(FunctionTypeId type);
     void set_function_material_contribution(FunctionTypeId type, ValueKey value, FunctionValueSource amount);
     void remove_function_material_contribution(FunctionTypeId type, ValueKey value);
 

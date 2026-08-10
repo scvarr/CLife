@@ -520,6 +520,15 @@ void WorldDefinition::set_buffer_process(FunctionTypeId type_id, BufferProcessDe
     type.buffer_process = process;
 }
 
+void WorldDefinition::remove_buffer_process(FunctionTypeId type_id)
+{
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    if (!type.buffer_process) {
+        throw std::invalid_argument{"function type does not have a buffer process"};
+    }
+    type.buffer_process.reset();
+}
+
 void WorldDefinition::set_function_material_contribution(FunctionTypeId type_id, ValueKey key,
                                                           FunctionValueSource amount)
 {

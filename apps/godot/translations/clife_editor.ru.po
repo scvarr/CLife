@@ -633,3 +633,39 @@ msgstr "Выход формулы удалён"
 
 msgid "status.calculation_output_expression_updated"
 msgstr "Формула выхода обновлена"
+
+msgid "ui.functions"
+msgstr "Функции"
+
+msgid "ui.function_library"
+msgstr "БИБЛИОТЕКА ФУНКЦИЙ"
+
+msgid "ui.back_to_world"
+msgstr "← Назад к миру"
+
+msgid "ui.new_function_name"
+msgstr "Имя новой функции"
+
+msgid "help.select_function"
+msgstr "Выберите или создайте тип функции."
+
+msgid "ui.construction"
+msgstr "Конструкция"
+
+msgid "ui.materials"
+msgstr "Материалы"
+
+msgid "ui.default_value_format"
+msgstr "default: %.6f"
+
+msgid "ui.first_output"
+msgstr "Первый выход"
+
+msgid "ui.remove_buffer_process"
+msgstr "Удалить буферный процесс"
+
+msgid "status.function_type_renamed"
+msgstr "Тип функции переименован"
+
+msgid "status.buffer_process_removed"
+msgstr "Буферный процесс удалён"

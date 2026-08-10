@@ -202,6 +202,23 @@ bool test_buffer_calculation_sources()
            near(buffer.leakage, 0.0, "buffer leakage source");
 }
 
+bool test_buffer_process_removal()
+{
+    WorldDefinition definition;
+    const ValueKey value = definition.add_value("Energy");
+    const FunctionTypeId type = definition.add_function_type("Storage");
+    const ParameterId capacity = definition.add_genome_parameter(type, "capacity", 1.0);
+    definition.set_buffer_process(type, {
+        .value = value,
+        .capacity = genome(capacity),
+        .throughput = genome(capacity),
+        .leakage = genome(capacity),
+    });
+    definition.remove_buffer_process(type);
+    return expect(!definition.function_type(type).buffer_process.has_value(), "buffer process must be removable") &&
+           rejects([&] { definition.remove_buffer_process(type); }, "missing buffer process removal must fail");
+}
+
 bool test_function_type_removal()
 {
     WorldDefinition definition;
@@ -332,6 +349,7 @@ int main()
     run(test_allocation_validation, "allocation validation");
     run(test_binding_validation_and_removal, "binding validation and removal");
     run(test_buffer_calculation_sources, "buffer calculation sources");
+    run(test_buffer_process_removal, "buffer process removal");
     run(test_function_type_removal, "function type removal");
     run(test_calculation_lifecycle_and_stable_ids, "calculation lifecycle and stable IDs");
     run(test_calculation_dependency_safe_edits, "calculation dependency-safe edits");

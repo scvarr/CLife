@@ -16,9 +16,9 @@
 - Типы функций / Function Types;
 - Правила мира / World Rules.
 
-UI создаёт Values, Calculations, Templates и Function Types. FunctionType inspector создаёт независимые genome parameters, подключает Calculation inputs, выбирает источники process/buffer/material contributions и показывает рассчитанные outputs в Template/runtime inspector. Пользовательские имена остаются world data и не переводятся.
+UI создаёт Values, Calculations, Templates и Function Types. Основной workspace остаётся экраном мира и симуляции; отдельная `Function Library` открывается как полноразмерный Control внутри того же окна и использует тот же `CLifeWorldEditor`. В ней FunctionType редактируется вкладками «Конструкция», «Процесс» и «Материалы»: независимые genome parameters, Calculation bindings, источники process/buffer/material contributions. Пользовательские имена остаются world data и не переводятся.
 
-Value и Template можно удалить из их inspector. FunctionType удаляется через контекстное меню по правой кнопке; тип, используемый template genome, не удаляется каскадно. Удаление использует обычную world validation и facade `last_error`.
+Value и Template можно удалить из их inspector. FunctionType удаляется через контекстное меню по правой кнопке; тип, используемый template genome, не удаляется каскадно. Function Library также даёт context delete для Calculation binding, process, process output, material contribution и buffer process. Genome parameter пока намеренно не имеет удаления: его безопасная lifecycle-semantics для уже существующих `GenomeFunctionInstance` остаётся отдельной authoring-задачей. Удаление использует обычную world validation и facade `last_error`.
 
 ## 3. Библиотека calculations
 

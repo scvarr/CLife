@@ -54,10 +54,12 @@ public:
     bool set_buffer_process(std::int64_t function_type_id, std::int64_t value_key,
                             const godot::Dictionary& capacity_source, const godot::Dictionary& throughput_source,
                             const godot::Dictionary& leakage_source);
+    bool remove_buffer_process(std::int64_t function_type_id);
     bool rename_value(std::int64_t key, const godot::String& name);
     bool remove_value(std::int64_t key);
     [[nodiscard]] std::int64_t add_template(const godot::String& name);
     [[nodiscard]] std::int64_t add_function_type(const godot::String& name);
+    bool rename_function_type(std::int64_t function_type_id, const godot::String& name);
     bool remove_function_type(std::int64_t function_type_id);
     [[nodiscard]] std::int64_t add_genome_parameter(std::int64_t function_type_id, const godot::String& name,
                                                      double default_value);

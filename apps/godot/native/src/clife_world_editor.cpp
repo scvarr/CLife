@@ -778,6 +778,11 @@ bool CLifeWorldEditor::set_buffer_process(std::int64_t raw_type, std::int64_t ra
     }); });
 }
 
+bool CLifeWorldEditor::remove_buffer_process(std::int64_t raw_type)
+{
+    return edit([&] { definition_.remove_buffer_process(function_type_id(raw_type)); });
+}
+
 bool CLifeWorldEditor::rename_value(std::int64_t key, const godot::String& name)
 {
     return edit([&] { definition_.rename_value(value_key(key), to_std_string(name)); });
@@ -813,6 +818,11 @@ std::int64_t CLifeWorldEditor::add_function_type(const godot::String& name)
         capture_current_error();
         return 0;
     }
+}
+
+bool CLifeWorldEditor::rename_function_type(std::int64_t raw_function_type_id, const godot::String& name)
+{
+    return edit([&] { definition_.rename_function_type(function_type_id(raw_function_type_id), to_std_string(name)); });
 }
 
 bool CLifeWorldEditor::remove_function_type(std::int64_t raw_function_type_id)
@@ -2012,10 +2022,14 @@ void CLifeWorldEditor::_bind_methods()
         godot::D_METHOD("set_buffer_process", "function_type_id", "value_key", "capacity_source",
                         "throughput_source", "leakage_source"),
         &CLifeWorldEditor::set_buffer_process);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_buffer_process", "function_type_id"),
+                                &CLifeWorldEditor::remove_buffer_process);
     godot::ClassDB::bind_method(godot::D_METHOD("rename_value", "key", "name"), &CLifeWorldEditor::rename_value);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_value", "key"), &CLifeWorldEditor::remove_value);
     godot::ClassDB::bind_method(godot::D_METHOD("add_template", "name"), &CLifeWorldEditor::add_template);
     godot::ClassDB::bind_method(godot::D_METHOD("add_function_type", "name"), &CLifeWorldEditor::add_function_type);
+    godot::ClassDB::bind_method(godot::D_METHOD("rename_function_type", "function_type_id", "name"),
+                                &CLifeWorldEditor::rename_function_type);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_function_type", "function_type_id"),
                                 &CLifeWorldEditor::remove_function_type);
     godot::ClassDB::bind_method(godot::D_METHOD("add_genome_parameter", "function_type_id", "name", "default_value"),
