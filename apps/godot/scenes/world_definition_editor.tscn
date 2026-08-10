@@ -22,6 +22,8 @@ layout_mode = 2
 layout_mode = 2
 [node name="Units" type="Button" parent="Layout/Sidebar"]
 layout_mode = 2
+[node name="WorldQuantities" type="Button" parent="Layout/Sidebar"]
+layout_mode = 2
 [node name="Conversions" type="Button" parent="Layout/Sidebar"]
 layout_mode = 2
 [node name="Formulas" type="Button" parent="Layout/Sidebar"]
@@ -42,5 +44,6 @@ theme_override_constants/separation = 12
 layout_mode = 2
 [connection signal="pressed" from="Layout/Sidebar/Back" to="." method="_on_back"]
 [connection signal="pressed" from="Layout/Sidebar/Units" to="." method="_show_units"]
+[connection signal="pressed" from="Layout/Sidebar/WorldQuantities" to="." method="_show_world_quantities"]
 [connection signal="pressed" from="Layout/Sidebar/Conversions" to="." method="_show_conversions"]
 [connection signal="pressed" from="Layout/Sidebar/Formulas" to="." method="_show_formulas"]

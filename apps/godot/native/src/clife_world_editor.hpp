@@ -44,7 +44,9 @@ public:
     bool remove_unit(std::int64_t unit_id);
     [[nodiscard]] std::int64_t add_unit_conversion(std::int64_t source_unit_id, double source_amount,
                                                     std::int64_t target_unit_id, double target_amount);
+    bool remove_unit_conversion(std::int64_t conversion_id);
     bool set_value_unit(std::int64_t value_key, std::int64_t unit_id);
+    bool clear_value_unit(std::int64_t value_key);
     [[nodiscard]] std::int64_t add_object_characteristic(const godot::String& name);
     bool rename_object_characteristic(std::int64_t characteristic_id, const godot::String& name);
     bool remove_object_characteristic(std::int64_t characteristic_id);

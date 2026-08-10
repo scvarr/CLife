@@ -815,6 +815,11 @@ std::int64_t CLifeWorldEditor::add_unit_conversion(std::int64_t raw_source_unit_
     }
 }
 
+bool CLifeWorldEditor::remove_unit_conversion(std::int64_t raw_conversion_id)
+{
+    return edit([&] { definition_.remove_unit_conversion(unit_conversion_id(raw_conversion_id)); });
+}
+
 bool CLifeWorldEditor::set_value_unit(std::int64_t raw_value_key, std::int64_t raw_unit_id)
 {
     return edit([&] {
@@ -822,6 +827,11 @@ bool CLifeWorldEditor::set_value_unit(std::int64_t raw_value_key, std::int64_t r
                                                               .components = {{.unit = unit_id(raw_unit_id), .exponent = 1}},
                                                           });
     });
+}
+
+bool CLifeWorldEditor::clear_value_unit(std::int64_t raw_value_key)
+{
+    return edit([&] { definition_.clear_value_unit(value_key(raw_value_key)); });
 }
 
 std::int64_t CLifeWorldEditor::add_object_characteristic(const godot::String& name)
@@ -2276,8 +2286,12 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("add_unit_conversion", "source_unit_id", "source_amount",
                                                 "target_unit_id", "target_amount"),
                                 &CLifeWorldEditor::add_unit_conversion);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_unit_conversion", "conversion_id"),
+                                &CLifeWorldEditor::remove_unit_conversion);
     godot::ClassDB::bind_method(godot::D_METHOD("set_value_unit", "value_key", "unit_id"),
                                 &CLifeWorldEditor::set_value_unit);
+    godot::ClassDB::bind_method(godot::D_METHOD("clear_value_unit", "value_key"),
+                                &CLifeWorldEditor::clear_value_unit);
     godot::ClassDB::bind_method(godot::D_METHOD("add_object_characteristic", "name"), &CLifeWorldEditor::add_object_characteristic);
     godot::ClassDB::bind_method(godot::D_METHOD("rename_object_characteristic", "characteristic_id", "name"), &CLifeWorldEditor::rename_object_characteristic);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_object_characteristic", "characteristic_id"), &CLifeWorldEditor::remove_object_characteristic);

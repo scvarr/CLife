@@ -809,3 +809,27 @@ msgstr "Update expression"
 
 msgid "ux.delete_confirmation"
 msgstr "Delete \"%s\"?"
+
+msgid "ux.world_quantities"
+msgstr "World quantities"
+
+msgid "ux.name"
+msgstr "Name"
+
+msgid "ux.no_unit"
+msgstr "No unit"
+
+msgid "ux.from"
+msgstr "From"
+
+msgid "ux.to"
+msgstr "To"
+
+msgid "ux.conversion"
+msgstr "conversion"
+
+msgid "ux.complex_unit"
+msgstr "compound unit"
+
+msgid "ux.delete_value_confirmation"
+msgstr "Delete world quantity \"%s\"?"

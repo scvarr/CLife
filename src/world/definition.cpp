@@ -183,11 +183,28 @@ UnitConversionId WorldDefinition::add_unit_conversion(UnitExpression source_unit
     return id;
 }
 
+void WorldDefinition::remove_unit_conversion(UnitConversionId id)
+{
+    (void)unit_conversion(id);
+    if (std::ranges::any_of(function_types_, [id](const FunctionTypeDefinition& type) {
+            return type.process && type.process->conversion == id;
+        })) {
+        throw std::invalid_argument{"cannot remove a referenced unit conversion"};
+    }
+    std::erase_if(unit_conversions_, [id](const UnitConversionDefinition& item) { return item.id == id; });
+}
+
 void WorldDefinition::set_value_unit(ValueKey key, UnitExpression expression)
 {
     validate_unit_expression(expression);
     auto& entry = const_cast<ValueDefinition&>(value(key));
     entry.unit = std::move(expression);
+}
+
+void WorldDefinition::clear_value_unit(ValueKey key)
+{
+    auto& entry = const_cast<ValueDefinition&>(value(key));
+    entry.unit.reset();
 }
 
 ObjectCharacteristicId WorldDefinition::add_object_characteristic(std::string name)

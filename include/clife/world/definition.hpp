@@ -265,7 +265,9 @@ public:
     void remove_unit(UnitId id);
     [[nodiscard]] UnitConversionId add_unit_conversion(UnitExpression source_unit, Amount source_amount,
                                                         UnitExpression target_unit, Amount target_amount);
+    void remove_unit_conversion(UnitConversionId id);
     void set_value_unit(ValueKey value, UnitExpression unit);
+    void clear_value_unit(ValueKey value);
     [[nodiscard]] ObjectCharacteristicId add_object_characteristic(std::string name);
     void rename_object_characteristic(ObjectCharacteristicId id, std::string name);
     void remove_object_characteristic(ObjectCharacteristicId id);

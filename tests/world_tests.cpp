@@ -361,12 +361,38 @@ bool test_unit_lifecycle()
     const bool updated = definition.unit(unit).symbol == "LU" && definition.unit(unit).description == "updated";
     const WorldDefinition restored = WorldDefinition::from_snapshot(definition.snapshot());
     const bool round_trip = restored.unit(unit).description == "updated";
-    definition.set_value_unit(definition.add_value("Light"), {{{unit, 1}}});
+    const ValueKey light = definition.add_value("Light");
+    definition.set_value_unit(light, {{{unit, 1}}});
     const bool referenced = rejects([&] { definition.remove_unit(unit); }, "referenced unit removal must fail");
+    definition.clear_value_unit(light);
+    const bool cleared = !definition.value(light).unit.has_value();
     WorldDefinition unused;
     const UnitId removable = unused.add_unit("E", "energy");
     unused.remove_unit(removable);
-    return updated && round_trip && referenced && rejects([&] { (void)unused.unit(removable); }, "unused unit removal must work");
+    return updated && round_trip && referenced && cleared && rejects([&] { (void)unused.unit(removable); }, "unused unit removal must work");
+}
+
+bool test_unit_conversion_lifecycle()
+{
+    WorldDefinition definition;
+    const UnitId source = definition.add_unit("L");
+    const UnitId target = definition.add_unit("EE");
+    const UnitConversionId removable = definition.add_unit_conversion({{{source, 1}}}, 1.0, {{{target, 1}}}, 0.1);
+    definition.remove_unit_conversion(removable);
+    const bool removed = rejects([&] { (void)definition.unit_conversion(removable); }, "unused conversion removal must work");
+
+    const UnitConversionId referenced = definition.add_unit_conversion({{{source, 1}}}, 1.0, {{{target, 1}}}, 0.1);
+    const ValueKey input = definition.add_value("Input");
+    const ValueKey output = definition.add_value("Output");
+    const FunctionTypeId type = definition.add_function_type("Transform");
+    const ParameterId throughput = definition.add_genome_parameter(type, "Throughput", 1.0);
+    const ParameterId allocation = definition.add_genome_parameter(type, "Allocation", 1.0);
+    definition.set_function_process(type, {.input = input,
+                                           .throughput = genome(throughput),
+                                           .conversion = referenced,
+                                           .outputs = {{.output = output, .allocation = genome(allocation)}}});
+    return removed && rejects([&] { definition.remove_unit_conversion(referenced); },
+                              "referenced conversion removal must fail");
 }
 
 } // namespace
@@ -400,5 +426,6 @@ int main()
     run(test_snapshot_invalid_source_and_next_ids, "snapshot invalid source and next IDs");
     run(test_object_characteristic_construction, "object characteristic construction");
     run(test_unit_lifecycle, "unit lifecycle");
+    run(test_unit_conversion_lifecycle, "unit conversion lifecycle");
     return success ? 0 : 1;
 }

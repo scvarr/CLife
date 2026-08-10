@@ -819,3 +819,27 @@ msgstr "Обновить выражение"
 
 msgid "ux.delete_confirmation"
 msgstr "Удалить «%s»?"
+
+msgid "ux.world_quantities"
+msgstr "Величины мира"
+
+msgid "ux.name"
+msgstr "Название"
+
+msgid "ux.no_unit"
+msgstr "Без единицы"
+
+msgid "ux.from"
+msgstr "Из"
+
+msgid "ux.to"
+msgstr "В"
+
+msgid "ux.conversion"
+msgstr "преобразование"
+
+msgid "ux.complex_unit"
+msgstr "составная единица"
+
+msgid "ux.delete_value_confirmation"
+msgstr "Удалить величину «%s»?"
