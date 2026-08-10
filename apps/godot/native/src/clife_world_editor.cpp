@@ -1674,6 +1674,21 @@ bool CLifeWorldEditor::set_host_input(const godot::String& channel, double amoun
     }
 }
 
+bool CLifeWorldEditor::set_preview_input(std::int64_t raw_value_key, double amount)
+{
+    try {
+        if (!runtime_ || !preview_object_) {
+            throw std::logic_error{"setting a preview input requires an active runtime"};
+        }
+        runtime_->set_input(*preview_object_, value_key(raw_value_key), amount);
+        clear_error();
+        return true;
+    } catch (...) {
+        capture_current_error();
+        return false;
+    }
+}
+
 godot::Dictionary CLifeWorldEditor::export_world_snapshot()
 {
     godot::Dictionary result;
@@ -2462,6 +2477,8 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("get_host_outputs"), &CLifeWorldEditor::get_host_outputs);
     godot::ClassDB::bind_method(godot::D_METHOD("set_host_input", "channel", "amount"),
                                 &CLifeWorldEditor::set_host_input);
+    godot::ClassDB::bind_method(godot::D_METHOD("set_preview_input", "value_key", "amount"),
+                                &CLifeWorldEditor::set_preview_input);
     godot::ClassDB::bind_method(godot::D_METHOD("export_world_snapshot"), &CLifeWorldEditor::export_world_snapshot);
     godot::ClassDB::bind_method(godot::D_METHOD("import_world_snapshot", "snapshot"),
                                 &CLifeWorldEditor::import_world_snapshot);

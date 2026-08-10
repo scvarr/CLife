@@ -941,3 +941,36 @@ msgstr "World loaded, but host configuration could not be loaded: %s"
 
 msgid "status.invalid_host_config"
 msgstr "invalid host configuration"
+
+msgid "ux.objects"
+msgstr "Objects"
+
+msgid "ux.object"
+msgstr "Object"
+
+msgid "ux.object_name"
+msgstr "Object name"
+
+msgid "ux.create_first_object"
+msgstr "Create the first object."
+
+msgid "ux.genome"
+msgstr "GENOME"
+
+msgid "ux.add_function"
+msgstr "Add function"
+
+msgid "ux.one_step_test"
+msgstr "ONE-STEP TEST"
+
+msgid "ux.run_one_step"
+msgstr "Run one step"
+
+msgid "ux.last_step_result"
+msgstr "LAST STEP RESULT"
+
+msgid "ux.sent_inputs"
+msgstr "Sent inputs"
+
+msgid "ux.runtime_values"
+msgstr "Runtime values"

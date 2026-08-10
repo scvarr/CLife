@@ -141,6 +141,7 @@ public:
     [[nodiscard]] godot::Array get_host_inputs();
     [[nodiscard]] godot::Array get_host_outputs();
     bool set_host_input(const godot::String& channel, double amount);
+    bool set_preview_input(std::int64_t value_key, double amount);
     [[nodiscard]] godot::Dictionary export_world_snapshot();
     bool import_world_snapshot(const godot::Dictionary& snapshot);
     [[nodiscard]] godot::String get_last_error() const;

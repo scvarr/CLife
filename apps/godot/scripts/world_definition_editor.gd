@@ -18,6 +18,13 @@ var new_parameter_active := false
 var new_process_output_active := false
 var new_external_input_active := false
 var external_inputs: Array[Dictionary] = []
+var selected_template_id := 0
+var new_object_active := false
+var new_genome_function_active := false
+var draft_genome_function_type_id := 0
+var editing_genome_index := -1
+var last_test_inputs: Array[Dictionary] = []
+var last_runtime_values: Array[Dictionary] = []
 var selected_formula_id_by_function: Dictionary = {}
 var deletion_context: Dictionary = {}
 var startup_status := ""
@@ -33,6 +40,7 @@ func _ready() -> void:
 	$Layout/Sidebar/Conversions.text = tr("ux.conversions")
 	$Layout/Sidebar/Formulas.text = tr("ux.formulas")
 	$Layout/Sidebar/Functions.text = tr("ux.functions")
+	$Layout/Sidebar/Objects.text = tr("ux.objects")
 	$Layout/Sidebar/ExternalInputs.text = tr("ux.external_inputs")
 	$Layout/Sidebar/Save.text = tr("ux.save_world")
 	add_child(context_menu)
@@ -344,6 +352,169 @@ func _has_value_key(value_key: int) -> bool:
 		if int(value.key) == value_key:
 			return true
 	return false
+
+func _show_objects() -> void:
+	_clear_workspace()
+	var split := HBoxContainer.new(); split.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var list_panel := VBoxContainer.new(); list_panel.custom_minimum_size.x = 280
+	var title := Label.new(); title.text = tr("ux.objects"); title.add_theme_font_size_override("font_size", 22); list_panel.add_child(title)
+	var templates := editor.get_templates()
+	if selected_template_id != 0 and _find_template(selected_template_id).is_empty(): selected_template_id = 0
+	if selected_template_id == 0 and not templates.is_empty(): selected_template_id = int(templates[0].id)
+	for template in templates:
+		_add_object_list_item(list_panel, template)
+	if new_object_active: _add_new_object_row(list_panel)
+	var add := Button.new(); add.text = "+ " + tr("ux.add_new"); add.disabled = new_object_active
+	add.pressed.connect(func(): new_object_active = true; _show_objects())
+	list_panel.add_child(add)
+	var editor_scroll := ScrollContainer.new(); editor_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL; editor_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	var editor_panel := VBoxContainer.new(); editor_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL; editor_scroll.add_child(editor_panel)
+	if selected_template_id == 0:
+		var hint := Label.new(); hint.text = tr("ux.create_first_object"); editor_panel.add_child(hint)
+	else:
+		_build_object_editor(editor_panel, _find_template(selected_template_id))
+	split.add_child(list_panel); split.add_child(editor_scroll); workspace.add_child(split)
+
+func _add_object_list_item(parent: VBoxContainer, template: Dictionary) -> void:
+	var button := Button.new(); button.text = str(template.name); button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.button_pressed = int(template.id) == selected_template_id
+	button.pressed.connect(func(): selected_template_id = int(template.id); _show_objects())
+	button.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and (event as InputEventMouseButton).pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT:
+			_show_delete_menu({"kind": "template", "template": template}, button.get_global_position() + (event as InputEventMouseButton).position)
+	)
+	parent.add_child(button)
+
+func _add_new_object_row(parent: VBoxContainer) -> void:
+	var name := LineEdit.new(); name.placeholder_text = tr("ux.object_name"); parent.add_child(name)
+	var row := HBoxContainer.new(); var save := Button.new(); save.text = tr("ux.save"); var cancel := Button.new(); cancel.text = tr("ux.cancel")
+	save.pressed.connect(func():
+		var id := editor.add_template(name.text)
+		if id == 0: _show_error(); return
+		selected_template_id = id; new_object_active = false; _show_objects()
+	)
+	cancel.pressed.connect(func(): new_object_active = false; _show_objects())
+	row.add_child(save); row.add_child(cancel); parent.add_child(row)
+
+func _build_object_editor(parent: VBoxContainer, template: Dictionary) -> void:
+	_add_title_to(parent, tr("ux.object"))
+	var name_row := HBoxContainer.new(); var name := LineEdit.new(); name.text = str(template.name); name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var save_name := Button.new(); save_name.text = tr("ux.save")
+	save_name.pressed.connect(func():
+		if not editor.rename_template(int(template.id), name.text): _show_error(); return
+		_show_objects()
+	)
+	name_row.add_child(name); name_row.add_child(save_name); parent.add_child(_labeled_row(tr("ux.name"), name_row))
+	_add_section(parent, tr("ux.genome"))
+	for entry in editor.get_genome(int(template.id)):
+		_add_genome_entry_card(parent, template, entry)
+	if new_genome_function_active:
+		_add_new_genome_function_row(parent, template)
+	var add := Button.new(); add.text = "+ " + tr("ux.add_function"); add.disabled = new_genome_function_active
+	add.pressed.connect(func(): new_genome_function_active = true; draft_genome_function_type_id = 0; _show_objects())
+	parent.add_child(add)
+	_add_one_step_test(parent, template)
+
+func _semantic_genome_entry(entry: Dictionary) -> String:
+	var parts := ["%02X" % int(entry.get("function_type_id", 0))]
+	for parameter in entry.get("genome_parameters", []):
+		parts.append(str(float((parameter as Dictionary).get("amount", 0.0))))
+	return " | ".join(parts)
+
+func _add_genome_entry_card(parent: VBoxContainer, template: Dictionary, entry: Dictionary) -> void:
+	var index := int(entry.get("index", -1))
+	if editing_genome_index == index:
+		_add_genome_entry_editor(parent, template, entry)
+		return
+	var card := PanelContainer.new(); var label := Label.new(); label.text = _semantic_genome_entry(entry); card.add_child(label)
+	card.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
+			if (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+				editing_genome_index = index; _show_objects()
+			elif (event as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT:
+				_show_delete_menu({"kind": "genome_entry", "template_id": int(template.id), "entry": entry}, card.get_global_position() + (event as InputEventMouseButton).position)
+	)
+	parent.add_child(card)
+
+func _add_genome_entry_editor(parent: VBoxContainer, template: Dictionary, entry: Dictionary) -> void:
+	var card := PanelContainer.new(); var box := VBoxContainer.new(); card.add_child(box)
+	var function_name := Label.new(); function_name.text = str(entry.get("function_type_name", "")); box.add_child(_labeled_row(tr("ux.function"), function_name))
+	var fields := []
+	for parameter in entry.get("genome_parameters", []):
+		var spin := SpinBox.new(); spin.step = 0.1; spin.value = float((parameter as Dictionary).get("amount", 0.0)); spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		box.add_child(_labeled_row(str((parameter as Dictionary).get("name", "")), spin))
+		fields.append({"parameter_id": int((parameter as Dictionary).get("parameter_id", 0)), "spin": spin})
+	var row := HBoxContainer.new(); var save := Button.new(); save.text = tr("ux.save"); var cancel := Button.new(); cancel.text = tr("ux.cancel")
+	save.pressed.connect(func():
+		for field in fields:
+			if not editor.set_genome_parameter(int(template.id), int(entry.index), int(field.parameter_id), field.spin.value): _show_error(); return
+		editing_genome_index = -1; _show_objects()
+	)
+	cancel.pressed.connect(func(): editing_genome_index = -1; _show_objects())
+	row.add_child(save); row.add_child(cancel); box.add_child(row); parent.add_child(card)
+
+func _add_new_genome_function_row(parent: VBoxContainer, template: Dictionary) -> void:
+	var functions := editor.get_function_types()
+	if functions.is_empty():
+		var hint := Label.new(); hint.text = tr("ux.create_first_function"); parent.add_child(hint); return
+	if draft_genome_function_type_id == 0: draft_genome_function_type_id = int(functions[0].id)
+	var selector := OptionButton.new()
+	for function_type in functions:
+		selector.add_item(str(function_type.name), int(function_type.id))
+		if int(function_type.id) == draft_genome_function_type_id: selector.select(selector.item_count - 1)
+	selector.item_selected.connect(func(index: int): draft_genome_function_type_id = selector.get_item_id(index); _show_objects())
+	parent.add_child(_labeled_row(tr("ux.function"), selector))
+	var function_type := _find_function(draft_genome_function_type_id)
+	var fields := []
+	for parameter in function_type.get("genome_parameters", []):
+		var spin := SpinBox.new(); spin.step = 0.1; spin.value = float((parameter as Dictionary).get("default_value", 0.0)); spin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		parent.add_child(_labeled_row(str((parameter as Dictionary).get("name", "")), spin))
+		fields.append({"parameter_id": int((parameter as Dictionary).get("id", 0)), "default_value": float((parameter as Dictionary).get("default_value", 0.0)), "spin": spin})
+	var row := HBoxContainer.new(); var save := Button.new(); save.text = tr("ux.save"); var cancel := Button.new(); cancel.text = tr("ux.cancel")
+	save.pressed.connect(func():
+		if not editor.add_genome_function(int(template.id), draft_genome_function_type_id): _show_error(); return
+		var genome := editor.get_genome(int(template.id)); var index := genome.size() - 1
+		for field in fields:
+			if field.spin.value != field.default_value and not editor.set_genome_parameter(int(template.id), index, int(field.parameter_id), field.spin.value):
+				editor.remove_genome_function(int(template.id), index); _show_error(); return
+		new_genome_function_active = false; draft_genome_function_type_id = 0; _show_objects()
+	)
+	cancel.pressed.connect(func(): new_genome_function_active = false; draft_genome_function_type_id = 0; _show_objects())
+	row.add_child(save); row.add_child(cancel); parent.add_child(row)
+
+func _add_one_step_test(parent: VBoxContainer, template: Dictionary) -> void:
+	_add_section(parent, tr("ux.one_step_test"))
+	for mapping in external_inputs:
+		var input := Label.new(); input.text = "%s -> %s = %s" % [str(mapping.get("channel", "")), _value_name(int(mapping.get("value_key", 0))), str(mapping.get("test_value", 0.0))]; parent.add_child(input)
+	var run := Button.new(); run.text = tr("ux.run_one_step"); run.pressed.connect(func(): _run_one_step_test(int(template.id))); parent.add_child(run)
+	if not last_test_inputs.is_empty() or not last_runtime_values.is_empty():
+		_add_section(parent, tr("ux.last_step_result"))
+		var inputs_title := Label.new(); inputs_title.text = tr("ux.sent_inputs"); parent.add_child(inputs_title)
+		for input in last_test_inputs:
+			var input_label := Label.new(); input_label.text = "%s -> %s = %s" % [str(input.channel), _value_name(int(input.value_key)), str(input.amount)]; parent.add_child(input_label)
+		var values_title := Label.new(); values_title.text = tr("ux.runtime_values"); parent.add_child(values_title)
+		for value in last_runtime_values:
+			var value_label := Label.new(); value_label.text = "%s = %s" % [str(value.name), str(value.amount)]; parent.add_child(value_label)
+
+func _run_one_step_test(template_id: int) -> void:
+	last_test_inputs.clear(); last_runtime_values.clear()
+	if not editor.select_template(template_id): _show_error(); return
+	if not editor.run(): _show_error(); return
+	for mapping in external_inputs:
+		if not editor.set_preview_input(int(mapping.get("value_key", 0)), float(mapping.get("test_value", 0.0))):
+			var input_error := editor.get_last_error(); editor.stop(); status.text = input_error; return
+		last_test_inputs.append({"channel": str(mapping.get("channel", "")), "value_key": int(mapping.get("value_key", 0)), "amount": float(mapping.get("test_value", 0.0))})
+	if not editor.step_once():
+		var step_error := editor.get_last_error(); editor.stop(); status.text = step_error; return
+	last_runtime_values.assign(editor.get_runtime_values())
+	var read_error := editor.get_last_error(); editor.stop()
+	if not read_error.is_empty(): status.text = read_error; return
+	_show_objects()
+
+func _find_template(id: int) -> Dictionary:
+	for template in editor.get_templates():
+		if int(template.id) == id: return template
+	return {}
 
 func _show_functions() -> void:
 	_clear_workspace()
@@ -730,10 +901,12 @@ func _on_context_menu_pressed(id: int) -> void:
 		"value": name = str((deletion_context.get("value", {}) as Dictionary).get("name", ""))
 		"conversion": name = tr("ux.conversion")
 		"function": name = str((deletion_context.get("function", {}) as Dictionary).get("name", ""))
+		"template": name = str((deletion_context.get("template", {}) as Dictionary).get("name", ""))
 		"parameter": name = str((deletion_context.get("parameter", {}) as Dictionary).get("name", ""))
 		"process_output": name = _value_name(int((deletion_context.get("output", {}) as Dictionary).get("output_key", 0)))
 		"formula": name = str((deletion_context.get("calculation", {}) as Dictionary).get("name", ""))
 		"external_input": name = str((deletion_context.get("mapping", {}) as Dictionary).get("channel", ""))
+		"genome_entry": name = _semantic_genome_entry(deletion_context.get("entry", {}) as Dictionary)
 		_: name = str((deletion_context.get("port", {}) as Dictionary).get("name", ""))
 	var kind := str(deletion_context.get("kind", ""))
 	delete_confirmation.dialog_text = (tr("ux.delete_unit_confirmation") if kind == "unit" else tr("ux.delete_value_confirmation") if kind == "value" else tr("ux.delete_confirmation")) % name
@@ -749,6 +922,9 @@ func _confirm_deletion() -> void:
 		"function":
 			removed = editor.remove_function_type(int((context.get("function", {}) as Dictionary).get("id", 0)))
 			if removed and selected_function_id == int((context.get("function", {}) as Dictionary).get("id", 0)): selected_function_id = 0
+		"template":
+			removed = editor.remove_template(int((context.get("template", {}) as Dictionary).get("id", 0)))
+			if removed and selected_template_id == int((context.get("template", {}) as Dictionary).get("id", 0)): selected_template_id = 0
 		"parameter": removed = editor.remove_genome_parameter(int(context.get("function_id", 0)), int((context.get("parameter", {}) as Dictionary).get("id", 0)))
 		"process_output": removed = editor.remove_function_process_output(int(context.get("function_id", 0)), int((context.get("output", {}) as Dictionary).get("output_key", 0)))
 		"formula":
@@ -760,11 +936,13 @@ func _confirm_deletion() -> void:
 			var index := int(context.get("index", -1))
 			if index >= 0 and index < external_inputs.size():
 				external_inputs.remove_at(index); removed = true
+		"genome_entry": removed = editor.remove_genome_function(int(context.get("template_id", 0)), int((context.get("entry", {}) as Dictionary).get("index", -1)))
 	if not removed: _show_error(); return
 	if str(context.get("kind", "")) == "unit": _show_units()
 	elif str(context.get("kind", "")) == "value": _show_world_quantities()
 	elif str(context.get("kind", "")) == "conversion": _show_conversions()
 	elif str(context.get("kind", "")) in ["function", "parameter", "process_output"]: _show_functions()
+	elif str(context.get("kind", "")) in ["template", "genome_entry"]: _show_objects()
 	elif str(context.get("kind", "")) == "external_input": _show_external_inputs()
 	else: _show_formulas()
 

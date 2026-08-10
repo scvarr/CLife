@@ -951,3 +951,36 @@ msgstr "Мир загружен, но конфигурацию host не уда�
 
 msgid "status.invalid_host_config"
 msgstr "некорректная конфигурация host"
+
+msgid "ux.objects"
+msgstr "Объекты"
+
+msgid "ux.object"
+msgstr "Объект"
+
+msgid "ux.object_name"
+msgstr "Название объекта"
+
+msgid "ux.create_first_object"
+msgstr "Создайте первый объект."
+
+msgid "ux.genome"
+msgstr "GENOME"
+
+msgid "ux.add_function"
+msgstr "Добавить функцию"
+
+msgid "ux.one_step_test"
+msgstr "ТЕСТ ОДНОГО ШАГА"
+
+msgid "ux.run_one_step"
+msgstr "Выполнить один шаг"
+
+msgid "ux.last_step_result"
+msgstr "РЕЗУЛЬТАТ ПОСЛЕДНЕГО ШАГА"
+
+msgid "ux.sent_inputs"
+msgstr "Переданные входы"
+
+msgid "ux.runtime_values"
+msgstr "Runtime величины"
