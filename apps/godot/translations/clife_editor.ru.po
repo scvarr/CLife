@@ -735,3 +735,12 @@ msgstr "Характеристика объекта удалена"
 
 msgid "help.object_construction"
 msgstr "Выберите формулу и свяжите её входы и выходы с характеристиками объекта."
+
+msgid "menu.new_world"
+msgstr "Новый мир"
+msgid "menu.load_world"
+msgstr "Загрузить мир"
+msgid "menu.exit"
+msgstr "Выход"
+msgid "menu.coming_next"
+msgstr "Будет реализовано на следующем этапе."
