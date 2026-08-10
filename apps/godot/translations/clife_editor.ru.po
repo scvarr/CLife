@@ -768,3 +768,9 @@ msgstr "Добавить новую"
 
 msgid "ux.cancel"
 msgstr "Отмена"
+
+msgid "ux.delete"
+msgstr "Удалить"
+
+msgid "ux.delete_unit_confirmation"
+msgstr "Удалить единицу «%s»?"
