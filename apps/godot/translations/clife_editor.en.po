@@ -911,3 +911,33 @@ msgstr "genome.%s"
 
 msgid "ux.source_formula"
 msgstr "formula.%s.%s"
+
+msgid "ux.external_inputs"
+msgstr "External inputs"
+
+msgid "ux.add"
+msgstr "Add"
+
+msgid "ux.godot_channel"
+msgstr "Godot channel"
+
+msgid "ux.world_quantity"
+msgstr "World quantity"
+
+msgid "ux.test_value"
+msgstr "Test value"
+
+msgid "status.external_input_invalid"
+msgstr "Select an input channel and a world quantity."
+
+msgid "status.external_input_channel_duplicate"
+msgstr "The input channel \"%s\" is already mapped."
+
+msgid "status.host_config_save_failed"
+msgstr "World was saved, but host configuration could not be saved: %s"
+
+msgid "status.host_config_load_failed"
+msgstr "World loaded, but host configuration could not be loaded: %s"
+
+msgid "status.invalid_host_config"
+msgstr "invalid host configuration"

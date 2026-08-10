@@ -30,6 +30,8 @@ layout_mode = 2
 layout_mode = 2
 [node name="Functions" type="Button" parent="Layout/Sidebar"]
 layout_mode = 2
+[node name="ExternalInputs" type="Button" parent="Layout/Sidebar"]
+layout_mode = 2
 [node name="Spacer" type="Control" parent="Layout/Sidebar"]
 layout_mode = 2
 size_flags_vertical = 3
@@ -55,4 +57,5 @@ layout_mode = 2
 [connection signal="pressed" from="Layout/Sidebar/Conversions" to="." method="_show_conversions"]
 [connection signal="pressed" from="Layout/Sidebar/Formulas" to="." method="_show_formulas"]
 [connection signal="pressed" from="Layout/Sidebar/Functions" to="." method="_show_functions"]
+[connection signal="pressed" from="Layout/Sidebar/ExternalInputs" to="." method="_show_external_inputs"]
 [connection signal="pressed" from="Layout/Sidebar/Save" to="." method="_save_current_world"]

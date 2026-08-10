@@ -921,3 +921,33 @@ msgstr "genome.%s"
 
 msgid "ux.source_formula"
 msgstr "formula.%s.%s"
+
+msgid "ux.external_inputs"
+msgstr "Внешние входы"
+
+msgid "ux.add"
+msgstr "Добавить"
+
+msgid "ux.godot_channel"
+msgstr "Канал Godot"
+
+msgid "ux.world_quantity"
+msgstr "Величина мира"
+
+msgid "ux.test_value"
+msgstr "Тестовое значение"
+
+msgid "status.external_input_invalid"
+msgstr "Выберите входной канал и величину мира."
+
+msgid "status.external_input_channel_duplicate"
+msgstr "Входной канал «%s» уже привязан."
+
+msgid "status.host_config_save_failed"
+msgstr "Мир сохранён, но конфигурацию host не удалось сохранить: %s"
+
+msgid "status.host_config_load_failed"
+msgstr "Мир загружен, но конфигурацию host не удалось загрузить: %s"
+
+msgid "status.invalid_host_config"
+msgstr "некорректная конфигурация host"

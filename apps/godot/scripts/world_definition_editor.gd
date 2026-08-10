@@ -2,6 +2,7 @@ extends Control
 
 const WorldEditorSession = preload("res://scripts/world_editor_session.gd")
 const WORLD_SAVE_PATH := "user://current_world.clife.json"
+const GODOT_HOST_CONFIG_PATH := "user://current_world.godot.json"
 
 var editor := CLifeWorldEditor.new()
 var new_unit_row_active := false
@@ -15,6 +16,8 @@ var selected_function_id := 0
 var new_function_active := false
 var new_parameter_active := false
 var new_process_output_active := false
+var new_external_input_active := false
+var external_inputs: Array[Dictionary] = []
 var selected_formula_id_by_function: Dictionary = {}
 var deletion_context: Dictionary = {}
 var startup_status := ""
@@ -30,6 +33,7 @@ func _ready() -> void:
 	$Layout/Sidebar/Conversions.text = tr("ux.conversions")
 	$Layout/Sidebar/Formulas.text = tr("ux.formulas")
 	$Layout/Sidebar/Functions.text = tr("ux.functions")
+	$Layout/Sidebar/ExternalInputs.text = tr("ux.external_inputs")
 	$Layout/Sidebar/Save.text = tr("ux.save_world")
 	add_child(context_menu)
 	context_menu.id_pressed.connect(_on_context_menu_pressed)
@@ -37,6 +41,7 @@ func _ready() -> void:
 	delete_confirmation.confirmed.connect(_confirm_deletion)
 	if WorldEditorSession.open_mode == WorldEditorSession.OpenMode.LOAD_CURRENT_WORLD:
 		_load_current_world()
+		_load_external_inputs()
 	WorldEditorSession.open_mode = WorldEditorSession.OpenMode.NEW_WORLD
 	_show_units()
 	if not startup_status.is_empty(): status.text = startup_status
@@ -240,6 +245,105 @@ func _add_new_conversion_row() -> void:
 	)
 	cancel.pressed.connect(func(): new_conversion_row_active = false; _show_conversions())
 	row.add_child(source_amount); row.add_child(source_unit); row.add_child(arrow); row.add_child(target_amount); row.add_child(target_unit); row.add_child(save); row.add_child(cancel); workspace.add_child(row)
+
+func _show_external_inputs() -> void:
+	_clear_workspace()
+	_add_title(tr("ux.external_inputs"))
+	var header := HBoxContainer.new()
+	var channel := Label.new(); channel.text = tr("ux.godot_channel"); channel.custom_minimum_size.x = 220
+	var value := Label.new(); value.text = tr("ux.world_quantity"); value.custom_minimum_size.x = 220
+	var test_value := Label.new(); test_value.text = tr("ux.test_value"); test_value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(channel); header.add_child(value); header.add_child(test_value); workspace.add_child(header)
+	for index in external_inputs.size():
+		_add_external_input_row(index, external_inputs[index])
+	if new_external_input_active:
+		_add_new_external_input_row()
+	var add := Button.new(); add.text = "+ " + tr("ux.add"); add.disabled = new_external_input_active
+	add.pressed.connect(func(): new_external_input_active = true; _show_external_inputs())
+	workspace.add_child(add)
+
+func _input_capability_selector(selected_channel: String) -> OptionButton:
+	var selector := OptionButton.new()
+	for capability in editor.get_host_capabilities():
+		if int(capability.direction_id) != 0:
+			continue
+		selector.add_item("%s — %s" % [tr(str(capability.display_key)), str(capability.channel)])
+		selector.set_item_metadata(selector.item_count - 1, str(capability.channel))
+		if str(capability.channel) == selected_channel:
+			selector.select(selector.item_count - 1)
+	return selector
+
+func _selected_capability_channel(selector: OptionButton) -> String:
+	if selector.selected < 0:
+		return ""
+	return str(selector.get_item_metadata(selector.selected))
+
+func _add_external_input_row(index: int, mapping: Dictionary) -> void:
+	var row := HBoxContainer.new()
+	var channel := Label.new(); channel.text = str(mapping.get("channel", "")); channel.custom_minimum_size.x = 220
+	var value := Label.new(); value.text = _value_name(int(mapping.get("value_key", 0))); value.custom_minimum_size.x = 220
+	var test_value := Label.new(); test_value.text = str(mapping.get("test_value", 1.0)); test_value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(channel); row.add_child(value); row.add_child(test_value)
+	row.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
+			if (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+				_edit_external_input_row(row, index, mapping)
+			elif (event as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT:
+				_show_delete_menu({"kind": "external_input", "index": index, "mapping": mapping}, row.get_global_position() + (event as InputEventMouseButton).position)
+	)
+	workspace.add_child(row)
+
+func _edit_external_input_row(row: HBoxContainer, index: int, mapping: Dictionary) -> void:
+	for child in row.get_children(): child.queue_free()
+	var channel := _input_capability_selector(str(mapping.get("channel", ""))); channel.custom_minimum_size.x = 220
+	var value := _value_selector(int(mapping.get("value_key", 0))); value.custom_minimum_size.x = 220
+	var test_value := SpinBox.new(); test_value.value = float(mapping.get("test_value", 1.0)); test_value.step = 0.1; test_value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var save := Button.new(); save.text = tr("ux.save"); var cancel := Button.new(); cancel.text = tr("ux.cancel")
+	save.pressed.connect(func():
+		var updated := {"channel": _selected_capability_channel(channel), "value_key": _selected_unit_id(value), "test_value": test_value.value}
+		if not _validate_external_input(updated, index): return
+		external_inputs[index] = updated; _show_external_inputs()
+	)
+	cancel.pressed.connect(_show_external_inputs)
+	row.add_child(channel); row.add_child(value); row.add_child(test_value); row.add_child(save); row.add_child(cancel)
+
+func _add_new_external_input_row() -> void:
+	var row := HBoxContainer.new()
+	var channel := _input_capability_selector(""); channel.custom_minimum_size.x = 220
+	var value := _value_selector(0); value.custom_minimum_size.x = 220
+	var test_value := SpinBox.new(); test_value.value = 1.0; test_value.step = 0.1; test_value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var save := Button.new(); save.text = tr("ux.save"); var cancel := Button.new(); cancel.text = tr("ux.cancel")
+	save.pressed.connect(func():
+		var mapping := {"channel": _selected_capability_channel(channel), "value_key": _selected_unit_id(value), "test_value": test_value.value}
+		if not _validate_external_input(mapping): return
+		external_inputs.append(mapping); new_external_input_active = false; _show_external_inputs()
+	)
+	cancel.pressed.connect(func(): new_external_input_active = false; _show_external_inputs())
+	row.add_child(channel); row.add_child(value); row.add_child(test_value); row.add_child(save); row.add_child(cancel); workspace.add_child(row)
+
+func _validate_external_input(mapping: Dictionary, ignored_index: int = -1) -> bool:
+	var channel := str(mapping.get("channel", ""))
+	var value_key := int(mapping.get("value_key", 0))
+	if channel.is_empty() or value_key == 0 or not _is_input_capability(channel) or not _has_value_key(value_key):
+		status.text = tr("status.external_input_invalid")
+		return false
+	for index in external_inputs.size():
+		if index != ignored_index and str(external_inputs[index].get("channel", "")) == channel:
+			status.text = tr("status.external_input_channel_duplicate") % channel
+			return false
+	return true
+
+func _is_input_capability(channel: String) -> bool:
+	for capability in editor.get_host_capabilities():
+		if int(capability.direction_id) == 0 and str(capability.channel) == channel:
+			return true
+	return false
+
+func _has_value_key(value_key: int) -> bool:
+	for value in editor.get_values():
+		if int(value.key) == value_key:
+			return true
+	return false
 
 func _show_functions() -> void:
 	_clear_workspace()
@@ -629,6 +733,7 @@ func _on_context_menu_pressed(id: int) -> void:
 		"parameter": name = str((deletion_context.get("parameter", {}) as Dictionary).get("name", ""))
 		"process_output": name = _value_name(int((deletion_context.get("output", {}) as Dictionary).get("output_key", 0)))
 		"formula": name = str((deletion_context.get("calculation", {}) as Dictionary).get("name", ""))
+		"external_input": name = str((deletion_context.get("mapping", {}) as Dictionary).get("channel", ""))
 		_: name = str((deletion_context.get("port", {}) as Dictionary).get("name", ""))
 	var kind := str(deletion_context.get("kind", ""))
 	delete_confirmation.dialog_text = (tr("ux.delete_unit_confirmation") if kind == "unit" else tr("ux.delete_value_confirmation") if kind == "value" else tr("ux.delete_confirmation")) % name
@@ -651,11 +756,16 @@ func _confirm_deletion() -> void:
 			if removed and selected_calculation_id == int((context.get("calculation", {}) as Dictionary).get("id", 0)): selected_calculation_id = 0
 		"input": removed = editor.remove_calculation_input(int(context.get("calculation_id", 0)), int((context.get("port", {}) as Dictionary).get("id", 0)))
 		"output": removed = editor.remove_calculation_output(int(context.get("calculation_id", 0)), int((context.get("port", {}) as Dictionary).get("id", 0)))
+		"external_input":
+			var index := int(context.get("index", -1))
+			if index >= 0 and index < external_inputs.size():
+				external_inputs.remove_at(index); removed = true
 	if not removed: _show_error(); return
 	if str(context.get("kind", "")) == "unit": _show_units()
 	elif str(context.get("kind", "")) == "value": _show_world_quantities()
 	elif str(context.get("kind", "")) == "conversion": _show_conversions()
 	elif str(context.get("kind", "")) in ["function", "parameter", "process_output"]: _show_functions()
+	elif str(context.get("kind", "")) == "external_input": _show_external_inputs()
 	else: _show_formulas()
 
 func _find_calculation(id: int) -> Dictionary:
@@ -678,7 +788,18 @@ func _save_current_world() -> void:
 		return
 	file.store_string(JSON.stringify(editor.export_world_snapshot(), "\t"))
 	file.close()
+	if not _save_external_inputs():
+		return
 	status.text = tr("status.world_saved")
+
+func _save_external_inputs() -> bool:
+	var file := FileAccess.open(GODOT_HOST_CONFIG_PATH, FileAccess.WRITE)
+	if file == null:
+		status.text = tr("status.host_config_save_failed") % FileAccess.get_open_error()
+		return false
+	file.store_string(JSON.stringify({"external_inputs": external_inputs}, "\t"))
+	file.close()
+	return true
 
 func _load_current_world() -> void:
 	if not FileAccess.file_exists(WORLD_SAVE_PATH):
@@ -696,6 +817,34 @@ func _load_current_world() -> void:
 		startup_status = editor.get_last_error()
 		return
 	startup_status = tr("status.world_loaded")
+
+func _load_external_inputs() -> void:
+	external_inputs.clear()
+	if not FileAccess.file_exists(GODOT_HOST_CONFIG_PATH):
+		return
+	var file := FileAccess.open(GODOT_HOST_CONFIG_PATH, FileAccess.READ)
+	if file == null:
+		startup_status = tr("status.host_config_load_failed") % FileAccess.get_open_error()
+		return
+	var json := JSON.new()
+	if json.parse(file.get_as_text()) != OK or not (json.data is Dictionary):
+		startup_status = tr("status.host_config_load_failed") % json.get_error_message()
+		return
+	var saved_inputs = (json.data as Dictionary).get("external_inputs", [])
+	if not (saved_inputs is Array):
+		startup_status = tr("status.host_config_load_failed") % tr("status.invalid_host_config")
+		return
+	for entry in saved_inputs:
+		if not (entry is Dictionary):
+			startup_status = tr("status.host_config_load_failed") % tr("status.invalid_host_config")
+			external_inputs.clear()
+			return
+		var mapping: Dictionary = entry
+		if not _validate_external_input(mapping):
+			startup_status = tr("status.host_config_load_failed") % tr("status.invalid_host_config")
+			external_inputs.clear()
+			return
+		external_inputs.append({"channel": str(mapping.get("channel", "")), "value_key": int(mapping.get("value_key", 0)), "test_value": float(mapping.get("test_value", 1.0))})
 
 func _clear_workspace() -> void:
 	for child in workspace.get_children():
