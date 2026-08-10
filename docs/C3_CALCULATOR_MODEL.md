@@ -266,3 +266,6 @@ Temperature change
 Универсальный API не содержит искусственного деления чисел на `Field / Resource / State / Matter` и связанных с ним обязательных `Measure / Property` конструкций.
 
 Первый клеточный мир остаётся тестовым world preset и предметным языком разработки, а core является компактной машиной для построения более общих эмерджентных систем. Редактируемая модель мира и host/runtime-граница описаны в `C4_HOST_WORLD_EDITOR_MODEL.md`.
+## Current synchronization
+
+`Function` has one input and one throughput demand, but may have multiple outputs. Input is consumed once; after proportional arbitration each output receives `taken * result_per_input`. Every output participates in pipeline dependencies. Calculator receives ready numeric parameters; expressions, phenotype Calculations and UnitConversions belong to `clife_world`.

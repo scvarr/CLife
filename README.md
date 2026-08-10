@@ -1,5 +1,15 @@
 # CLife
 
+## Documentation map
+
+**Current / normative:** [C0](docs/C0_CONCEPT.md), [C1](docs/C1_ARCHITECTURE.md), [C3](docs/C3_CALCULATOR_MODEL.md), [C4](docs/C4_HOST_WORLD_EDITOR_MODEL.md), [C6](docs/C6_GODOT_WORLD_EDITOR.md), [C7](docs/C7_GENOTYPE_PHENOTYPE.md).
+
+**Historical:** [C2](docs/C2_WORLD_DEFINITION.md) is the former Field/Resource/State/Matter/Measure model; [C5](docs/C5_DUAL_ENGINE_ADAPTERS.md) is a historical dual-engine integration slice.
+
+**Non-normative:** [FUTURE_IDEAS](docs/FUTURE_IDEAS.md).
+
+Historical documents must not override current/normative documents. The current practical stage is manual construction of a world in the empty Godot editor: Calculations, Function Library and processes, Units/UnitConversions, Templates, ObjectCharacteristics/ObjectConstruction and the first cell.
+
 CLife — проект искусственной жизни с переносимым C++-ядром симуляции и отделёнными от него приложениями/графическими движками.
 
 Это не механический перенос старого Godot-прототипа. Старый проект используется как доказательство работоспособности отдельных идей, источник проверенных формул и будущий golden reference.

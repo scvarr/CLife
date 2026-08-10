@@ -1,133 +1,17 @@
-# C4 — World / Runtime / Host foundation
+# C4 — World, Runtime и Host
 
-Статус: **реализовано / текущая модель интеграции**
+Статус: **CURRENT / NORMATIVE**.
 
-C4 отделяет компактный числовой evaluator от редактируемого мира, runtime-состояния и будущих адаптеров хоста. Каноническая модель мира остаётся независимой от Godot, Unreal и конкретного UI.
+`WorldDefinition` содержит `ValueDefinition`, `UnitDefinition`, `UnitConversionDefinition`, `CalculationDefinition`, `FunctionTypeDefinition`, `ObjectCharacteristicDefinition`, `ObjectConstructionDefinition`, `ObjectTemplate`, `WorldRuleDefinition`, `HostBinding` и `WorldDefinitionSnapshot`. Их identity обеспечивают stable IDs, включая `UnitId`, `UnitConversionId` и `ObjectCharacteristicId`; имена являются authoring data.
 
-Текущий `WorldDefinition` содержит `ValueDefinition`, `CalculationDefinition`, `FunctionTypeDefinition`, `ObjectTemplate`, `WorldRuleDefinition` и `HostBinding`. Стабильные ID (`ValueKey`, `TemplateId`, `FunctionTypeId`, `ParameterId`, `CalculationId`, `CalculationPortId`) являются identity; имена — пользовательские authoring-данные, а не runtime identity.
+## Compilation boundary
 
-## 1. Слои и зависимости
+`compile_phenotype(template)` разрешает genome parameters, выполняет привязанные Calculations, `FunctionValueSource`, material contributions и function characteristic contributions. После этого `ObjectConstructionDefinition` запускает одну обычную Calculation над базовыми характеристиками Template и суммами вкладов функций.
 
-```text
-Editor/UI                  Host adapter (headless / Godot / Unreal)
-    |                                  |
-    v                                  v
-WorldDefinition  ------compile----> RuntimeWorld / RuntimeObject
-                                           |
-                                           v
-                                      Calculator
-```
+`CompiledPhenotype` хранит function parameters, calculation outputs, material totals, function contribution sums и final ObjectCharacteristics. `Value` остаётся изменяемым runtime количеством; `ObjectCharacteristic` — статическое свойство собранного phenotype.
 
-В сборке это выражено направлением:
+## HostBinding
 
-```text
-clife_core <- clife_world <- host applications / future engine adapters
-```
+Input binding допускает только `HostChannel -> runtime Value`. Output binding допускает `runtime Value -> HostChannel` либо `ObjectCharacteristic -> HostChannel`. Например `world.light -> Свет` и `phenotype.Объём -> geometry.volume`. Host не знает специальных биологических имён.
 
-- `Calculator` — низкоуровневый числовой evaluator с плотными адресами.
-- `WorldDefinition` — редактируемые имена, шаблоны, genome, world rules и host bindings.
-- `RuntimeWorld` — скомпилированные программы, объекты и их состояние.
-- Host adapter — собирает данные движка, подаёт их в runtime и применяет выходы.
-- Editor/UI — изменяет `WorldDefinition`; виджеты и lifecycle остаются специфичными для движка.
-
-## 2. `ValueKey` и `ValueId`
-
-`ValueKey` — стабильная идентичность значения в `WorldDefinition`. Ключ не зависит от позиции в контейнере, а удалённый ключ не переиспользуется. Поэтому ссылки из function process definitions, правил, initial values и bindings переживают переупорядочивание данных.
-
-`ValueId` — плотный индекс `Calculator`. При компиляции существующие `ValueKey` сортируются и детерминированно отображаются в диапазон `[0, value_count)`. Хост и редактор адресуют значения через `ValueKey`; доступ к `Calculator` наружу не требуется.
-
-Аналогично, `TemplateId` стабильно идентифицирует шаблон, а `ObjectId` — созданный runtime-объект.
-
-## 3. Редактируемая модель и `Program`
-
-`WorldDefinition` — источник человекочитаемых и редактируемых данных. Он предоставляет явные операции добавления, переименования, изменения и удаления определений и сразу отвергает неизвестные ключи, пустые/дублирующиеся имена, некорректные числа и конфликтующие bindings/rules.
-
-`Program` не является editable world model. Это компактное скомпилированное представление одного `ObjectTemplate`, передаваемое в `Calculator`. Начиная с C7.1 компиляция строит phenotype, переводит conversion-функции в `Function`, buffer-функции в `BufferProcess`, material contributions и initial values — в начальные amounts, а world rules — в end-buffer transfers и `EndRule`.
-
-## 4. Genome и world rules
-
-Genome хранится внутри `ObjectTemplate` как экземпляры world-defined function types. Он содержит только независимые наследуемые значения:
-
-```text
-FunctionTypeId
-ParameterId -> independent Amount
-```
-
-`CalculationDefinition` является единственным механизмом пользовательских phenotype formulas. `FunctionCalculationBinding` связывает его inputs с genome parameters, а `FunctionValueSource` позволяет process, buffer и material contribution использовать genome parameter либо Calculation output. FunctionType связывает эти определения, но сам expressions не содержит. Подробная C7-модель описана в `C7_GENOTYPE_PHENOTYPE.md`.
-
-World rules принадлежат миру и описывают неизбежные последствия после genome pipeline:
-
-```text
-remaining source ValueKey -> END end_buffer ValueKey -> target ValueKey * target_per_source
-```
-
-Они семантически и в editable data хранятся отдельно. End-buffer заполняется только после pipeline, недоступен обычным функциям текущего тика и хранит last-tick snapshot для инспектора. Это не делает правила частью genome.
-
-## 5. Host channels
-
-Host channel — строковое семантическое имя, например `world.light` или `cell.temperature`, а не engine node, Unreal object или callback. Направление задаётся явно:
-
-- `Input`: `HostChannel -> ValueKey`;
-- `Output`: `ValueKey -> HostChannel`.
-
-CLife не вызывает host/engine. Хост сам выполняет цикл:
-
-```text
-gather engine values
-set_input(object, channel/key, amount)
-step()
-value(object, key) / output(object, channel)
-apply results to engine
-```
-
-Input staging является однотактовым. На каждом `RuntimeWorld::step()` все объявленные input bindings подаются в calculator: явно staged значение либо `0`, если хост не задал его для этого tick. После шага staging очищается. Поэтому данные прошлого render frame не становятся неявным входом следующего simulation tick.
-
-Вызов `step()` — ровно один фиксированный simulation tick. Частоту таких вызовов выбирает host независимо от rendering FPS; scheduler в CLife не вводится.
-
-## 6. Runtime objects
-
-`RuntimeWorld::instantiate(TemplateId)` создаёт объект с новым `ObjectId`, сохраняет source `TemplateId` и строит отдельный `Calculator`. Объекты одного шаблона разделяют только скомпилированное определение при создании, но не изменяемое состояние.
-
-Обычный host API не возвращает mutable `Calculator&`. Значения читаются по `ObjectId + ValueKey` либо через output channel.
-
-## 7. Следующие адаптеры
-
-Godot и Unreal adapters должны зависеть от `clife_world`, переводить lifecycle и engine values в описанный push/read контракт и не создавать альтернативную модель мира. Смысл доменных полей и операций редактора должен быть общим; сцены, assets, widgets, inspectors и другие UI-детали будут engine-specific.
-
-C4 намеренно не вводит renderer interface, reflection, undo framework, scheduler или общий cross-engine UI toolkit.
-
-## 7.1 Persistence boundary
-
-`WorldDefinitionSnapshot` — нейтральное C++ представление authoring-мира. Оно хранит definitions, стабильные ID, состояния next-ID counters и исходный текст expressions, но не compiled expression internals и не runtime state.
-
-```text
-WorldDefinition -> WorldDefinitionSnapshot -> host serialization
-```
-
-World layer не зависит от JSON, файловой системы или Godot. Host отвечает за конкретный формат: текущий Godot adapter преобразует snapshot в `Dictionary`, а GDScript — в JSON-файл.
-
-## 8. Зарезервированный structural lifecycle
-
-Будущие операции структуры (`CreateObject`, `RemoveObject`, `ConnectObjects`, `DisconnectObjects`) не являются немедленными побочными эффектами calculator-функций. Зарезервирован следующий порядок:
-
-```text
-calculator phase
-    -> numeric state / structural intent
-end of tick
-    -> runtime collects structural operations
-tick boundary
-    -> RuntimeWorld applies structural mutations
-next tick
-    -> new objects participate normally
-```
-
-Инварианты будущего расширения:
-
-1. `Calculator` не создаёт runtime objects напрямую.
-2. Объекты и topology изменяются только на границе tick.
-3. Новый объект не исполняет genome в tick своего создания.
-4. Host adapters обязаны поддерживать динамический набор `ObjectId`, даже если текущий demo содержит одну клетку.
-5. Structural changes будут передаваться host через явные deltas/events, а не engine callbacks.
-6. Godot/Unreal создают и уничтожают визуальные representations в ответ на изменения CLife.
-
-Текущий C5 slice не реализует сами операции или `WorldDelta`; раздел фиксирует только границу для последующего reproduction/topology этапа.
+Snapshot compatibility между schema versions пока не гарантируется: host может принимать только актуальную schema и старый test save может быть пересоздан.

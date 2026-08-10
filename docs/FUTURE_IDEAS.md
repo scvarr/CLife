@@ -1,89 +1,45 @@
 # CLife — журнал будущих идей
 
-Этот файл **не является roadmap или спецификацией**. Записи здесь не требуют реализации. Идея переносится в нормативную документацию только тогда, когда появляется конкретная задача/кризис и решение принято.
+Этот файл **не является roadmap или спецификацией**. Записи не требуют реализации; идея переносится в normative documentation только после конкретной задачи и принятого решения.
 
-## Физическое представление генома
+## Physical genome encoding
 
 Статус: идея.
 
-Наблюдение: текущий UI уже собирает semantic genotype.
+Semantic genotype уже существует. Future string/byte encoding должен отдельно определить формат, decoding errors, determinism и mutation relation. `WorldDefinition` JSON save file не является biological genome encoding.
 
-Возможное направление: в будущем может появиться компактная string/byte sequence, декодируемая в semantic genotype.
-
-Пока НЕ решено: формат, границы записей, восстановление, ошибки decoding, детерминированность и отношение к мутациям. `WorldDefinition` JSON save file != biological genome encoding.
-
-## Мутации и появление новых функций
+## Mutations and function composition
 
 Статус: открытый вопрос.
 
-Наблюдение: genome с `FunctionTypeId + parameters` меняет только заранее известных FunctionType.
+Mutation может потребовать числовые и структурные операции, а сложные functions — композицию конечного alphabet primitives. Не принято, что FunctionType станет macro или что genome станет graph.
 
-Возможное направление: конечный алфавит примитивов может быть задан заранее, но не конечный список сложных функций; сложная функция потенциально возникает как композиция примитивов и связей. Когда-нибудь возможны изменение числового параметра, duplication, removal, изменение связей, добавление или удаление примитива.
-
-Пока НЕ решено: станет ли `FunctionTypeDefinition` macro, станет ли genome graph и как именно будут выглядеть structural mutations.
-
-## FunctionType как высокоуровневый authoring block
-
-Статус: идея.
-
-Наблюдение: блок с именем «Поглощение света» может оказаться удобным именованным authoring block над низкоуровневыми примитивами.
-
-Возможное направление: исследовать макросы или композиции только при конкретной потребности.
-
-Пока НЕ решено: текущий `FunctionTypeDefinition` остаётся реальной семантической сущностью и не должен переделываться заранее.
-
-## Библиотека клеток и экземпляры мира
+## Cell library and world instances
 
 Статус: отложено.
 
-Наблюдение: `ObjectTemplate` — библиотечное определение; его создание не создаёт world object и не показывает клетку в EDIT.
+Template — library definition, а не размещённый world object. Placement, transforms и multi-cell world ещё не спроектированы.
 
-Возможное направление: отдельное действие «Разместить клетку» и различение library/templates от размещённых instances.
-
-Пока НЕ решено: placement model, transforms, multi-cell world и lifecycle instances.
-
-## Метрики конструктора
-
-Статус: идея.
-
-Наблюдение: в EDIT полезно видеть результат конструкции до запуска runtime.
-
-Возможное направление: показывать входы/выходы, structural cost, вычисляемые параметры, пропускную способность и другие compile-time характеристики.
-
-Пока НЕ решено: набор метрик и их presentation. Это authoring/compile-time metrics, не runtime telemetry.
-
-## Структурные операции
-
-Статус: отложено.
-
-Наблюдение: ранее зарезервированы CreateNode, division, topology changes и применение structural mutations на tick boundary.
-
-Возможное направление: вернуться к ним при конкретной simulation-задаче.
-
-Пока НЕ решено: конкретный API, порядок применения и модель последствий.
-
-## Единицы, размерности и мировые масштабы
+## Units, dimensions and world scales
 
 Статус: частично реализовано; дальнейшее направление открыто.
 
-Наблюдение: `WorldDefinition` уже хранит world-authored `UnitDefinition` со стабильным `UnitId` и symbol. `ValueDefinition` может ссылаться на структурный `UnitExpression` из компонентов `UnitId` и integer exponent. Core не приписывает символам (`L`, `E`, `O`, `mm`, `tick`) физический смысл и не содержит заранее известных dimensions. Ранняя C2-модель исследовала похожую область через `Measure` и `measure_per_unit`, но C2 историческая; её API не должен восстанавливаться автоматически.
+World-authored Units, UnitExpressions и UnitConversions существуют. FunctionProcess уже использует UnitConversion при phenotype compilation. Compound-unit authoring, conversion paths, material properties и dimension checking expressions пока не реализованы.
 
-Реализованное основание: `UnitConversionDefinition` хранит authored мировой закон между двумя `UnitExpression`, включая stable `UnitConversionId` и исходные количества, например `10 L -> 1 E`. Эта запись пока не запускает преобразование в runtime и не привязана к `FunctionTypeDefinition`.
+## Structural materials and construction properties
 
-Возможное направление: развивать world data для базовых масштабов, производительности на такт и будущего использования этих законов функциями. Genome parameters преимущественно остаются относительными коэффициентами.
+Статус: открытый вопрос.
 
-Текущий Godot UI создаёт atomic units и назначает Value одну atomic unit. Compound expressions уже представимы моделью, но их authoring и parser строк (`kg/m`) пока отсутствуют. Отношения не нужно задавать для каждой пары Value; потенциально UI мог бы разделять:
+Structural organic, membrane и material properties могут стать inputs `ObjectConstruction` Calculations для объёма, массы, толщины, прочности, проницаемости и surface/volume relations. Конкретные свойства и формулы не приняты.
 
-```text
-Значения
-  Свет [L]
-  Энергия [E]
-  СтрукОрганика [O]
+## Editor libraries
 
-Законы / преобразования
-  Свет -> Энергия: 10 L -> 1 E
-```
+Статус: частично реализовано.
 
-Более далёкая возможность: expressions знают размерности `L`, `E`, `O`, `L / tick`, `E / L`, отвергают `Light + Organic` и допускают `Light * (Energy / Light) -> Energy`.
+Function Library уже отдельный workspace. Calculation Library, Template Library и World Library остаются future workspaces по мере необходимости; основной экран остаётся simulation/world screen.
 
-Пока НЕ решено: нужен ли полноценный dimension type system; как задаются производные units и automatic conversions; как expression compiler проверяет размерности; как `FunctionTypeDefinition` использует world conversion laws; какие свойства материалов нужны. Compound-unit authoring, properties и dimensional checking будут проектироваться только при конкретном кризисе.
+## Structural operations
+
+Статус: отложено.
+
+CreateNode, division, topology changes и structural mutations at tick boundary требуют отдельной задачи и модели последствий.
