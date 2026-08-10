@@ -557,3 +557,48 @@ msgstr "Supplied last tick: %.6f"
 
 msgid "help.function_type_buffer"
 msgstr "This function type participates in a Value flow as a stateful buffer."
+
+msgid "ui.function_calculations"
+msgstr "Calculations"
+
+msgid "ui.calculation"
+msgstr "Calculation"
+
+msgid "ui.bind_calculation"
+msgstr "Bind Calculation"
+
+msgid "ui.remove_calculation_binding"
+msgstr "Unbind Calculation"
+
+msgid "ui.amount_source"
+msgstr "Amount Source"
+
+msgid "ui.calculation_outputs_read_only"
+msgstr "Calculated Characteristics"
+
+msgid "ui.buffer_process"
+msgstr "Buffer Process"
+
+msgid "ui.capacity"
+msgstr "Capacity"
+
+msgid "ui.leakage"
+msgstr "Leakage"
+
+msgid "ui.set_buffer_process"
+msgstr "Set Buffer Process"
+
+msgid "ui.delete_function_type"
+msgstr "Delete Function Type"
+
+msgid "status.calculation_binding_updated"
+msgstr "Calculation bound"
+
+msgid "status.calculation_binding_removed"
+msgstr "Calculation unbound"
+
+msgid "status.buffer_process_set"
+msgstr "Buffer process updated"
+
+msgid "status.function_type_deleted"
+msgstr "Function type deleted"

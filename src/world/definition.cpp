@@ -19,21 +19,6 @@ void require_name(std::string_view name, const char* context)
     }
 }
 
-[[nodiscard]] std::vector<ParameterName> expression_parameter_names(const FunctionTypeDefinition& type,
-                                                                     std::size_t derived_count)
-{
-    std::vector<ParameterName> names;
-    names.reserve(type.genome_parameters.size() + derived_count);
-    for (const GenomeParameterDefinition& parameter : type.genome_parameters) {
-        names.push_back({.parameter = parameter.id, .name = parameter.name});
-    }
-    for (std::size_t index = 0; index < derived_count; ++index) {
-        const DerivedParameterDefinition& parameter = type.derived_parameters[index];
-        names.push_back({.parameter = parameter.id, .name = parameter.name});
-    }
-    return names;
-}
-
 [[nodiscard]] std::vector<ParameterName> calculation_expression_names(const CalculationDefinition& calculation)
 {
     std::vector<ParameterName> names;
@@ -193,7 +178,6 @@ void WorldDefinition::remove_value(ValueKey key)
     }
     if (std::ranges::any_of(function_types_, [&](const FunctionTypeDefinition& type) {
             return (type.process && (referenced(type.process->input) ||
-                                     (type.process->conversion.value == 0 && referenced(type.process->output)) ||
                                      std::ranges::any_of(type.process->outputs,
                                                          [&](const FunctionProcessOutputDefinition& output) {
                                                              return referenced(output.output);
@@ -321,6 +305,18 @@ void WorldDefinition::rename_function_type(FunctionTypeId id, std::string name)
     mutable_function_type(id).name = std::move(name);
 }
 
+void WorldDefinition::remove_function_type(FunctionTypeId id)
+{
+    (void)function_type(id);
+    if (std::ranges::any_of(templates_, [id](const ObjectTemplate& object) {
+            return std::ranges::any_of(object.genome,
+                                       [id](const GenomeFunctionInstance& function) { return function.type == id; });
+        })) {
+        throw std::invalid_argument{"cannot remove a function type referenced by a template genome"};
+    }
+    std::erase_if(function_types_, [id](const FunctionTypeDefinition& type) { return type.id == id; });
+}
+
 ParameterId WorldDefinition::add_genome_parameter(FunctionTypeId type_id, std::string name, Amount default_value)
 {
     require_name(name, "parameter");
@@ -328,9 +324,8 @@ ParameterId WorldDefinition::add_genome_parameter(FunctionTypeId type_id, std::s
         throw std::invalid_argument{"genome parameter default must be finite"};
     }
     FunctionTypeDefinition& type = mutable_function_type(type_id);
-    const auto duplicate_name = [&name](const auto& parameter) { return parameter.name == name; };
-    if (std::ranges::any_of(type.genome_parameters, duplicate_name) ||
-        std::ranges::any_of(type.derived_parameters, duplicate_name)) {
+    if (std::ranges::any_of(type.genome_parameters,
+                            [&name](const auto& parameter) { return parameter.name == name; })) {
         throw std::invalid_argument{"parameter name must be unique within a function type"};
     }
     if (next_parameter_id_ == 0) {
@@ -348,46 +343,6 @@ ParameterId WorldDefinition::add_genome_parameter(FunctionTypeId type_id, std::s
     return id;
 }
 
-ParameterId WorldDefinition::add_derived_parameter(FunctionTypeId type_id, std::string name,
-                                                   std::string_view expression_source)
-{
-    require_name(name, "parameter");
-    FunctionTypeDefinition& type = mutable_function_type(type_id);
-    const auto duplicate_name = [&name](const auto& parameter) { return parameter.name == name; };
-    if (std::ranges::any_of(type.genome_parameters, duplicate_name) ||
-        std::ranges::any_of(type.derived_parameters, duplicate_name)) {
-        throw std::invalid_argument{"parameter name must be unique within a function type"};
-    }
-    const std::vector<ParameterName> names = expression_parameter_names(type, type.derived_parameters.size());
-    Expression expression = compile_expression(expression_source, names);
-    if (next_parameter_id_ == 0) {
-        throw std::overflow_error{"ParameterId space exhausted"};
-    }
-    const ParameterId id{next_parameter_id_++};
-    type.derived_parameters.push_back({
-        .id = id,
-        .name = std::move(name),
-        .expression_source = std::string{expression_source},
-        .expression = std::move(expression),
-    });
-    return id;
-}
-
-void WorldDefinition::set_derived_parameter_expression(FunctionTypeId type_id, ParameterId parameter_id,
-                                                        std::string_view expression_source)
-{
-    FunctionTypeDefinition& type = mutable_function_type(type_id);
-    const auto parameter = std::ranges::find(type.derived_parameters, parameter_id, &DerivedParameterDefinition::id);
-    if (parameter == type.derived_parameters.end()) {
-        throw std::invalid_argument{"ParameterId is not a derived parameter for this function type"};
-    }
-    const std::size_t index = static_cast<std::size_t>(parameter - type.derived_parameters.begin());
-    const std::vector<ParameterName> names = expression_parameter_names(type, index);
-    Expression expression = compile_expression(expression_source, names);
-    parameter->expression_source = std::string{expression_source};
-    parameter->expression = std::move(expression);
-}
-
 void WorldDefinition::rename_parameter(FunctionTypeId type_id, ParameterId parameter_id, std::string name)
 {
     require_name(name, "parameter");
@@ -395,20 +350,50 @@ void WorldDefinition::rename_parameter(FunctionTypeId type_id, ParameterId param
     const auto duplicate_name = [parameter_id, &name](const auto& parameter) {
         return parameter.id != parameter_id && parameter.name == name;
     };
-    if (std::ranges::any_of(type.genome_parameters, duplicate_name) ||
-        std::ranges::any_of(type.derived_parameters, duplicate_name)) {
+    if (std::ranges::any_of(type.genome_parameters, duplicate_name)) {
         throw std::invalid_argument{"parameter name must be unique within a function type"};
     }
     const auto genome = std::ranges::find(type.genome_parameters, parameter_id, &GenomeParameterDefinition::id);
-    if (genome != type.genome_parameters.end()) {
-        genome->name = std::move(name);
-        return;
-    }
-    const auto derived = std::ranges::find(type.derived_parameters, parameter_id, &DerivedParameterDefinition::id);
-    if (derived == type.derived_parameters.end()) {
+    if (genome == type.genome_parameters.end()) {
         throw std::invalid_argument{"unknown ParameterId for function type"};
     }
-    derived->name = std::move(name);
+    genome->name = std::move(name);
+}
+
+void WorldDefinition::set_function_calculation_binding(FunctionTypeId type_id, FunctionCalculationBinding binding)
+{
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    validate_function_calculation_binding(type, binding);
+    const auto existing = std::ranges::find(type.calculations, binding.calculation,
+                                            &FunctionCalculationBinding::calculation);
+    if (existing == type.calculations.end()) {
+        type.calculations.push_back(std::move(binding));
+    } else {
+        *existing = std::move(binding);
+    }
+}
+
+void WorldDefinition::remove_function_calculation_binding(FunctionTypeId type_id, CalculationId calculation_id)
+{
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    const auto referenced = [calculation_id](const FunctionValueSource& source) {
+        return source.kind == FunctionValueSourceKind::calculation_output && source.calculation == calculation_id;
+    };
+    if ((type.process && (referenced(type.process->throughput) ||
+                          std::ranges::any_of(type.process->outputs, [&](const auto& output) {
+                              return referenced(output.allocation);
+                          }))) ||
+        (type.buffer_process && (referenced(type.buffer_process->capacity) || referenced(type.buffer_process->throughput) ||
+                                 referenced(type.buffer_process->leakage))) ||
+        std::ranges::any_of(type.material_contributions,
+                            [&](const auto& contribution) { return referenced(contribution.amount); })) {
+        throw std::invalid_argument{"cannot remove a calculation binding referenced by the function type"};
+    }
+    if (std::erase_if(type.calculations, [calculation_id](const auto& binding) {
+            return binding.calculation == calculation_id;
+        }) == 0) {
+        throw std::invalid_argument{"function calculation binding does not exist"};
+    }
 }
 
 void WorldDefinition::set_function_process(FunctionTypeId type_id, FunctionProcessDefinition process)
@@ -418,17 +403,7 @@ void WorldDefinition::set_function_process(FunctionTypeId type_id, FunctionProce
     if (type.buffer_process) {
         throw std::invalid_argument{"function type cannot have both conversion and buffer processes"};
     }
-    if (!parameter_belongs_to(type, process.throughput)) {
-        throw std::invalid_argument{"process parameter does not belong to function type"};
-    }
-    if (process.conversion.value == 0) {
-        (void)value(process.output);
-        if (!parameter_belongs_to(type, process.result_per_input) || !process.outputs.empty()) {
-            throw std::invalid_argument{"legacy process definition is invalid"};
-        }
-        type.process = std::move(process);
-        return;
-    }
+    validate_function_value_source(type, process.throughput);
     (void)unit_conversion(process.conversion);
     if (process.outputs.empty()) {
         throw std::invalid_argument{"function process must contain at least one output"};
@@ -436,9 +411,7 @@ void WorldDefinition::set_function_process(FunctionTypeId type_id, FunctionProce
     for (std::size_t index = 0; index < process.outputs.size(); ++index) {
         const FunctionProcessOutputDefinition& output = process.outputs[index];
         (void)value(output.output);
-        if (!parameter_belongs_to(type, output.allocation)) {
-            throw std::invalid_argument{"process allocation parameter does not belong to function type"};
-        }
+        validate_function_value_source(type, output.allocation);
         for (std::size_t previous = 0; previous < index; ++previous) {
             if (process.outputs[previous].output == output.output) {
                 throw std::invalid_argument{"function process output ValueKey is duplicated"};
@@ -459,7 +432,8 @@ void WorldDefinition::add_function_process_output(FunctionTypeId type_id, Functi
     set_function_process(type_id, std::move(process));
 }
 
-void WorldDefinition::change_function_process_settings(FunctionTypeId type_id, ValueKey input, ParameterId throughput,
+void WorldDefinition::change_function_process_settings(FunctionTypeId type_id, ValueKey input,
+                                                        FunctionValueSource throughput,
                                                         UnitConversionId conversion)
 {
     FunctionTypeDefinition& type = mutable_function_type(type_id);
@@ -520,50 +494,28 @@ void WorldDefinition::set_buffer_process(FunctionTypeId type_id, BufferProcessDe
     if (type.process) {
         throw std::invalid_argument{"function type cannot have both conversion and buffer processes"};
     }
-    if (!parameter_belongs_to(type, process.capacity) || !parameter_belongs_to(type, process.throughput) ||
-        !parameter_belongs_to(type, process.leakage)) {
-        throw std::invalid_argument{"buffer parameter does not belong to function type"};
-    }
+    validate_function_value_source(type, process.capacity);
+    validate_function_value_source(type, process.throughput);
+    validate_function_value_source(type, process.leakage);
     type.buffer_process = process;
 }
 
-void WorldDefinition::add_function_material_contribution(FunctionTypeId type_id, ValueKey key,
-                                                         std::string_view expression_source)
-{
-    (void)value(key);
-    FunctionTypeDefinition& type = mutable_function_type(type_id);
-    if (std::ranges::any_of(type.material_contributions,
-                            [key](const MaterialContributionDefinition& item) { return item.value == key; })) {
-        throw std::invalid_argument{"function type has more than one contribution for a material value"};
-    }
-    const std::vector<ParameterName> names = expression_parameter_names(type, type.derived_parameters.size());
-    Expression expression = compile_expression(expression_source, names);
-    type.material_contributions.push_back({
-        .value = key,
-        .expression_source = std::string{expression_source},
-        .amount = std::move(expression),
-    });
-}
-
 void WorldDefinition::set_function_material_contribution(FunctionTypeId type_id, ValueKey key,
-                                                          std::string_view expression_source)
+                                                          FunctionValueSource amount)
 {
     (void)value(key);
     FunctionTypeDefinition& type = mutable_function_type(type_id);
-    const std::vector<ParameterName> names = expression_parameter_names(type, type.derived_parameters.size());
-    Expression expression = compile_expression(expression_source, names);
+    validate_function_value_source(type, amount);
     const auto contribution =
         std::ranges::find(type.material_contributions, key, &MaterialContributionDefinition::value);
     if (contribution == type.material_contributions.end()) {
         type.material_contributions.push_back({
             .value = key,
-            .expression_source = std::string{expression_source},
-            .amount = std::move(expression),
+            .amount = amount,
         });
         return;
     }
-    contribution->expression_source = std::string{expression_source};
-    contribution->amount = std::move(expression);
+    contribution->amount = amount;
 }
 
 void WorldDefinition::remove_function_material_contribution(FunctionTypeId type_id, ValueKey key)
@@ -822,17 +774,11 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
             .id = type.id,
             .name = type.name,
             .genome_parameters = type.genome_parameters,
+            .calculations = type.calculations,
             .process = type.process,
             .buffer_process = type.buffer_process,
+            .material_contributions = type.material_contributions,
         };
-        for (const DerivedParameterDefinition& parameter : type.derived_parameters) {
-            stored.derived_parameters.push_back(
-                {.id = parameter.id, .name = parameter.name, .expression_source = parameter.expression_source});
-        }
-        for (const MaterialContributionDefinition& contribution : type.material_contributions) {
-            stored.material_contributions.push_back(
-                {.value = contribution.value, .expression_source = contribution.expression_source});
-        }
         result.function_types.push_back(std::move(stored));
     }
     return result;
@@ -840,19 +786,17 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
 
 WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& source)
 {
-    if (source.schema_version < 1 || source.schema_version > 4) {
+    if (source.schema_version != 5) {
         throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version"};
     }
     require_unique_snapshot_ids(source.values, &ValueDefinition::key, "ValueKey");
     require_unique_snapshot_names(source.values, "value");
-    if (source.schema_version >= 2) {
-        require_unique_snapshot_ids(source.units, &UnitDefinition::id, "UnitId");
-        for (std::size_t index = 0; index < source.units.size(); ++index) {
-            require_name(source.units[index].symbol, "unit");
-            for (std::size_t other = 0; other < index; ++other) {
-                if (source.units[other].symbol == source.units[index].symbol) {
-                    throw std::invalid_argument{"unit symbols must be unique"};
-                }
+    require_unique_snapshot_ids(source.units, &UnitDefinition::id, "UnitId");
+    for (std::size_t index = 0; index < source.units.size(); ++index) {
+        require_name(source.units[index].symbol, "unit");
+        for (std::size_t other = 0; other < index; ++other) {
+            if (source.units[other].symbol == source.units[index].symbol) {
+                throw std::invalid_argument{"unit symbols must be unique"};
             }
         }
     }
@@ -865,128 +809,23 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
 
     WorldDefinition restored;
     restored.values_ = source.values;
-    if (source.schema_version >= 2) {
-        restored.units_ = source.units;
-        for (const ValueDefinition& value : restored.values_) {
-            if (value.unit) {
-                restored.validate_unit_expression(*value.unit);
-            }
-        }
-    } else {
-        for (ValueDefinition& value : restored.values_) {
-            value.unit.reset();
+    restored.units_ = source.units;
+    for (const ValueDefinition& value : restored.values_) {
+        if (value.unit) {
+            restored.validate_unit_expression(*value.unit);
         }
     }
-    if (source.schema_version >= 3) {
-        require_unique_snapshot_ids(source.unit_conversions, &UnitConversionDefinition::id, "UnitConversionId");
-        for (const UnitConversionDefinition& conversion : source.unit_conversions) {
-            if (!std::isfinite(conversion.source_amount) || conversion.source_amount <= 0.0) {
-                throw std::invalid_argument{"unit conversion source amount must be finite and positive"};
-            }
-            if (!std::isfinite(conversion.target_amount) || conversion.target_amount < 0.0) {
-                throw std::invalid_argument{"unit conversion target amount must be finite and non-negative"};
-            }
-            restored.validate_unit_expression(conversion.source_unit);
-            restored.validate_unit_expression(conversion.target_unit);
-            restored.unit_conversions_.push_back(conversion);
+    require_unique_snapshot_ids(source.unit_conversions, &UnitConversionDefinition::id, "UnitConversionId");
+    for (const UnitConversionDefinition& conversion : source.unit_conversions) {
+        if (!std::isfinite(conversion.source_amount) || conversion.source_amount <= 0.0) {
+            throw std::invalid_argument{"unit conversion source amount must be finite and positive"};
         }
-    }
-
-    std::vector<ParameterId> parameter_ids;
-    for (const FunctionTypeSnapshot& stored : source.function_types) {
-        FunctionTypeDefinition type{.id = stored.id, .name = stored.name};
-        require_unique_snapshot_ids(stored.genome_parameters, &GenomeParameterDefinition::id, "ParameterId");
-        require_unique_snapshot_names(stored.genome_parameters, "parameter");
-        for (const GenomeParameterDefinition& parameter : stored.genome_parameters) {
-            if (!std::isfinite(parameter.default_value)) {
-                throw std::invalid_argument{"genome parameter default must be finite"};
-            }
-            if (std::ranges::find(parameter_ids, parameter.id) != parameter_ids.end()) {
-                throw std::invalid_argument{"ParameterId IDs must be globally unique"};
-            }
-            parameter_ids.push_back(parameter.id);
-            type.genome_parameters.push_back(parameter);
+        if (!std::isfinite(conversion.target_amount) || conversion.target_amount < 0.0) {
+            throw std::invalid_argument{"unit conversion target amount must be finite and non-negative"};
         }
-        for (const DerivedParameterSnapshot& stored_parameter : stored.derived_parameters) {
-            require_name(stored_parameter.name, "parameter");
-            if (stored_parameter.id.value == 0 ||
-                std::ranges::find(parameter_ids, stored_parameter.id) != parameter_ids.end()) {
-                throw std::invalid_argument{"ParameterId IDs must be globally unique"};
-            }
-            if (std::ranges::any_of(type.genome_parameters, [&stored_parameter](const auto& parameter) {
-                    return parameter.name == stored_parameter.name;
-                }) || std::ranges::any_of(type.derived_parameters, [&stored_parameter](const auto& parameter) {
-                    return parameter.name == stored_parameter.name;
-                })) {
-                throw std::invalid_argument{"parameter name must be unique within a function type"};
-            }
-            const Expression expression = compile_expression(
-                stored_parameter.expression_source, expression_parameter_names(type, type.derived_parameters.size()));
-            parameter_ids.push_back(stored_parameter.id);
-            type.derived_parameters.push_back({
-                .id = stored_parameter.id,
-                .name = stored_parameter.name,
-                .expression_source = stored_parameter.expression_source,
-                .expression = expression,
-            });
-        }
-        if (stored.process && stored.buffer_process) {
-            throw std::invalid_argument{"function type cannot have both conversion and buffer processes"};
-        }
-        if (stored.process) {
-            if (stored.process->conversion.value == 0) {
-                (void)restored.value(stored.process->input);
-                (void)restored.value(stored.process->output);
-                if (!restored.parameter_belongs_to(type, stored.process->throughput) ||
-                    !restored.parameter_belongs_to(type, stored.process->result_per_input)) {
-                    throw std::invalid_argument{"process parameter does not belong to function type"};
-                }
-                type.process = stored.process;
-            } else {
-                (void)restored.value(stored.process->input);
-                (void)restored.unit_conversion(stored.process->conversion);
-                if (!restored.parameter_belongs_to(type, stored.process->throughput) || stored.process->outputs.empty()) {
-                    throw std::invalid_argument{"process definition is invalid"};
-                }
-                for (std::size_t output_index = 0; output_index < stored.process->outputs.size(); ++output_index) {
-                    const FunctionProcessOutputDefinition& output = stored.process->outputs[output_index];
-                    (void)restored.value(output.output);
-                    if (!restored.parameter_belongs_to(type, output.allocation)) {
-                        throw std::invalid_argument{"process allocation parameter does not belong to function type"};
-                    }
-                    for (std::size_t previous = 0; previous < output_index; ++previous) {
-                        if (stored.process->outputs[previous].output == output.output) {
-                            throw std::invalid_argument{"function process output ValueKey is duplicated"};
-                        }
-                    }
-                }
-                type.process = stored.process;
-            }
-        }
-        if (stored.buffer_process) {
-            (void)restored.value(stored.buffer_process->value);
-            if (!restored.parameter_belongs_to(type, stored.buffer_process->capacity) ||
-                !restored.parameter_belongs_to(type, stored.buffer_process->throughput) ||
-                !restored.parameter_belongs_to(type, stored.buffer_process->leakage)) {
-                throw std::invalid_argument{"buffer parameter does not belong to function type"};
-            }
-            type.buffer_process = stored.buffer_process;
-        }
-        for (const MaterialContributionSnapshot& contribution : stored.material_contributions) {
-            (void)restored.value(contribution.value);
-            if (std::ranges::any_of(type.material_contributions, [&contribution](const auto& existing) {
-                    return existing.value == contribution.value;
-                })) {
-                throw std::invalid_argument{"function type has more than one contribution for a material value"};
-            }
-            type.material_contributions.push_back({
-                .value = contribution.value,
-                .expression_source = contribution.expression_source,
-                .amount = compile_expression(contribution.expression_source,
-                                             expression_parameter_names(type, type.derived_parameters.size())),
-            });
-        }
-        restored.function_types_.push_back(std::move(type));
+        restored.validate_unit_expression(conversion.source_unit);
+        restored.validate_unit_expression(conversion.target_unit);
+        restored.unit_conversions_.push_back(conversion);
     }
 
     std::vector<CalculationPortId> port_ids;
@@ -1007,16 +846,80 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
                 calculation_port_name_exists(calculation, output.name)) {
                 throw std::invalid_argument{"CalculationPortId or name is not unique"};
             }
-            const Expression expression = compile_expression(output.expression_source, calculation_expression_names(calculation));
+            const Expression expression = compile_expression(output.expression_source,
+                                                             calculation_expression_names(calculation));
             port_ids.push_back(output.id);
-            calculation.outputs.push_back({
-                .id = output.id,
-                .name = output.name,
-                .expression_source = output.expression_source,
-                .expression = expression,
-            });
+            calculation.outputs.push_back({.id = output.id, .name = output.name,
+                                           .expression_source = output.expression_source,
+                                           .expression = expression});
         }
         restored.calculations_.push_back(std::move(calculation));
+    }
+
+    std::vector<ParameterId> parameter_ids;
+    for (const FunctionTypeSnapshot& stored : source.function_types) {
+        FunctionTypeDefinition type{.id = stored.id, .name = stored.name};
+        require_unique_snapshot_ids(stored.genome_parameters, &GenomeParameterDefinition::id, "ParameterId");
+        require_unique_snapshot_names(stored.genome_parameters, "parameter");
+        for (const GenomeParameterDefinition& parameter : stored.genome_parameters) {
+            if (!std::isfinite(parameter.default_value)) {
+                throw std::invalid_argument{"genome parameter default must be finite"};
+            }
+            if (std::ranges::find(parameter_ids, parameter.id) != parameter_ids.end()) {
+                throw std::invalid_argument{"ParameterId IDs must be globally unique"};
+            }
+            parameter_ids.push_back(parameter.id);
+            type.genome_parameters.push_back(parameter);
+        }
+        for (const FunctionCalculationBinding& binding : stored.calculations) {
+            if (std::ranges::any_of(type.calculations, [binding](const auto& existing) {
+                    return existing.calculation == binding.calculation;
+                })) {
+                throw std::invalid_argument{"calculation may be bound only once per function type"};
+            }
+            restored.validate_function_calculation_binding(type, binding);
+            type.calculations.push_back(binding);
+        }
+        if (stored.process && stored.buffer_process) {
+            throw std::invalid_argument{"function type cannot have both conversion and buffer processes"};
+        }
+        if (stored.process) {
+            (void)restored.value(stored.process->input);
+            (void)restored.unit_conversion(stored.process->conversion);
+            restored.validate_function_value_source(type, stored.process->throughput);
+            if (stored.process->outputs.empty()) {
+                throw std::invalid_argument{"function process must contain at least one output"};
+            }
+            for (std::size_t output_index = 0; output_index < stored.process->outputs.size(); ++output_index) {
+                const FunctionProcessOutputDefinition& output = stored.process->outputs[output_index];
+                (void)restored.value(output.output);
+                restored.validate_function_value_source(type, output.allocation);
+                for (std::size_t previous = 0; previous < output_index; ++previous) {
+                    if (stored.process->outputs[previous].output == output.output) {
+                        throw std::invalid_argument{"function process output ValueKey is duplicated"};
+                    }
+                }
+            }
+            type.process = stored.process;
+        }
+        if (stored.buffer_process) {
+            (void)restored.value(stored.buffer_process->value);
+            restored.validate_function_value_source(type, stored.buffer_process->capacity);
+            restored.validate_function_value_source(type, stored.buffer_process->throughput);
+            restored.validate_function_value_source(type, stored.buffer_process->leakage);
+            type.buffer_process = stored.buffer_process;
+        }
+        for (const MaterialContributionDefinition& contribution : stored.material_contributions) {
+            (void)restored.value(contribution.value);
+            if (std::ranges::any_of(type.material_contributions, [&contribution](const auto& existing) {
+                    return existing.value == contribution.value;
+                })) {
+                throw std::invalid_argument{"function type has more than one contribution for a material value"};
+            }
+            restored.validate_function_value_source(type, contribution.amount);
+            type.material_contributions.push_back(contribution);
+        }
+        restored.function_types_.push_back(std::move(type));
     }
 
     for (const ObjectTemplate& stored : source.templates) {
@@ -1079,21 +982,17 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
                               "CalculationId");
     require_next_id_is_unused(source.next_calculation_port_id, port_ids, [](CalculationPortId id) { return id; },
                               "CalculationPortId");
-    if (source.schema_version >= 2) {
-        require_next_id_is_unused(source.next_unit_id, source.units, &UnitDefinition::id, "UnitId");
-    }
-    if (source.schema_version >= 3) {
-        require_next_id_is_unused(source.next_unit_conversion_id, source.unit_conversions,
-                                  &UnitConversionDefinition::id, "UnitConversionId");
-    }
+    require_next_id_is_unused(source.next_unit_id, source.units, &UnitDefinition::id, "UnitId");
+    require_next_id_is_unused(source.next_unit_conversion_id, source.unit_conversions,
+                              &UnitConversionDefinition::id, "UnitConversionId");
     restored.next_value_key_ = source.next_value_key;
     restored.next_template_id_ = source.next_template_id;
     restored.next_function_type_id_ = source.next_function_type_id;
     restored.next_parameter_id_ = source.next_parameter_id;
     restored.next_calculation_id_ = source.next_calculation_id;
     restored.next_calculation_port_id_ = source.next_calculation_port_id;
-    restored.next_unit_id_ = source.schema_version >= 2 ? source.next_unit_id : 1;
-    restored.next_unit_conversion_id_ = source.schema_version >= 3 ? source.next_unit_conversion_id : 1;
+    restored.next_unit_id_ = source.next_unit_id;
+    restored.next_unit_conversion_id_ = source.next_unit_conversion_id;
     return restored;
 }
 
@@ -1115,9 +1014,57 @@ CalculationDefinition& WorldDefinition::mutable_calculation(CalculationId id)
 bool WorldDefinition::parameter_belongs_to(const FunctionTypeDefinition& type, ParameterId parameter) const noexcept
 {
     return std::ranges::any_of(type.genome_parameters,
-                               [parameter](const GenomeParameterDefinition& item) { return item.id == parameter; }) ||
-           std::ranges::any_of(type.derived_parameters,
-                               [parameter](const DerivedParameterDefinition& item) { return item.id == parameter; });
+                               [parameter](const GenomeParameterDefinition& item) { return item.id == parameter; });
+}
+
+void WorldDefinition::validate_function_value_source(const FunctionTypeDefinition& type,
+                                                     const FunctionValueSource& source) const
+{
+    if (source.kind == FunctionValueSourceKind::genome_parameter) {
+        if (!parameter_belongs_to(type, source.genome_parameter)) {
+            throw std::invalid_argument{"function value source genome parameter does not belong to function type"};
+        }
+        return;
+    }
+    if (source.kind != FunctionValueSourceKind::calculation_output) {
+        throw std::invalid_argument{"function value source kind is invalid"};
+    }
+    const auto binding = std::ranges::find(type.calculations, source.calculation,
+                                           &FunctionCalculationBinding::calculation);
+    if (binding == type.calculations.end()) {
+        throw std::invalid_argument{"function value source calculation is not bound to function type"};
+    }
+    const CalculationDefinition& calculation_definition = calculation(source.calculation);
+    if (std::ranges::none_of(calculation_definition.outputs, [source](const CalculationOutputDefinition& output) {
+            return output.id == source.calculation_output;
+        })) {
+        throw std::invalid_argument{"function value source port is not an output of its calculation"};
+    }
+}
+
+void WorldDefinition::validate_function_calculation_binding(const FunctionTypeDefinition& type,
+                                                            const FunctionCalculationBinding& binding) const
+{
+    const CalculationDefinition& calculation_definition = calculation(binding.calculation);
+    if (binding.inputs.size() != calculation_definition.inputs.size()) {
+        throw std::invalid_argument{"calculation binding must bind every input exactly once"};
+    }
+    for (const CalculationInputDefinition& input : calculation_definition.inputs) {
+        const auto count = std::ranges::count(binding.inputs, input.id, &FunctionCalculationInputBinding::input);
+        if (count != 1) {
+            throw std::invalid_argument{"calculation binding must bind every input exactly once"};
+        }
+    }
+    for (const FunctionCalculationInputBinding& input : binding.inputs) {
+        if (std::ranges::none_of(calculation_definition.inputs, [input](const CalculationInputDefinition& definition) {
+                return definition.id == input.input;
+            })) {
+            throw std::invalid_argument{"calculation binding contains an unknown input port"};
+        }
+        if (!parameter_belongs_to(type, input.genome_parameter)) {
+            throw std::invalid_argument{"calculation input genome parameter does not belong to function type"};
+        }
+    }
 }
 
 void WorldDefinition::validate_unit_expression(const UnitExpression& expression) const

@@ -1,4 +1,5 @@
 #include <clife/world/phenotype.hpp>
+#include <clife/world/calculation.hpp>
 
 #include <algorithm>
 #include <cmath>
@@ -32,6 +33,17 @@ void add_material(std::vector<MaterialAmount>& materials, ValueKey value, Amount
     }
 }
 
+[[nodiscard]] Amount source_value(const CompiledFunctionPhenotype& function, const FunctionValueSource& source)
+{
+    if (source.kind == FunctionValueSourceKind::genome_parameter) {
+        return function.parameter(source.genome_parameter);
+    }
+    if (source.kind == FunctionValueSourceKind::calculation_output) {
+        return function.calculation_output(source.calculation, source.calculation_output);
+    }
+    throw std::invalid_argument{"function value source kind is invalid"};
+}
+
 } // namespace
 
 CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateId source_template)
@@ -62,28 +74,25 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
             }
         }
 
-        std::vector<ParameterValue> resolved = function.genome_parameters_;
-        resolved.reserve(resolved.size() + type.derived_parameters.size());
-        for (const DerivedParameterDefinition& parameter : type.derived_parameters) {
-            const Amount value = parameter.expression.evaluate(resolved);
-            function.derived_parameters_.push_back({.parameter = parameter.id, .value = value});
-            resolved.push_back({.parameter = parameter.id, .value = value});
+        for (const FunctionCalculationBinding& binding : type.calculations) {
+            const CalculationDefinition& calculation = definition.calculation(binding.calculation);
+            std::vector<CalculationPortAmount> inputs;
+            inputs.reserve(binding.inputs.size());
+            for (const FunctionCalculationInputBinding& input : binding.inputs) {
+                inputs.push_back({.port = input.input,
+                                  .amount = parameter_value(function.genome_parameters_, input.genome_parameter)});
+            }
+            for (const CalculationPortAmount& output : evaluate_calculation(calculation, inputs)) {
+                function.calculation_outputs_.push_back({.calculation = calculation.id,
+                                                         .output = output.port,
+                                                         .value = output.amount});
+            }
         }
         if (type.process) {
-            const Amount throughput = parameter_value(resolved, type.process->throughput);
+            const Amount throughput = source_value(function, type.process->throughput);
             if (!std::isfinite(throughput) || throughput <= 0.0) {
                 throw std::invalid_argument{"compiled process throughput must be finite and positive"};
             }
-            if (type.process->conversion.value == 0) {
-                const Amount result_per_input = parameter_value(resolved, type.process->result_per_input);
-                if (!std::isfinite(result_per_input) || result_per_input < 0.0) {
-                    throw std::invalid_argument{"compiled process result_per_input must be finite and non-negative"};
-                }
-                function.process_parameters_ = CompiledProcessParameters{
-                    .throughput = throughput,
-                    .outputs = {{.output = type.process->output, .result_per_input = result_per_input}},
-                };
-            } else {
             const UnitConversionDefinition& conversion = definition.unit_conversion(type.process->conversion);
             const Amount conversion_ratio = conversion.target_amount / conversion.source_amount;
             if (!std::isfinite(conversion_ratio) || conversion_ratio < 0.0) {
@@ -92,7 +101,7 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
             CompiledProcessParameters parameters{.throughput = throughput};
             Amount allocation_sum{};
             for (const FunctionProcessOutputDefinition& output : type.process->outputs) {
-                const Amount allocation = parameter_value(resolved, output.allocation);
+                const Amount allocation = source_value(function, output.allocation);
                 if (!std::isfinite(allocation) || allocation < 0.0) {
                     throw std::invalid_argument{"compiled process allocation must be finite and non-negative"};
                 }
@@ -111,12 +120,11 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
                 throw std::invalid_argument{"compiled process allocations must not exceed one"};
             }
             function.process_parameters_ = std::move(parameters);
-            }
         }
         if (type.buffer_process) {
-            const Amount capacity = parameter_value(resolved, type.buffer_process->capacity);
-            const Amount throughput = parameter_value(resolved, type.buffer_process->throughput);
-            const Amount leakage = parameter_value(resolved, type.buffer_process->leakage);
+            const Amount capacity = source_value(function, type.buffer_process->capacity);
+            const Amount throughput = source_value(function, type.buffer_process->throughput);
+            const Amount leakage = source_value(function, type.buffer_process->leakage);
             if (!std::isfinite(capacity) || capacity < 0.0) {
                 throw std::invalid_argument{"compiled buffer capacity must be finite and non-negative"};
             }
@@ -133,7 +141,7 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
             };
         }
         for (const MaterialContributionDefinition& contribution : type.material_contributions) {
-            add_material(phenotype.material_amounts_, contribution.value, contribution.amount.evaluate(resolved));
+            add_material(phenotype.material_amounts_, contribution.value, source_value(function, contribution.amount));
         }
         phenotype.functions_.push_back(std::move(function));
     }
@@ -148,18 +156,29 @@ std::span<const ParameterValue> CompiledFunctionPhenotype::genome_parameters() c
     return genome_parameters_;
 }
 
-std::span<const ParameterValue> CompiledFunctionPhenotype::derived_parameters() const noexcept
-{
-    return derived_parameters_;
-}
-
 Amount CompiledFunctionPhenotype::parameter(ParameterId id) const
 {
     const auto genome = std::ranges::find(genome_parameters_, id, &ParameterValue::parameter);
     if (genome != genome_parameters_.end()) {
         return genome->value;
     }
-    return parameter_value(derived_parameters_, id);
+    throw std::invalid_argument{"phenotype genome parameter value is missing"};
+}
+
+std::span<const CompiledCalculationOutputValue> CompiledFunctionPhenotype::calculation_outputs() const noexcept
+{
+    return calculation_outputs_;
+}
+
+Amount CompiledFunctionPhenotype::calculation_output(CalculationId calculation, CalculationPortId output) const
+{
+    const auto found = std::ranges::find_if(calculation_outputs_, [calculation, output](const auto& value) {
+        return value.calculation == calculation && value.output == output;
+    });
+    if (found == calculation_outputs_.end()) {
+        throw std::invalid_argument{"compiled calculation output value is missing"};
+    }
+    return found->value;
 }
 
 const std::optional<CompiledProcessParameters>& CompiledFunctionPhenotype::process_parameters() const noexcept

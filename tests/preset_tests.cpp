@@ -105,22 +105,28 @@ bool test_first_world_storage_genotype_and_phenotype()
     const std::size_t index = static_cast<std::size_t>(std::distance(genome.begin(), storage));
     const clife::world::CompiledPhenotype initial = clife::world::compile_phenotype(preset.definition, preset.cell);
     if (!expect_near(initial.function(index).parameter(preset.storage_capacity), 5.0, "storage capacity genotype") ||
-        !expect_near(initial.function(index).parameter(preset.storage_organic_size), 1.0,
+        !expect_near(initial.function(index).calculation_output(preset.storage_calculation,
+                                                                preset.storage_organic_size), 1.0,
                      "storage organic size phenotype") ||
-        !expect_near(initial.function(index).parameter(preset.storage_throughput), 1.5,
+        !expect_near(initial.function(index).calculation_output(preset.storage_calculation,
+                                                                preset.storage_throughput), 1.5,
                      "storage throughput phenotype") ||
-        !expect_near(initial.function(index).parameter(preset.storage_leakage), 0.0, "storage leakage phenotype") ||
+        !expect_near(initial.function(index).calculation_output(preset.storage_calculation,
+                                                                preset.storage_leakage), 0.0,
+                     "storage leakage phenotype") ||
         !expect_near(initial.material_amount(preset.organic), 5.0, "capacity 5 material total")) {
         return false;
     }
     preset.definition.set_genome_parameter(preset.cell, index, preset.storage_capacity, 10.0);
-    preset.definition.rename_parameter(preset.energy_storage, preset.storage_organic_size, "RenamedSize");
+    preset.definition.rename_parameter(preset.energy_storage, preset.storage_capacity, "RenamedCapacity");
     const clife::world::CompiledPhenotype changed = clife::world::compile_phenotype(preset.definition, preset.cell);
     clife::world::RuntimeWorld changed_runtime{preset.definition};
     const clife::world::ObjectId changed_cell = changed_runtime.instantiate(preset.cell);
-    return expect_near(changed.function(index).parameter(preset.storage_organic_size), 2.0,
+    return expect_near(changed.function(index).calculation_output(preset.storage_calculation,
+                                                                  preset.storage_organic_size), 2.0,
                        "changed storage capacity recompiles organic size") &&
-           expect_near(changed.function(index).parameter(preset.storage_throughput), 3.0,
+           expect_near(changed.function(index).calculation_output(preset.storage_calculation,
+                                                                  preset.storage_throughput), 3.0,
                        "changed storage capacity recompiles throughput") &&
            expect_near(changed.material_amount(preset.organic), 6.0, "capacity 10 material total") &&
            expect_near(changed_runtime.value(changed_cell, preset.organic), 6.0,

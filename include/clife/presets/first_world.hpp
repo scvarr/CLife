@@ -34,9 +34,10 @@ struct FirstWorldPreset final {
     world::FunctionTypeId energy_use;
     world::FunctionTypeId energy_storage;
     world::ParameterId storage_capacity;
-    world::ParameterId storage_organic_size;
-    world::ParameterId storage_throughput;
-    world::ParameterId storage_leakage;
+    world::CalculationId storage_calculation;
+    world::CalculationPortId storage_organic_size;
+    world::CalculationPortId storage_throughput;
+    world::CalculationPortId storage_leakage;
 };
 
 [[nodiscard]] FirstWorldPreset make_first_world_preset();

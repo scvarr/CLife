@@ -558,3 +558,48 @@ msgstr "Выход процесса обновлён"
 
 msgid "help.function_type_buffer"
 msgstr "Этот тип функции участвует в потоке Value как накопитель с состоянием."
+
+msgid "ui.function_calculations"
+msgstr "Вычисления"
+
+msgid "ui.calculation"
+msgstr "Вычисление"
+
+msgid "ui.bind_calculation"
+msgstr "Подключить вычисление"
+
+msgid "ui.remove_calculation_binding"
+msgstr "Отключить вычисление"
+
+msgid "ui.amount_source"
+msgstr "Источник количества"
+
+msgid "ui.calculation_outputs_read_only"
+msgstr "Рассчитанные характеристики"
+
+msgid "ui.buffer_process"
+msgstr "Буферный процесс"
+
+msgid "ui.capacity"
+msgstr "Вместимость"
+
+msgid "ui.leakage"
+msgstr "Утечка"
+
+msgid "ui.set_buffer_process"
+msgstr "Задать буферный процесс"
+
+msgid "ui.delete_function_type"
+msgstr "Удалить тип функции"
+
+msgid "status.calculation_binding_updated"
+msgstr "Вычисление подключено"
+
+msgid "status.calculation_binding_removed"
+msgstr "Вычисление отключено"
+
+msgid "status.buffer_process_set"
+msgstr "Буферный процесс обновлён"
+
+msgid "status.function_type_deleted"
+msgstr "Тип функции удалён"

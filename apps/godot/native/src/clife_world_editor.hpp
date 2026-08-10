@@ -41,20 +41,24 @@ public:
                                                     std::int64_t target_unit_id, double target_amount);
     bool set_value_unit(std::int64_t value_key, std::int64_t unit_id);
     bool set_function_process(std::int64_t function_type_id, std::int64_t input_value_key,
-                              std::int64_t throughput_parameter_id, std::int64_t conversion_id,
-                              std::int64_t output_value_key, std::int64_t allocation_parameter_id);
+                              const godot::Dictionary& throughput_source, std::int64_t conversion_id,
+                              std::int64_t output_value_key, const godot::Dictionary& allocation_source);
     bool change_function_process_settings(std::int64_t function_type_id, std::int64_t input_value_key,
-                                          std::int64_t throughput_parameter_id, std::int64_t conversion_id);
+                                          const godot::Dictionary& throughput_source, std::int64_t conversion_id);
     bool change_function_process_output(std::int64_t function_type_id, std::int64_t existing_output_value_key,
-                                        std::int64_t output_value_key, std::int64_t allocation_parameter_id);
+                                        std::int64_t output_value_key, const godot::Dictionary& allocation_source);
     bool add_function_process_output(std::int64_t function_type_id, std::int64_t output_value_key,
-                                     std::int64_t allocation_parameter_id);
+                                     const godot::Dictionary& allocation_source);
     bool remove_function_process_output(std::int64_t function_type_id, std::int64_t output_value_key);
     bool remove_function_process(std::int64_t function_type_id);
+    bool set_buffer_process(std::int64_t function_type_id, std::int64_t value_key,
+                            const godot::Dictionary& capacity_source, const godot::Dictionary& throughput_source,
+                            const godot::Dictionary& leakage_source);
     bool rename_value(std::int64_t key, const godot::String& name);
     bool remove_value(std::int64_t key);
     [[nodiscard]] std::int64_t add_template(const godot::String& name);
     [[nodiscard]] std::int64_t add_function_type(const godot::String& name);
+    bool remove_function_type(std::int64_t function_type_id);
     [[nodiscard]] std::int64_t add_genome_parameter(std::int64_t function_type_id, const godot::String& name,
                                                      double default_value);
     [[nodiscard]] std::int64_t add_calculation(const godot::String& name);
@@ -65,12 +69,11 @@ public:
     bool remove_template(std::int64_t id);
     bool set_initial_value(std::int64_t template_id, std::int64_t value_key, double amount);
     bool remove_initial_value(std::int64_t template_id, std::int64_t value_key);
-    [[nodiscard]] std::int64_t add_derived_parameter(std::int64_t function_type_id, const godot::String& name,
-                                                      const godot::String& expression);
-    bool set_derived_parameter_expression(std::int64_t function_type_id, std::int64_t parameter_id,
-                                          const godot::String& expression);
+    bool set_function_calculation_binding(std::int64_t function_type_id, std::int64_t calculation_id,
+                                          const godot::Array& input_bindings);
+    bool remove_function_calculation_binding(std::int64_t function_type_id, std::int64_t calculation_id);
     bool set_function_material_contribution(std::int64_t function_type_id, std::int64_t value_key,
-                                            const godot::String& expression);
+                                            const godot::Dictionary& amount_source);
     bool remove_function_material_contribution(std::int64_t function_type_id, std::int64_t value_key);
     bool add_genome_function(std::int64_t template_id, std::int64_t function_type_id);
     bool set_genome_parameter(std::int64_t template_id, std::int64_t index, std::int64_t parameter_id, double value);

@@ -29,14 +29,21 @@ struct MaterialAmount final {
     Amount amount;
 };
 
+struct CompiledCalculationOutputValue final {
+    CalculationId calculation;
+    CalculationPortId output;
+    Amount value;
+};
+
 class CompiledPhenotype;
 
 class CompiledFunctionPhenotype final {
 public:
     [[nodiscard]] FunctionTypeId type() const noexcept;
     [[nodiscard]] std::span<const ParameterValue> genome_parameters() const noexcept;
-    [[nodiscard]] std::span<const ParameterValue> derived_parameters() const noexcept;
     [[nodiscard]] Amount parameter(ParameterId id) const;
+    [[nodiscard]] std::span<const CompiledCalculationOutputValue> calculation_outputs() const noexcept;
+    [[nodiscard]] Amount calculation_output(CalculationId calculation, CalculationPortId output) const;
     [[nodiscard]] const std::optional<CompiledProcessParameters>& process_parameters() const noexcept;
     [[nodiscard]] const std::optional<CompiledBufferParameters>& buffer_parameters() const noexcept;
 
@@ -46,7 +53,7 @@ private:
 
     FunctionTypeId type_;
     std::vector<ParameterValue> genome_parameters_;
-    std::vector<ParameterValue> derived_parameters_;
+    std::vector<CompiledCalculationOutputValue> calculation_outputs_;
     std::optional<CompiledProcessParameters> process_parameters_;
     std::optional<CompiledBufferParameters> buffer_parameters_;
 };

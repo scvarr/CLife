@@ -98,6 +98,54 @@ world::ParameterId parameter_id(std::int64_t raw)
     return {static_cast<std::uint32_t>(raw)};
 }
 
+world::CalculationId calculation_id(std::int64_t raw)
+{
+    if (raw <= 0 || raw > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::invalid_argument{"invalid CalculationId"};
+    }
+    return {static_cast<std::uint32_t>(raw)};
+}
+
+world::CalculationPortId calculation_port_id(std::int64_t raw)
+{
+    if (raw <= 0 || raw > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::invalid_argument{"invalid CalculationPortId"};
+    }
+    return {static_cast<std::uint32_t>(raw)};
+}
+
+godot::Variant required_field(const godot::Dictionary& object, const char* name);
+std::string required_string(const godot::Variant& value, const char* context);
+std::uint32_t required_uint32(const godot::Variant& value, const char* context);
+
+godot::Dictionary function_value_source_dictionary(const world::FunctionValueSource& source)
+{
+    godot::Dictionary result;
+    result["kind"] = source.kind == world::FunctionValueSourceKind::genome_parameter ? "genome" : "calculation";
+    result["genome_parameter_id"] = static_cast<std::int64_t>(source.genome_parameter.value);
+    result["calculation_id"] = static_cast<std::int64_t>(source.calculation.value);
+    result["calculation_output_id"] = static_cast<std::int64_t>(source.calculation_output.value);
+    return result;
+}
+
+world::FunctionValueSource function_value_source(const godot::Dictionary& source)
+{
+    const std::string kind = required_string(required_field(source, "kind"), "function value source kind");
+    if (kind == "genome") {
+        return {.kind = world::FunctionValueSourceKind::genome_parameter,
+                .genome_parameter = parameter_id(required_uint32(
+                    required_field(source, "genome_parameter_id"), "genome_parameter_id"))};
+    }
+    if (kind == "calculation") {
+        return {.kind = world::FunctionValueSourceKind::calculation_output,
+                .calculation = calculation_id(required_uint32(required_field(source, "calculation_id"),
+                                                              "calculation_id")),
+                .calculation_output = calculation_port_id(required_uint32(
+                    required_field(source, "calculation_output_id"), "calculation_output_id"))};
+    }
+    throw std::invalid_argument{"function value source kind must be genome or calculation"};
+}
+
 std::size_t item_index(std::int64_t raw)
 {
     if (raw < 0) {
@@ -349,42 +397,56 @@ godot::Array CLifeWorldEditor::get_function_types()
                 entry["default_value"] = parameter.default_value;
                 genome_parameters.push_back(entry);
             }
-            godot::Array derived_parameters;
-            for (const world::DerivedParameterDefinition& parameter : type.derived_parameters) {
+            godot::Array calculation_bindings;
+            for (const world::FunctionCalculationBinding& binding : type.calculations) {
                 godot::Dictionary entry;
-                entry["id"] = static_cast<std::int64_t>(parameter.id.value);
-                entry["name"] = to_godot_string(parameter.name);
-                entry["expression_source"] = to_godot_string(parameter.expression_source);
-                derived_parameters.push_back(entry);
+                entry["calculation_id"] = static_cast<std::int64_t>(binding.calculation.value);
+                godot::Array inputs;
+                for (const world::FunctionCalculationInputBinding& input : binding.inputs) {
+                    godot::Dictionary stored;
+                    stored["input_id"] = static_cast<std::int64_t>(input.input.value);
+                    stored["genome_parameter_id"] = static_cast<std::int64_t>(input.genome_parameter.value);
+                    inputs.push_back(stored);
+                }
+                entry["inputs"] = inputs;
+                calculation_bindings.push_back(entry);
             }
             godot::Array material_contributions;
             for (const world::MaterialContributionDefinition& contribution : type.material_contributions) {
                 godot::Dictionary entry;
                 entry["value_key"] = static_cast<std::int64_t>(contribution.value.value);
-                entry["expression_source"] = to_godot_string(contribution.expression_source);
+                entry["amount_source"] = function_value_source_dictionary(contribution.amount);
                 material_contributions.push_back(entry);
             }
             item["genome_parameters"] = genome_parameters;
-            item["derived_parameters"] = derived_parameters;
+            item["calculations"] = calculation_bindings;
             item["material_contributions"] = material_contributions;
             item["has_process"] = type.process.has_value();
             item["process"] = godot::Variant();
             if (type.process) {
                 godot::Dictionary process;
                 process["input_key"] = static_cast<std::int64_t>(type.process->input.value);
-                process["throughput_parameter_id"] = static_cast<std::int64_t>(type.process->throughput.value);
+                process["throughput_source"] = function_value_source_dictionary(type.process->throughput);
                 process["conversion_id"] = static_cast<std::int64_t>(type.process->conversion.value);
                 godot::Array outputs;
                 for (const world::FunctionProcessOutputDefinition& output : type.process->outputs) {
                     godot::Dictionary stored;
                     stored["output_key"] = static_cast<std::int64_t>(output.output.value);
-                    stored["allocation_parameter_id"] = static_cast<std::int64_t>(output.allocation.value);
+                    stored["allocation_source"] = function_value_source_dictionary(output.allocation);
                     outputs.push_back(stored);
                 }
                 process["outputs"] = outputs;
                 item["process"] = process;
             }
             item["has_buffer"] = type.buffer_process.has_value();
+            if (type.buffer_process) {
+                godot::Dictionary buffer;
+                buffer["value_key"] = static_cast<std::int64_t>(type.buffer_process->value.value);
+                buffer["capacity_source"] = function_value_source_dictionary(type.buffer_process->capacity);
+                buffer["throughput_source"] = function_value_source_dictionary(type.buffer_process->throughput);
+                buffer["leakage_source"] = function_value_source_dictionary(type.buffer_process->leakage);
+                item["buffer"] = buffer;
+            }
             result.push_back(item);
         }
         clear_error();
@@ -495,25 +557,29 @@ godot::Array CLifeWorldEditor::get_genome(std::int64_t raw_template_id)
                 genome_parameters.push_back(entry);
             }
             item["genome_parameters"] = genome_parameters;
-            item["derived_parameters"] = godot::Array{};
+            item["calculation_outputs"] = godot::Array{};
             result.push_back(item);
         }
 
         try {
             const world::CompiledPhenotype phenotype = world::compile_phenotype(definition_, id);
             for (std::size_t index = 0; index < object.genome.size(); ++index) {
-                const world::FunctionTypeDefinition& type = definition_.function_type(object.genome[index].type);
                 const world::CompiledFunctionPhenotype& compiled = phenotype.function(index);
-                godot::Array derived_parameters;
-                for (const world::DerivedParameterDefinition& parameter : type.derived_parameters) {
+                godot::Array calculation_outputs;
+                for (const world::CompiledCalculationOutputValue& output : compiled.calculation_outputs()) {
+                    const world::CalculationDefinition& calculation = definition_.calculation(output.calculation);
+                    const auto definition = std::ranges::find(calculation.outputs, output.output,
+                                                              &world::CalculationOutputDefinition::id);
                     godot::Dictionary entry;
-                    entry["parameter_id"] = static_cast<std::int64_t>(parameter.id.value);
-                    entry["name"] = to_godot_string(parameter.name);
-                    entry["amount"] = compiled.parameter(parameter.id);
-                    derived_parameters.push_back(entry);
+                    entry["calculation_id"] = static_cast<std::int64_t>(calculation.id.value);
+                    entry["calculation_name"] = to_godot_string(calculation.name);
+                    entry["output_id"] = static_cast<std::int64_t>(output.output.value);
+                    entry["name"] = to_godot_string(definition->name);
+                    entry["amount"] = output.value;
+                    calculation_outputs.push_back(entry);
                 }
                 godot::Dictionary item = result[index];
-                item["derived_parameters"] = derived_parameters;
+                item["calculation_outputs"] = calculation_outputs;
                 result[index] = item;
             }
         } catch (...) {
@@ -647,39 +713,44 @@ bool CLifeWorldEditor::set_value_unit(std::int64_t raw_value_key, std::int64_t r
 }
 
 bool CLifeWorldEditor::set_function_process(std::int64_t raw_type, std::int64_t raw_input,
-                                            std::int64_t raw_throughput, std::int64_t raw_conversion,
-                                            std::int64_t raw_output, std::int64_t raw_allocation)
+                                            const godot::Dictionary& throughput_source, std::int64_t raw_conversion,
+                                            std::int64_t raw_output, const godot::Dictionary& allocation_source)
 {
     return edit([&] {
         definition_.set_function_process(function_type_id(raw_type), {
             .input = value_key(raw_input),
-            .throughput = parameter_id(raw_throughput),
+            .throughput = function_value_source(throughput_source),
             .conversion = unit_conversion_id(raw_conversion),
-            .outputs = {{.output = value_key(raw_output), .allocation = parameter_id(raw_allocation)}},
+            .outputs = {{.output = value_key(raw_output), .allocation = function_value_source(allocation_source)}},
         });
     });
 }
 
 bool CLifeWorldEditor::add_function_process_output(std::int64_t raw_type, std::int64_t raw_output,
-                                                   std::int64_t raw_allocation)
+                                                   const godot::Dictionary& allocation_source)
 {
     return edit([&] { definition_.add_function_process_output(function_type_id(raw_type),
-                                                                 {.output = value_key(raw_output), .allocation = parameter_id(raw_allocation)}); });
+                                                                 {.output = value_key(raw_output),
+                                                                  .allocation = function_value_source(allocation_source)}); });
 }
 
 bool CLifeWorldEditor::change_function_process_settings(std::int64_t raw_type, std::int64_t raw_input,
-                                                        std::int64_t raw_throughput, std::int64_t raw_conversion)
+                                                        const godot::Dictionary& throughput_source,
+                                                        std::int64_t raw_conversion)
 {
     return edit([&] { definition_.change_function_process_settings(function_type_id(raw_type), value_key(raw_input),
-                                                                     parameter_id(raw_throughput), unit_conversion_id(raw_conversion)); });
+                                                                     function_value_source(throughput_source),
+                                                                     unit_conversion_id(raw_conversion)); });
 }
 
 bool CLifeWorldEditor::change_function_process_output(std::int64_t raw_type, std::int64_t raw_existing_output,
-                                                      std::int64_t raw_output, std::int64_t raw_allocation)
+                                                      std::int64_t raw_output,
+                                                      const godot::Dictionary& allocation_source)
 {
     return edit([&] { definition_.change_function_process_output(
                           function_type_id(raw_type), value_key(raw_existing_output),
-                          {.output = value_key(raw_output), .allocation = parameter_id(raw_allocation)}); });
+                          {.output = value_key(raw_output),
+                           .allocation = function_value_source(allocation_source)}); });
 }
 
 bool CLifeWorldEditor::remove_function_process_output(std::int64_t raw_type, std::int64_t raw_output)
@@ -690,6 +761,19 @@ bool CLifeWorldEditor::remove_function_process_output(std::int64_t raw_type, std
 bool CLifeWorldEditor::remove_function_process(std::int64_t raw_type)
 {
     return edit([&] { definition_.remove_function_process(function_type_id(raw_type)); });
+}
+
+bool CLifeWorldEditor::set_buffer_process(std::int64_t raw_type, std::int64_t raw_value,
+                                          const godot::Dictionary& capacity_source,
+                                          const godot::Dictionary& throughput_source,
+                                          const godot::Dictionary& leakage_source)
+{
+    return edit([&] { definition_.set_buffer_process(function_type_id(raw_type), {
+        .value = value_key(raw_value),
+        .capacity = function_value_source(capacity_source),
+        .throughput = function_value_source(throughput_source),
+        .leakage = function_value_source(leakage_source),
+    }); });
 }
 
 bool CLifeWorldEditor::rename_value(std::int64_t key, const godot::String& name)
@@ -727,6 +811,11 @@ std::int64_t CLifeWorldEditor::add_function_type(const godot::String& name)
         capture_current_error();
         return 0;
     }
+}
+
+bool CLifeWorldEditor::remove_function_type(std::int64_t raw_function_type_id)
+{
+    return edit([&] { definition_.remove_function_type(function_type_id(raw_function_type_id)); });
 }
 
 std::int64_t CLifeWorldEditor::add_genome_parameter(std::int64_t raw_function_type_id, const godot::String& name,
@@ -819,38 +908,40 @@ bool CLifeWorldEditor::remove_initial_value(std::int64_t raw_template_id, std::i
     return edit([&] { definition_.remove_initial_value(template_id(raw_template_id), value_key(raw_value_key)); });
 }
 
-std::int64_t CLifeWorldEditor::add_derived_parameter(std::int64_t raw_function_type_id, const godot::String& name,
-                                                      const godot::String& expression)
-{
-    try {
-        require_edit_mode();
-        const world::ParameterId id = definition_.add_derived_parameter(function_type_id(raw_function_type_id),
-                                                                         to_std_string(name), to_std_string(expression));
-        clear_error();
-        return static_cast<std::int64_t>(id.value);
-    } catch (...) {
-        capture_current_error();
-        return 0;
-    }
-}
-
-bool CLifeWorldEditor::set_derived_parameter_expression(std::int64_t raw_function_type_id,
-                                                         std::int64_t raw_parameter_id,
-                                                         const godot::String& expression)
+bool CLifeWorldEditor::set_function_calculation_binding(std::int64_t raw_function_type_id,
+                                                        std::int64_t raw_calculation_id,
+                                                        const godot::Array& input_bindings)
 {
     return edit([&] {
-        definition_.set_derived_parameter_expression(function_type_id(raw_function_type_id),
-                                                      parameter_id(raw_parameter_id), to_std_string(expression));
+        world::FunctionCalculationBinding binding{.calculation = calculation_id(raw_calculation_id)};
+        for (std::int64_t index = 0; index < input_bindings.size(); ++index) {
+            const godot::Dictionary input = required_dictionary(input_bindings[index], "calculation input binding");
+            binding.inputs.push_back({
+                .input = calculation_port_id(required_uint32(required_field(input, "input_id"), "input_id")),
+                .genome_parameter = parameter_id(required_uint32(
+                    required_field(input, "genome_parameter_id"), "genome_parameter_id")),
+            });
+        }
+        definition_.set_function_calculation_binding(function_type_id(raw_function_type_id), std::move(binding));
+    });
+}
+
+bool CLifeWorldEditor::remove_function_calculation_binding(std::int64_t raw_function_type_id,
+                                                           std::int64_t raw_calculation_id)
+{
+    return edit([&] {
+        definition_.remove_function_calculation_binding(function_type_id(raw_function_type_id),
+                                                        calculation_id(raw_calculation_id));
     });
 }
 
 bool CLifeWorldEditor::set_function_material_contribution(std::int64_t raw_function_type_id,
                                                            std::int64_t raw_value_key,
-                                                           const godot::String& expression)
+                                                           const godot::Dictionary& amount_source)
 {
     return edit([&] {
         definition_.set_function_material_contribution(function_type_id(raw_function_type_id), value_key(raw_value_key),
-                                                       to_std_string(expression));
+                                                       function_value_source(amount_source));
     });
 }
 
@@ -1129,16 +1220,21 @@ godot::Array CLifeWorldEditor::get_runtime_functions()
                 entry["amount"] = function.parameter(parameter.id);
                 genome_parameters.push_back(entry);
             }
-            godot::Array derived_parameters;
-            for (const world::DerivedParameterDefinition& parameter : type.derived_parameters) {
+            godot::Array calculation_outputs;
+            for (const world::CompiledCalculationOutputValue& output : function.calculation_outputs()) {
+                const world::CalculationDefinition& calculation = run_definition_->calculation(output.calculation);
+                const auto definition = std::ranges::find(calculation.outputs, output.output,
+                                                          &world::CalculationOutputDefinition::id);
                 godot::Dictionary entry;
-                entry["parameter_id"] = static_cast<std::int64_t>(parameter.id.value);
-                entry["name"] = to_godot_string(parameter.name);
-                entry["amount"] = function.parameter(parameter.id);
-                derived_parameters.push_back(entry);
+                entry["calculation_id"] = static_cast<std::int64_t>(calculation.id.value);
+                entry["calculation_name"] = to_godot_string(calculation.name);
+                entry["output_id"] = static_cast<std::int64_t>(output.output.value);
+                entry["name"] = to_godot_string(definition->name);
+                entry["amount"] = output.value;
+                calculation_outputs.push_back(entry);
             }
             item["genome_parameters"] = genome_parameters;
-            item["derived_parameters"] = derived_parameters;
+            item["calculation_outputs"] = calculation_outputs;
             if (state.buffer) {
                 const world::CompiledBufferParameters& parameters = *function.buffer_parameters();
                 godot::Dictionary buffer;
@@ -1379,35 +1475,41 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
                 item["default_value"] = parameter.default_value;
                 genome_parameters.push_back(item);
             }
-            godot::Array derived_parameters;
-            for (const auto& parameter : type.derived_parameters) {
+            godot::Array calculation_bindings;
+            for (const auto& binding : type.calculations) {
                 godot::Dictionary item;
-                item["id"] = static_cast<std::int64_t>(parameter.id.value);
-                item["name"] = to_godot_string(parameter.name);
-                item["expression_source"] = to_godot_string(parameter.expression_source);
-                derived_parameters.push_back(item);
+                item["calculation_id"] = static_cast<std::int64_t>(binding.calculation.value);
+                godot::Array inputs;
+                for (const auto& input : binding.inputs) {
+                    godot::Dictionary stored;
+                    stored["input_id"] = static_cast<std::int64_t>(input.input.value);
+                    stored["genome_parameter_id"] = static_cast<std::int64_t>(input.genome_parameter.value);
+                    inputs.push_back(stored);
+                }
+                item["inputs"] = inputs;
+                calculation_bindings.push_back(item);
             }
             godot::Array contributions;
             for (const auto& contribution : type.material_contributions) {
                 godot::Dictionary item;
                 item["value_key"] = static_cast<std::int64_t>(contribution.value.value);
-                item["expression_source"] = to_godot_string(contribution.expression_source);
+                item["amount_source"] = function_value_source_dictionary(contribution.amount);
                 contributions.push_back(item);
             }
             entry["genome_parameters"] = genome_parameters;
-            entry["derived_parameters"] = derived_parameters;
+            entry["calculations"] = calculation_bindings;
             entry["material_contributions"] = contributions;
             entry["process"] = godot::Variant();
             if (type.process) {
                 godot::Dictionary process;
                 process["input_key"] = static_cast<std::int64_t>(type.process->input.value);
-                process["throughput_parameter_id"] = static_cast<std::int64_t>(type.process->throughput.value);
+                process["throughput_source"] = function_value_source_dictionary(type.process->throughput);
                 process["conversion_id"] = static_cast<std::int64_t>(type.process->conversion.value);
                 godot::Array outputs;
                 for (const world::FunctionProcessOutputDefinition& output : type.process->outputs) {
                     godot::Dictionary stored;
                     stored["output_key"] = static_cast<std::int64_t>(output.output.value);
-                    stored["allocation_parameter_id"] = static_cast<std::int64_t>(output.allocation.value);
+                    stored["allocation_source"] = function_value_source_dictionary(output.allocation);
                     outputs.push_back(stored);
                 }
                 process["outputs"] = outputs;
@@ -1417,9 +1519,9 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
             if (type.buffer_process) {
                 godot::Dictionary buffer;
                 buffer["value_key"] = static_cast<std::int64_t>(type.buffer_process->value.value);
-                buffer["capacity_parameter_id"] = static_cast<std::int64_t>(type.buffer_process->capacity.value);
-                buffer["throughput_parameter_id"] = static_cast<std::int64_t>(type.buffer_process->throughput.value);
-                buffer["leakage_parameter_id"] = static_cast<std::int64_t>(type.buffer_process->leakage.value);
+                buffer["capacity_source"] = function_value_source_dictionary(type.buffer_process->capacity);
+                buffer["throughput_source"] = function_value_source_dictionary(type.buffer_process->throughput);
+                buffer["leakage_source"] = function_value_source_dictionary(type.buffer_process->leakage);
                 entry["buffer_process"] = buffer;
             }
             types.push_back(entry);
@@ -1497,8 +1599,8 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
         require_edit_mode();
         world::WorldDefinitionSnapshot snapshot;
         snapshot.schema_version = required_uint32(required_field(serialized, "schema_version"), "schema_version");
-        if (snapshot.schema_version < 1 || snapshot.schema_version > 4) {
-            throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version"};
+        if (snapshot.schema_version != 5) {
+            throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version; recreate the test world"};
         }
         snapshot.next_value_key = required_uint32(required_field(serialized, "next_value_key"), "next_value_key");
         snapshot.next_template_id = required_uint32(required_field(serialized, "next_template_id"), "next_template_id");
@@ -1509,20 +1611,17 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
             required_uint32(required_field(serialized, "next_calculation_id"), "next_calculation_id");
         snapshot.next_calculation_port_id =
             required_uint32(required_field(serialized, "next_calculation_port_id"), "next_calculation_port_id");
-        if (snapshot.schema_version >= 2) {
-            snapshot.next_unit_id = required_uint32(required_field(serialized, "next_unit_id"), "next_unit_id");
-            for (const godot::Variant& value : required_array(required_field(serialized, "units"), "units")) {
+        snapshot.next_unit_id = required_uint32(required_field(serialized, "next_unit_id"), "next_unit_id");
+        for (const godot::Variant& value : required_array(required_field(serialized, "units"), "units")) {
                 const godot::Dictionary item = required_dictionary(value, "unit");
                 snapshot.units.push_back({
                     .id = {required_uint32(required_field(item, "id"), "unit id")},
                     .symbol = required_string(required_field(item, "symbol"), "unit symbol"),
                 });
-            }
         }
-        if (snapshot.schema_version >= 3) {
-            snapshot.next_unit_conversion_id =
-                required_uint32(required_field(serialized, "next_unit_conversion_id"), "next_unit_conversion_id");
-            for (const godot::Variant& value :
+        snapshot.next_unit_conversion_id =
+            required_uint32(required_field(serialized, "next_unit_conversion_id"), "next_unit_conversion_id");
+        for (const godot::Variant& value :
                  required_array(required_field(serialized, "unit_conversions"), "unit_conversions")) {
                 const godot::Dictionary item = required_dictionary(value, "unit conversion");
                 world::UnitConversionDefinition conversion{
@@ -1547,7 +1646,6 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                     });
                 }
                 snapshot.unit_conversions.push_back(std::move(conversion));
-            }
         }
         for (const godot::Variant& value : required_array(required_field(serialized, "values"), "values")) {
             const godot::Dictionary item = required_dictionary(value, "value");
@@ -1555,9 +1653,8 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                 .key = {required_uint32(required_field(item, "id"), "value id")},
                 .name = required_string(required_field(item, "name"), "value name"),
             };
-            if (snapshot.schema_version >= 2) {
-                const godot::Variant unit_value = required_field(item, "unit");
-                if (unit_value.get_type() != godot::Variant::NIL) {
+            const godot::Variant unit_value = required_field(item, "unit");
+            if (unit_value.get_type() != godot::Variant::NIL) {
                     world::UnitExpression expression;
                     for (const godot::Variant& component_value : required_array(unit_value, "value unit")) {
                         const godot::Dictionary component = required_dictionary(component_value, "unit component");
@@ -1567,7 +1664,6 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                         });
                     }
                     stored.unit = std::move(expression);
-                }
             }
             snapshot.values.push_back(std::move(stored));
         }
@@ -1609,35 +1705,39 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                     .default_value = required_number(required_field(parameter, "default_value"), "genome parameter default"),
                 });
             }
-            for (const godot::Variant& parameter_value :
-                 required_array(required_field(item, "derived_parameters"), "derived parameters")) {
-                const godot::Dictionary parameter = required_dictionary(parameter_value, "derived parameter");
-                type.derived_parameters.push_back({
-                    .id = {required_uint32(required_field(parameter, "id"), "derived parameter id")},
-                    .name = required_string(required_field(parameter, "name"), "derived parameter name"),
-                    .expression_source = required_string(required_field(parameter, "expression_source"), "derived parameter expression"),
-                });
+            for (const godot::Variant& binding_value :
+                 required_array(required_field(item, "calculations"), "function calculation bindings")) {
+                const godot::Dictionary stored = required_dictionary(binding_value, "function calculation binding");
+                world::FunctionCalculationBinding binding{
+                    .calculation = {required_uint32(required_field(stored, "calculation_id"), "calculation id")},
+                };
+                for (const godot::Variant& input_value :
+                     required_array(required_field(stored, "inputs"), "calculation input bindings")) {
+                    const godot::Dictionary input = required_dictionary(input_value, "calculation input binding");
+                    binding.inputs.push_back({
+                        .input = {required_uint32(required_field(input, "input_id"), "input id")},
+                        .genome_parameter = {required_uint32(required_field(input, "genome_parameter_id"),
+                                                            "genome parameter id")},
+                    });
+                }
+                type.calculations.push_back(std::move(binding));
             }
             const godot::Variant process_value = required_field(item, "process");
             if (process_value.get_type() != godot::Variant::NIL) {
                 const godot::Dictionary process = required_dictionary(process_value, "process");
                 world::FunctionProcessDefinition stored{
                     .input = {required_uint32(required_field(process, "input_key"), "process input key")},
-                    .throughput = {required_uint32(required_field(process, "throughput_parameter_id"), "process throughput")},
+                    .throughput = function_value_source(required_dictionary(
+                        required_field(process, "throughput_source"), "process throughput source")),
+                    .conversion = {required_uint32(required_field(process, "conversion_id"), "process conversion")},
                 };
-                if (snapshot.schema_version >= 4) {
-                    stored.conversion = {required_uint32(required_field(process, "conversion_id"), "process conversion")};
-                    for (const godot::Variant& output_value : required_array(required_field(process, "outputs"), "process outputs")) {
+                for (const godot::Variant& output_value : required_array(required_field(process, "outputs"), "process outputs")) {
                         const godot::Dictionary output = required_dictionary(output_value, "process output");
                         stored.outputs.push_back({
                             .output = {required_uint32(required_field(output, "output_key"), "process output key")},
-                            .allocation = {required_uint32(required_field(output, "allocation_parameter_id"), "process allocation")},
+                            .allocation = function_value_source(required_dictionary(
+                                required_field(output, "allocation_source"), "process allocation source")),
                         });
-                    }
-                } else {
-                    stored.output = {required_uint32(required_field(process, "output_key"), "process output key")};
-                    stored.result_per_input =
-                        {required_uint32(required_field(process, "result_per_input_parameter_id"), "process result")};
                 }
                 type.process = std::move(stored);
             }
@@ -1646,9 +1746,12 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                 const godot::Dictionary buffer = required_dictionary(buffer_value, "buffer process");
                 type.buffer_process = {
                     .value = {required_uint32(required_field(buffer, "value_key"), "buffer value key")},
-                    .capacity = {required_uint32(required_field(buffer, "capacity_parameter_id"), "buffer capacity")},
-                    .throughput = {required_uint32(required_field(buffer, "throughput_parameter_id"), "buffer throughput")},
-                    .leakage = {required_uint32(required_field(buffer, "leakage_parameter_id"), "buffer leakage")},
+                    .capacity = function_value_source(required_dictionary(required_field(buffer, "capacity_source"),
+                                                                          "buffer capacity source")),
+                    .throughput = function_value_source(required_dictionary(required_field(buffer, "throughput_source"),
+                                                                            "buffer throughput source")),
+                    .leakage = function_value_source(required_dictionary(required_field(buffer, "leakage_source"),
+                                                                         "buffer leakage source")),
                 };
             }
             for (const godot::Variant& contribution_value :
@@ -1656,7 +1759,8 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                 const godot::Dictionary contribution = required_dictionary(contribution_value, "function material contribution");
                 type.material_contributions.push_back({
                     .value = {required_uint32(required_field(contribution, "value_key"), "material value key")},
-                    .expression_source = required_string(required_field(contribution, "expression_source"), "material expression"),
+                    .amount = function_value_source(required_dictionary(required_field(contribution, "amount_source"),
+                                                                        "material amount source")),
                 });
             }
             snapshot.function_types.push_back(std::move(type));
@@ -1824,28 +1928,34 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("set_value_unit", "value_key", "unit_id"),
                                 &CLifeWorldEditor::set_value_unit);
     godot::ClassDB::bind_method(
-        godot::D_METHOD("set_function_process", "function_type_id", "input_value_key", "throughput_parameter_id",
-                        "conversion_id", "output_value_key", "allocation_parameter_id"),
+        godot::D_METHOD("set_function_process", "function_type_id", "input_value_key", "throughput_source",
+                        "conversion_id", "output_value_key", "allocation_source"),
         &CLifeWorldEditor::set_function_process);
     godot::ClassDB::bind_method(
-        godot::D_METHOD("add_function_process_output", "function_type_id", "output_value_key", "allocation_parameter_id"),
+        godot::D_METHOD("add_function_process_output", "function_type_id", "output_value_key", "allocation_source"),
         &CLifeWorldEditor::add_function_process_output);
     godot::ClassDB::bind_method(
         godot::D_METHOD("change_function_process_settings", "function_type_id", "input_value_key",
-                        "throughput_parameter_id", "conversion_id"),
+                        "throughput_source", "conversion_id"),
         &CLifeWorldEditor::change_function_process_settings);
     godot::ClassDB::bind_method(
         godot::D_METHOD("change_function_process_output", "function_type_id", "existing_output_value_key",
-                        "output_value_key", "allocation_parameter_id"),
+                        "output_value_key", "allocation_source"),
         &CLifeWorldEditor::change_function_process_output);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_function_process_output", "function_type_id", "output_value_key"),
                                 &CLifeWorldEditor::remove_function_process_output);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_function_process", "function_type_id"),
                                 &CLifeWorldEditor::remove_function_process);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("set_buffer_process", "function_type_id", "value_key", "capacity_source",
+                        "throughput_source", "leakage_source"),
+        &CLifeWorldEditor::set_buffer_process);
     godot::ClassDB::bind_method(godot::D_METHOD("rename_value", "key", "name"), &CLifeWorldEditor::rename_value);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_value", "key"), &CLifeWorldEditor::remove_value);
     godot::ClassDB::bind_method(godot::D_METHOD("add_template", "name"), &CLifeWorldEditor::add_template);
     godot::ClassDB::bind_method(godot::D_METHOD("add_function_type", "name"), &CLifeWorldEditor::add_function_type);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_function_type", "function_type_id"),
+                                &CLifeWorldEditor::remove_function_type);
     godot::ClassDB::bind_method(godot::D_METHOD("add_genome_parameter", "function_type_id", "name", "default_value"),
                                 &CLifeWorldEditor::add_genome_parameter);
     godot::ClassDB::bind_method(godot::D_METHOD("add_calculation", "name"), &CLifeWorldEditor::add_calculation);
@@ -1859,13 +1969,14 @@ void CLifeWorldEditor::_bind_methods()
                                 &CLifeWorldEditor::set_initial_value);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_initial_value", "template_id", "value_key"),
                                 &CLifeWorldEditor::remove_initial_value);
-    godot::ClassDB::bind_method(godot::D_METHOD("add_derived_parameter", "function_type_id", "name", "expression"),
-                                &CLifeWorldEditor::add_derived_parameter);
     godot::ClassDB::bind_method(
-        godot::D_METHOD("set_derived_parameter_expression", "function_type_id", "parameter_id", "expression"),
-        &CLifeWorldEditor::set_derived_parameter_expression);
+        godot::D_METHOD("set_function_calculation_binding", "function_type_id", "calculation_id", "input_bindings"),
+        &CLifeWorldEditor::set_function_calculation_binding);
     godot::ClassDB::bind_method(
-        godot::D_METHOD("set_function_material_contribution", "function_type_id", "value_key", "expression"),
+        godot::D_METHOD("remove_function_calculation_binding", "function_type_id", "calculation_id"),
+        &CLifeWorldEditor::remove_function_calculation_binding);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("set_function_material_contribution", "function_type_id", "value_key", "amount_source"),
         &CLifeWorldEditor::set_function_material_contribution);
     godot::ClassDB::bind_method(
         godot::D_METHOD("remove_function_material_contribution", "function_type_id", "value_key"),

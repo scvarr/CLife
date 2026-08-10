@@ -48,39 +48,50 @@ struct GenomeParameterDefinition final {
     Amount default_value;
 };
 
-struct DerivedParameterDefinition final {
-    ParameterId id;
-    std::string name;
-    std::string expression_source;
-    Expression expression;
+enum class FunctionValueSourceKind {
+    genome_parameter,
+    calculation_output,
+};
+
+struct FunctionValueSource final {
+    FunctionValueSourceKind kind{FunctionValueSourceKind::genome_parameter};
+    ParameterId genome_parameter{};
+    CalculationId calculation{};
+    CalculationPortId calculation_output{};
+};
+
+struct FunctionCalculationInputBinding final {
+    CalculationPortId input;
+    ParameterId genome_parameter;
+};
+
+struct FunctionCalculationBinding final {
+    CalculationId calculation;
+    std::vector<FunctionCalculationInputBinding> inputs;
 };
 
 struct FunctionProcessOutputDefinition final {
     ValueKey output;
-    ParameterId allocation;
+    FunctionValueSource allocation;
 };
 
 struct FunctionProcessDefinition final {
     ValueKey input;
-    // Retained only to migrate snapshots created before schema version 4.
-    ValueKey output{};
-    ParameterId throughput;
-    ParameterId result_per_input{};
+    FunctionValueSource throughput;
     UnitConversionId conversion;
     std::vector<FunctionProcessOutputDefinition> outputs;
 };
 
 struct BufferProcessDefinition final {
     ValueKey value;
-    ParameterId capacity;
-    ParameterId throughput;
-    ParameterId leakage;
+    FunctionValueSource capacity;
+    FunctionValueSource throughput;
+    FunctionValueSource leakage;
 };
 
 struct MaterialContributionDefinition final {
     ValueKey value;
-    std::string expression_source;
-    Expression amount;
+    FunctionValueSource amount;
 };
 
 struct CalculationInputDefinition final {
@@ -106,7 +117,7 @@ struct FunctionTypeDefinition final {
     FunctionTypeId id;
     std::string name;
     std::vector<GenomeParameterDefinition> genome_parameters;
-    std::vector<DerivedParameterDefinition> derived_parameters;
+    std::vector<FunctionCalculationBinding> calculations;
     std::optional<FunctionProcessDefinition> process;
     std::optional<BufferProcessDefinition> buffer_process;
     std::vector<MaterialContributionDefinition> material_contributions;
@@ -154,25 +165,14 @@ struct WorldRuleDefinition final {
     Amount target_per_source;
 };
 
-struct DerivedParameterSnapshot final {
-    ParameterId id;
-    std::string name;
-    std::string expression_source;
-};
-
-struct MaterialContributionSnapshot final {
-    ValueKey value;
-    std::string expression_source;
-};
-
 struct FunctionTypeSnapshot final {
     FunctionTypeId id;
     std::string name;
     std::vector<GenomeParameterDefinition> genome_parameters;
-    std::vector<DerivedParameterSnapshot> derived_parameters;
+    std::vector<FunctionCalculationBinding> calculations;
     std::optional<FunctionProcessDefinition> process;
     std::optional<BufferProcessDefinition> buffer_process;
-    std::vector<MaterialContributionSnapshot> material_contributions;
+    std::vector<MaterialContributionDefinition> material_contributions;
 };
 
 struct CalculationOutputSnapshot final {
@@ -189,7 +189,7 @@ struct CalculationSnapshot final {
 };
 
 struct WorldDefinitionSnapshot final {
-    std::uint32_t schema_version{4};
+    std::uint32_t schema_version{5};
     std::vector<ValueDefinition> values;
     std::vector<UnitDefinition> units;
     std::vector<UnitConversionDefinition> unit_conversions;
@@ -227,12 +227,13 @@ public:
 
     [[nodiscard]] FunctionTypeId add_function_type(std::string name);
     void rename_function_type(FunctionTypeId id, std::string name);
+    void remove_function_type(FunctionTypeId id);
     [[nodiscard]] ParameterId add_genome_parameter(FunctionTypeId type, std::string name, Amount default_value);
-    [[nodiscard]] ParameterId add_derived_parameter(FunctionTypeId type, std::string name, std::string_view expression);
-    void set_derived_parameter_expression(FunctionTypeId type, ParameterId parameter, std::string_view expression);
     void rename_parameter(FunctionTypeId type, ParameterId parameter, std::string name);
+    void set_function_calculation_binding(FunctionTypeId type, FunctionCalculationBinding binding);
+    void remove_function_calculation_binding(FunctionTypeId type, CalculationId calculation);
     void set_function_process(FunctionTypeId type, FunctionProcessDefinition process);
-    void change_function_process_settings(FunctionTypeId type, ValueKey input, ParameterId throughput,
+    void change_function_process_settings(FunctionTypeId type, ValueKey input, FunctionValueSource throughput,
                                           UnitConversionId conversion);
     void change_function_process_output(FunctionTypeId type, ValueKey existing_output,
                                         FunctionProcessOutputDefinition replacement);
@@ -240,8 +241,7 @@ public:
     void remove_function_process_output(FunctionTypeId type, ValueKey output);
     void remove_function_process(FunctionTypeId type);
     void set_buffer_process(FunctionTypeId type, BufferProcessDefinition process);
-    void add_function_material_contribution(FunctionTypeId type, ValueKey value, std::string_view expression);
-    void set_function_material_contribution(FunctionTypeId type, ValueKey value, std::string_view expression);
+    void set_function_material_contribution(FunctionTypeId type, ValueKey value, FunctionValueSource amount);
     void remove_function_material_contribution(FunctionTypeId type, ValueKey value);
 
     [[nodiscard]] CalculationId add_calculation(std::string name);
@@ -282,6 +282,9 @@ private:
     [[nodiscard]] FunctionTypeDefinition& mutable_function_type(FunctionTypeId id);
     [[nodiscard]] CalculationDefinition& mutable_calculation(CalculationId id);
     [[nodiscard]] bool parameter_belongs_to(const FunctionTypeDefinition& type, ParameterId parameter) const noexcept;
+    void validate_function_value_source(const FunctionTypeDefinition& type, const FunctionValueSource& source) const;
+    void validate_function_calculation_binding(const FunctionTypeDefinition& type,
+                                                const FunctionCalculationBinding& binding) const;
     void validate_unit_expression(const UnitExpression& expression) const;
     void validate_rule(const WorldRuleDefinition& rule, std::size_t ignored_index) const;
     void validate_binding(const ObjectTemplate& object, const HostBinding& binding, std::size_t ignored_index) const;

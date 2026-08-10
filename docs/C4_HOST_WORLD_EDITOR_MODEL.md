@@ -53,7 +53,7 @@ FunctionTypeId
 ParameterId -> independent Amount
 ```
 
-Входы/выходы процесса, формулы производных параметров и их calculator-мэппинг принадлежат `FunctionTypeDefinition` на уровне мира. Производные параметры вычисляются при сборке immutable phenotype и не дублируются в genome. Подробная C7-модель описана в `C7_GENOTYPE_PHENOTYPE.md`.
+`CalculationDefinition` является единственным механизмом пользовательских phenotype formulas. `FunctionCalculationBinding` связывает его inputs с genome parameters, а `FunctionValueSource` позволяет process, buffer и material contribution использовать genome parameter либо Calculation output. FunctionType связывает эти определения, но сам expressions не содержит. Подробная C7-модель описана в `C7_GENOTYPE_PHENOTYPE.md`.
 
 World rules принадлежат миру и описывают неизбежные последствия после genome pipeline:
 

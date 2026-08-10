@@ -16,9 +16,9 @@
 - Типы функций / Function Types;
 - Правила мира / World Rules.
 
-UI уже создаёт Values, Calculations и Templates; Function Types и world rules отображаются и используют существующие доступные editor-операции. Пользовательские имена остаются world data и не переводятся.
+UI создаёт Values, Calculations, Templates и Function Types. FunctionType inspector создаёт независимые genome parameters, подключает Calculation inputs, выбирает источники process/buffer/material contributions и показывает рассчитанные outputs в Template/runtime inspector. Пользовательские имена остаются world data и не переводятся.
 
-Value и Template можно удалить из их inspector. Удаление Value использует обычную world validation: referenced Value не удаляется каскадно, остаётся в документе, а facade показывает `last_error`.
+Value и Template можно удалить из их inspector. FunctionType удаляется через контекстное меню по правой кнопке; тип, используемый template genome, не удаляется каскадно. Удаление использует обычную world validation и facade `last_error`.
 
 ## 3. Библиотека calculations
 
@@ -30,7 +30,7 @@ b = a * 0.8
 c = a - b
 ```
 
-Output видит все inputs и только ранее созданные outputs. Calculation пока не связан с `Value`, `FunctionTypeDefinition`, `ObjectTemplate` или runtime.
+Output видит все inputs и только ранее созданные outputs. Calculation подключается к `FunctionTypeDefinition`: каждый input связывается с независимым genome parameter, а outputs становятся вычисляемыми характеристиками phenotype. Calculation не исполняется каждый tick и пока не поддерживает chaining между разными Calculations.
 
 ## 4. Expressions
 
@@ -51,10 +51,10 @@ Godot использует один рабочий файл `user://current_worl
 - отсутствующий файл означает пустой мир;
 - повреждённый файл не перезаписывается автоматически и показывает ошибку;
 - stable IDs и next-ID counters сохраняются;
-- expressions хранятся как source text и компилируются заново;
+- Calculation expressions хранятся как source text и компилируются заново;
 - runtime state, Tick, buffer amounts, host input values, UI selection, locale и camera не сохраняются.
 
-Это не система проектов: пока нет Open, Save As, списка файлов, autosave или RuntimeWorld persistence.
+Это не система проектов: пока нет Open, Save As, списка файлов, autosave или RuntimeWorld persistence. До этапа стабилизации формата importer принимает только актуальную snapshot schema; старый тестовый файл показывает понятную ошибку и может быть создан заново.
 
 ## 7. Локализация и build
 

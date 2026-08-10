@@ -36,11 +36,10 @@ RuntimeWorld::RuntimeWorld(const WorldDefinition& definition)
             const bool produced_by_process =
                 std::ranges::any_of(source.genome, [&](const GenomeFunctionInstance& function) {
                     const FunctionTypeDefinition& type = definition.function_type(function.type);
-                    return type.process && ((type.process->conversion.value == 0 && type.process->output == binding.value) ||
-                                            std::ranges::any_of(type.process->outputs,
+                    return type.process && std::ranges::any_of(type.process->outputs,
                                                                 [&](const FunctionProcessOutputDefinition& output) {
                                                                     return output.output == binding.value;
-                                                                }));
+                                                                });
                 });
             if (binding.direction == HostChannelDirection::input && produced_by_process) {
                 throw std::invalid_argument{"host input cannot target a genome-produced value"};

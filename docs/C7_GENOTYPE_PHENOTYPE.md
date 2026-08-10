@@ -26,13 +26,13 @@ independent values  ->  deterministic derived values  ->  tick-changing amounts
 
 ## 2. World function types
 
-`FunctionTypeDefinition` имеет стабильный `FunctionTypeId`, display name, определения независимых и производных параметров и необязательное описание numeric process. Каждый параметр имеет стабильный `ParameterId`; display name не используется как runtime identity.
+`FunctionTypeDefinition` имеет стабильный `FunctionTypeId`, display name, независимые genome parameters, bindings библиотечных calculations и необязательное описание numeric process. `ParameterId` относится только к независимому genome parameter; display name не используется как runtime identity.
 
-`GenomeFunctionInstance` ссылается на `FunctionTypeId` и хранит пары `ParameterId -> Amount` только для `genome_parameters`. Производные параметры отсутствуют в этой записи.
+`GenomeFunctionInstance` ссылается на `FunctionTypeId` и хранит пары `ParameterId -> Amount` для `genome_parameters`. Вычисляемые характеристики представлены outputs подключённых `CalculationDefinition`, а не вторым видом параметров FunctionType.
 
 Тип функции может компилироваться либо в обычный conversion process, либо в универсальный buffer process. Conversion задаёт input/output `ValueKey`; buffer подключается к одному `ValueKey` как дополнительный источник и потребитель, но не создаёт ребро `Value -> Value` в DAG. Специальных типов `Energy Storage`, `Energy` или `Organic` в core нет.
 
-World data также задаёт material contributions шаблона и типов функций. Contribution указывает материал через стабильный `ValueKey` и число либо phenotype expression. При компиляции contributions суммируются и добавляются к явным initial values объекта.
+World data также задаёт material contributions шаблона и типов функций. Contribution FunctionType указывает материал через стабильный `ValueKey`, а amount получает через `FunctionValueSource`: напрямую из genome parameter или из output подключённого Calculation. При компиляции contributions суммируются и добавляются к явным initial values объекта.
 
 ## 2.1 Нормированные параметры и количественная семантика
 
@@ -46,9 +46,9 @@ actual throughput = ThroughputFactor * world base processing rate
 
 Минимальный фундамент units уже существует на уровне `WorldDefinition`. `UnitDefinition` — world-authored данные со стабильным `UnitId` и пользовательским symbol; core не знает SI, Mass, Length, Energy или других заранее заданных физических размерностей. `ValueDefinition` может иметь или не иметь `UnitExpression`. Выражение структурно состоит из `UnitComponent { UnitId, exponent }`, поэтому модель допускает `L`, `mm^3` и `L / tick`, хотя текущий Godot UI authoring назначает Value только одну атомарную единицу с exponent `+1`.
 
-`UnitConversionDefinition` уже хранит отдельный мировой закон между `UnitExpression`: исходное и целевое выражения, authored amounts и стабильный `UnitConversionId`. Например, `10 L -> 1 E` — именно conversion law мира, а не conversion одной физической величины. Сейчас эта запись описывает данные мира и не применяется `Calculator`, `FunctionTypeDefinition` или runtime.
+`UnitConversionDefinition` хранит отдельный мировой закон между `UnitExpression`: исходное и целевое выражения, authored amounts и стабильный `UnitConversionId`. Например, `10 L -> 1 E` — именно conversion law мира, а не conversion одной физической величины. Function process выбирает conversion, phenotype compilation превращает его в числовой ratio, а `Calculator` по-прежнему не знает `UnitConversionId`.
 
-`FunctionProcessDefinition` может использовать один `UnitConversionDefinition`: он потребляет один input с общей throughput и направляет численный ideal result в несколько output `Value`. Каждый output ссылается на phenotype parameter-allocation; при компиляции `result_per_input = target_amount / source_amount * allocation`. Сумма allocation может быть меньше единицы, но не больше единицы; нераспределённая часть пока не материализуется. Core получает только готовые числа multi-output Function и не знает `UnitConversionId`.
+`FunctionProcessDefinition` использует один `UnitConversionDefinition`: он потребляет один input с общей throughput и направляет численный ideal result в несколько output `Value`. Каждый output получает allocation через `FunctionValueSource`; при компиляции `result_per_input = target_amount / source_amount * allocation`. Сумма allocation может быть меньше единицы, но не больше единицы; нераспределённая часть пока не материализуется. Core получает только готовые числа multi-output Function и не знает `UnitConversionId`.
 
 Compound-unit authoring, свойства материалов, привязка world conversion к функциям и dimensional checking выражений пока не реализованы. `WorldRuleDefinition` остаётся отдельным end-of-tick правилом переноса `Value`, а не записью unit conversion.
 
@@ -72,24 +72,26 @@ Cell function: ThroughputFactor = 1.5, Efficiency = 0.8
 
 Если два представления описывают одну величину (`EnergyJ`, `EnergyKJ`), `1000 J = 1 kJ` — обычное масштабирование единиц. `Свет -> Энергия` — закон преобразования мира. Текущий CLife не обязан моделировать это различие отдельными типами, но документация различает его концептуально.
 
-## 3. Expressions
+## 3. Calculations и expressions
 
-Derived parameter expression компилируется при редактировании определения в детерминированную postfix-инструкцию. Поддерживаются:
+`CalculationDefinition` — единственное место пользовательской математики phenotype. Calculation имеет именованные inputs и последовательные outputs; output expression может использовать все inputs и ранее объявленные outputs. Expression компилируется при редактировании определения в детерминированную postfix-инструкцию. Поддерживаются:
 
 - finite numeric literals;
 - parameter references;
 - `+`, `-`, `*`, `/` и parentheses;
 - binary `min(a, b)` и `max(a, b)`.
 
-Имя параметра разрешается в стабильный `ParameterId` один раз при компиляции expression. Последующее переименование function type или parameter metadata не меняет поведение формулы. Derived definitions вычисляются в declaration order, поэтому более поздняя формула может ссылаться на уже определённый derived parameter. Forward references и cycles этим минимальным C7 API не создаются.
+Имена ports разрешаются во внутренние стабильные identities один раз при компиляции expression. Outputs вычисляются в declaration order, поэтому более поздняя формула может ссылаться на уже рассчитанный output. Forward references и cycles этим API не создаются.
 
 Division by zero, unknown references, malformed syntax и любой non-finite result являются явными validation errors. Expression evaluator не имеет side effects, engine access, loops или scripting.
 
-Phenotype expressions вычисляются при genotype → phenotype compilation. Отдельно существует `CalculationDefinition`: библиотека чистых функций с именованными inputs/outputs. Binding calculation к runtime/tick пока не реализован и не должен смешиваться с phenotype formulas.
+`FunctionCalculationBinding` подключает каждый input Calculation ровно к одному genome parameter FunctionType. Один Calculation подключается к одному FunctionType не более одного раза. Chaining `Calculation output -> Calculation input` пока не реализован.
+
+`FunctionValueSource` адресует либо genome parameter, либо output подключённого Calculation. Через него FunctionType задаёт process throughput и allocations, buffer capacity/throughput/leakage и material contribution amount. Внутри `FunctionTypeDefinition` пользовательских expressions больше нет.
 
 ## 4. Phenotype compilation and runtime
 
-`compile_phenotype(WorldDefinition, TemplateId)` проверяет полный набор независимых параметров, вычисляет derived values ровно один раз и возвращает `CompiledPhenotype` с read-only public API. Изменение genome parameter требует новой компиляции phenotype.
+`compile_phenotype(WorldDefinition, TemplateId)` проверяет полный набор независимых параметров, вычисляет outputs всех подключённых Calculations ровно один раз, разрешает `FunctionValueSource` и возвращает `CompiledPhenotype` с read-only public API. Изменение genome parameter требует новой компиляции phenotype.
 
 `RuntimeWorld` компилирует phenotype при создании и строит calculator `Program` из conversion и buffer processes. Формулы genotype → phenotype не вычисляются на каждом tick. `RuntimeWorld::phenotype(ObjectId)` предоставляет const-доступ к скомпилированному phenotype объекта без раскрытия mutable `Calculator`; `function_states(ObjectId)` отдельно возвращает изменяемое состояние runtime-функций.
 
@@ -121,7 +123,7 @@ offer = min(stored, Throughput)
 Genome parameter:
     Capacity = 5
 
-World-derived parameter:
+Calculation `Energy Storage Parameters`:
     OrganicSize = Capacity / 5
     Throughput = Capacity * 0.3
     Leakage = 0
@@ -151,7 +153,7 @@ Storage supplies = 0.5, UsedEnergy = 0.5, Storage stored = 0.5
 
 ## 7. Godot editor
 
-Godot facade возвращает structured function types, calculations, genome instances, compiled material totals, runtime function states и last end-buffer. Template inspector показывает редактируемые Genome parameters, derived parameters и материальную стоимость. Calculation library остаётся отдельной от phenotype/runtime.
+Godot facade возвращает structured function types, calculation bindings, genome instances, compiled material totals, runtime function states и last end-buffer. FunctionType inspector подключает Calculation inputs к genome parameters и использует единый selector источника для process, buffer и material contribution. Template inspector всегда показывает raw genome и best-effort рассчитанные Calculation outputs.
 
 Function types доступны отдельным разделом world tree. Все новые application captions проходят через существующие RU/EN PO resources. Function/parameter display names остаются world data и не переводятся автоматически.
 
@@ -159,4 +161,4 @@ Function types доступны отдельным разделом world tree. 
 
 Не реализованы mutation, inheritance transport, biosynthesis, thermosynthesis, reproduction, division, topology, multi-cell, физическое genome encoding и runtime formula binding/DSL. Structural operations по-прежнему зарезервированы для tick boundary.
 
-Сохранение authoring `WorldDefinition` уже реализовано через `WorldDefinitionSnapshot` и host serialization. Не реализованы сохранение `RuntimeWorld`, эволюционной популяции и биологическая сериализация физического genome.
+Сохранение authoring `WorldDefinition` уже реализовано через `WorldDefinitionSnapshot` и host serialization. До отдельного этапа стабилизации формата backward compatibility старых snapshot schema не гарантируется; текущий importer принимает только актуальную schema. Не реализованы сохранение `RuntimeWorld`, эволюционной популяции и биологическая сериализация физического genome.
