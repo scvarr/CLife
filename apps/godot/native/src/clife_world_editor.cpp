@@ -475,34 +475,49 @@ godot::Array CLifeWorldEditor::get_genome(std::int64_t raw_template_id)
     try {
         const world::TemplateId id = template_id(raw_template_id);
         const world::ObjectTemplate& object = definition_.object_template(id);
-        const world::CompiledPhenotype phenotype = world::compile_phenotype(definition_, id);
         for (std::size_t index = 0; index < object.genome.size(); ++index) {
             const world::GenomeFunctionInstance& function = object.genome[index];
             const world::FunctionTypeDefinition& type = definition_.function_type(function.type);
-            const world::CompiledFunctionPhenotype& compiled = phenotype.function(index);
             godot::Dictionary item;
             item["index"] = static_cast<std::int64_t>(index);
             item["function_type_id"] = static_cast<std::int64_t>(type.id.value);
             item["function_type_name"] = to_godot_string(type.name);
             godot::Array genome_parameters;
             for (const world::GenomeParameterDefinition& parameter : type.genome_parameters) {
+                const auto value = std::ranges::find(function.parameters, parameter.id, &world::ParameterValue::parameter);
+                if (value == function.parameters.end()) {
+                    throw std::invalid_argument{"genome function parameter identity is missing"};
+                }
                 godot::Dictionary entry;
                 entry["parameter_id"] = static_cast<std::int64_t>(parameter.id.value);
                 entry["name"] = to_godot_string(parameter.name);
-                entry["amount"] = compiled.parameter(parameter.id);
+                entry["amount"] = value->value;
                 genome_parameters.push_back(entry);
             }
-            godot::Array derived_parameters;
-            for (const world::DerivedParameterDefinition& parameter : type.derived_parameters) {
-                godot::Dictionary entry;
-                entry["parameter_id"] = static_cast<std::int64_t>(parameter.id.value);
-                entry["name"] = to_godot_string(parameter.name);
-                entry["amount"] = compiled.parameter(parameter.id);
-                derived_parameters.push_back(entry);
-            }
             item["genome_parameters"] = genome_parameters;
-            item["derived_parameters"] = derived_parameters;
+            item["derived_parameters"] = godot::Array{};
             result.push_back(item);
+        }
+
+        try {
+            const world::CompiledPhenotype phenotype = world::compile_phenotype(definition_, id);
+            for (std::size_t index = 0; index < object.genome.size(); ++index) {
+                const world::FunctionTypeDefinition& type = definition_.function_type(object.genome[index].type);
+                const world::CompiledFunctionPhenotype& compiled = phenotype.function(index);
+                godot::Array derived_parameters;
+                for (const world::DerivedParameterDefinition& parameter : type.derived_parameters) {
+                    godot::Dictionary entry;
+                    entry["parameter_id"] = static_cast<std::int64_t>(parameter.id.value);
+                    entry["name"] = to_godot_string(parameter.name);
+                    entry["amount"] = compiled.parameter(parameter.id);
+                    derived_parameters.push_back(entry);
+                }
+                godot::Dictionary item = result[index];
+                item["derived_parameters"] = derived_parameters;
+                result[index] = item;
+            }
+        } catch (...) {
+            // Raw authoring state remains visible while the template is incomplete.
         }
         clear_error();
     } catch (...) {
