@@ -20,12 +20,7 @@ custom_minimum_size = Vector2(240, 0)
 layout_mode = 2
 [node name="Back" type="Button" parent="Layout/Sidebar"]
 layout_mode = 2
-[node name="UnitsLabel" type="Label" parent="Layout/Sidebar"]
-layout_mode = 2
-[node name="Units" type="ItemList" parent="Layout/Sidebar"]
-layout_mode = 2
-size_flags_vertical = 3
-[node name="NewUnit" type="Button" parent="Layout/Sidebar"]
+[node name="Units" type="Button" parent="Layout/Sidebar"]
 layout_mode = 2
 [node name="Workspace" type="PanelContainer" parent="Layout"]
 layout_mode = 2
@@ -42,5 +37,4 @@ theme_override_constants/separation = 12
 [node name="Status" type="Label" parent="Layout/Workspace/Margin/Content"]
 layout_mode = 2
 [connection signal="pressed" from="Layout/Sidebar/Back" to="." method="_on_back"]
-[connection signal="item_selected" from="Layout/Sidebar/Units" to="." method="_on_unit_selected"]
-[connection signal="pressed" from="Layout/Sidebar/NewUnit" to="." method="_on_new_unit"]
+[connection signal="pressed" from="Layout/Sidebar/Units" to="." method="_show_units"]

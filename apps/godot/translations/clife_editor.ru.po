@@ -762,3 +762,9 @@ msgid "ux.delete"
 msgstr "Удалить"
 msgid "ux.back_to_menu"
 msgstr "В главное меню"
+
+msgid "ux.add_new"
+msgstr "Добавить новую"
+
+msgid "ux.cancel"
+msgstr "Отмена"

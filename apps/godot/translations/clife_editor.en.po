@@ -752,3 +752,9 @@ msgid "ux.delete"
 msgstr "Delete"
 msgid "ux.back_to_menu"
 msgstr "Back to main menu"
+
+msgid "ux.add_new"
+msgstr "Add new"
+
+msgid "ux.cancel"
+msgstr "Cancel"

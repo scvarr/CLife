@@ -1,71 +1,72 @@
 extends Control
 
 var editor := CLifeWorldEditor.new()
-var selected_unit := -1
-@onready var list: ItemList = $Layout/Sidebar/Units
 @onready var workspace: VBoxContainer = $Layout/Workspace/Margin/Content
 @onready var status: Label = $Layout/Workspace/Margin/Content/Status
 
 func _ready() -> void:
 	$Layout/Sidebar/Back.text = tr("ux.back_to_menu")
-	$Layout/Sidebar/UnitsLabel.text = tr("ux.units")
-	$Layout/Sidebar/NewUnit.text = tr("ux.new_unit")
-	_refresh()
+	$Layout/Sidebar/Units.text = tr("ux.units")
+	_show_units()
 
-func _refresh() -> void:
-	list.clear()
-	for unit in editor.get_units():
-		list.add_item(str(unit.symbol))
-		list.set_item_metadata(list.item_count - 1, int(unit.id))
-	_show_list()
-
-func _show_list() -> void:
-	_clear_form()
+func _show_units() -> void:
+	_clear_workspace()
 	_add_title(tr("ux.units"))
+	var header := HBoxContainer.new()
+	var symbol := Label.new(); symbol.text = tr("ux.symbol"); symbol.custom_minimum_size.x = 180
+	var description := Label.new(); description.text = tr("ux.comment"); description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	header.add_child(symbol); header.add_child(description); workspace.add_child(header)
 	for unit in editor.get_units():
-		var label := Label.new()
-		label.text = "%s\n%s" % [unit.symbol, unit.description]
-		workspace.add_child(label)
+		_add_unit_row(unit)
+	var add := Button.new(); add.text = "+ " + tr("ux.add_new")
+	add.pressed.connect(_add_new_row)
+	workspace.add_child(add)
 
-func _on_new_unit() -> void:
-	selected_unit = -1
-	_clear_form()
-	_add_title(tr("ux.new_unit"))
-	var symbol := LineEdit.new(); symbol.placeholder_text = tr("ux.symbol")
-	var description := TextEdit.new(); description.custom_minimum_size = Vector2(0, 90); description.placeholder_text = tr("ux.comment")
-	workspace.add_child(symbol); workspace.add_child(description)
-	var create := Button.new(); create.text = tr("ux.create")
-	create.pressed.connect(func():
-		if editor.add_unit(symbol.text, description.text) == 0: status.text = editor.get_last_error(); return
-		_refresh()
+func _add_unit_row(unit: Dictionary) -> void:
+	var row := HBoxContainer.new()
+	var symbol := Label.new(); symbol.text = str(unit.symbol); symbol.custom_minimum_size.x = 180
+	var description := Label.new(); description.text = str(unit.description); description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(symbol); row.add_child(description)
+	row.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and (event as InputEventMouseButton).pressed:
+			if (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT: _edit_row(row, unit)
+			elif (event as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT: _delete_unit(unit)
 	)
-	workspace.add_child(create)
+	workspace.add_child(row)
 
-func _on_unit_selected(index: int) -> void:
-	selected_unit = int(list.get_item_metadata(index))
-	var unit := _unit(selected_unit)
-	_clear_form(); _add_title(tr("ux.unit"))
-	var symbol := LineEdit.new(); symbol.text = str(unit.symbol)
-	var description := TextEdit.new(); description.text = str(unit.description); description.custom_minimum_size = Vector2(0, 90)
-	workspace.add_child(symbol); workspace.add_child(description)
+func _edit_row(row: HBoxContainer, unit: Dictionary) -> void:
+	for child in row.get_children(): child.queue_free()
+	var symbol := LineEdit.new(); symbol.text = str(unit.symbol); symbol.custom_minimum_size.x = 180
+	var description := LineEdit.new(); description.text = str(unit.description); description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var save := Button.new(); save.text = tr("ux.save")
+	var cancel := Button.new(); cancel.text = tr("ux.cancel")
 	save.pressed.connect(func():
-		if not editor.update_unit(selected_unit, symbol.text, description.text): status.text = editor.get_last_error(); return
-		_refresh()
+		if not editor.update_unit(int(unit.id), symbol.text, description.text): status.text = editor.get_last_error(); return
+		_show_units()
 	)
-	var delete := Button.new(); delete.text = tr("ux.delete")
-	delete.pressed.connect(func():
-		if not editor.remove_unit(selected_unit): status.text = editor.get_last_error(); return
-		_refresh()
+	cancel.pressed.connect(_show_units)
+	row.add_child(symbol); row.add_child(description); row.add_child(save); row.add_child(cancel)
+
+func _add_new_row() -> void:
+	var row := HBoxContainer.new()
+	var symbol := LineEdit.new(); symbol.placeholder_text = tr("ux.symbol"); symbol.custom_minimum_size.x = 180
+	var description := LineEdit.new(); description.placeholder_text = tr("ux.comment"); description.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var save := Button.new(); save.text = tr("ux.save")
+	var cancel := Button.new(); cancel.text = tr("ux.cancel")
+	save.pressed.connect(func():
+		if editor.add_unit(symbol.text, description.text) == 0: status.text = editor.get_last_error(); return
+		_show_units()
 	)
-	workspace.add_child(save); workspace.add_child(delete)
+	cancel.pressed.connect(_show_units)
+	workspace.add_child(row); row.add_child(symbol); row.add_child(description); row.add_child(save); row.add_child(cancel)
 
-func _unit(id: int) -> Dictionary:
-	for unit in editor.get_units():
-		if int(unit.id) == id: return unit
-	return {}
+func _delete_unit(unit: Dictionary) -> void:
+	if not editor.remove_unit(int(unit.id)):
+		status.text = editor.get_last_error()
+		return
+	_show_units()
 
-func _clear_form() -> void:
+func _clear_workspace() -> void:
 	for child in workspace.get_children():
 		if child != status: child.queue_free()
 	status.text = ""
