@@ -40,6 +40,26 @@ void require_name(std::string_view name, const char* context)
                                [name](const CalculationOutputDefinition& output) { return output.name == name; });
 }
 
+void recompile_calculation_outputs(CalculationDefinition& calculation)
+{
+    std::vector<ParameterName> names;
+    names.reserve(calculation.inputs.size() + calculation.outputs.size());
+    for (const CalculationInputDefinition& input : calculation.inputs) {
+        names.push_back({.parameter = ParameterId{input.id.value}, .name = input.name});
+    }
+    for (CalculationOutputDefinition& output : calculation.outputs) {
+        output.expression = compile_expression(output.expression_source, names);
+        names.push_back({.parameter = ParameterId{output.id.value}, .name = output.name});
+    }
+}
+
+[[nodiscard]] bool references_calculation_output(const FunctionValueSource& source, CalculationId calculation,
+                                                 CalculationPortId output)
+{
+    return source.kind == FunctionValueSourceKind::calculation_output && source.calculation == calculation &&
+           source.calculation_output == output;
+}
+
 template <typename Entries, typename Project>
 void require_unique_snapshot_ids(const Entries& entries, Project project, const char* context)
 {
@@ -579,6 +599,87 @@ CalculationPortId WorldDefinition::add_calculation_output(CalculationId calculat
         .expression = std::move(expression),
     });
     return id;
+}
+
+void WorldDefinition::remove_calculation(CalculationId id)
+{
+    const auto calculation = std::ranges::find(calculations_, id, &CalculationDefinition::id);
+    if (calculation == calculations_.end()) {
+        throw std::out_of_range{"CalculationId is out of range"};
+    }
+    if (std::ranges::any_of(function_types_, [id](const FunctionTypeDefinition& type) {
+            return std::ranges::any_of(type.calculations, [id](const FunctionCalculationBinding& binding) {
+                return binding.calculation == id;
+            });
+        })) {
+        throw std::invalid_argument{"calculation is referenced by a function type"};
+    }
+    calculations_.erase(calculation);
+}
+
+void WorldDefinition::remove_calculation_input(CalculationId calculation_id, CalculationPortId input)
+{
+    if (std::ranges::any_of(function_types_, [calculation_id, input](const FunctionTypeDefinition& type) {
+            return std::ranges::any_of(type.calculations, [calculation_id, input](const auto& binding) {
+                return binding.calculation == calculation_id &&
+                       std::ranges::any_of(binding.inputs, [input](const auto& entry) {
+                           return entry.input == input;
+                       });
+            });
+        })) {
+        throw std::invalid_argument{"calculation input is referenced by a function type"};
+    }
+    CalculationDefinition candidate = calculation(calculation_id);
+    const auto found = std::ranges::find(candidate.inputs, input, &CalculationInputDefinition::id);
+    if (found == candidate.inputs.end()) {
+        throw std::invalid_argument{"calculation input port does not exist"};
+    }
+    candidate.inputs.erase(found);
+    recompile_calculation_outputs(candidate);
+    mutable_calculation(calculation_id) = std::move(candidate);
+}
+
+void WorldDefinition::remove_calculation_output(CalculationId calculation_id, CalculationPortId output)
+{
+    for (const FunctionTypeDefinition& type : function_types_) {
+        const auto references = [calculation_id, output](const FunctionValueSource& source) {
+            return references_calculation_output(source, calculation_id, output);
+        };
+        if ((type.process && (references(type.process->throughput) ||
+                              std::ranges::any_of(type.process->outputs, [&references](const auto& item) {
+                                  return references(item.allocation);
+                              }))) ||
+            (type.buffer_process && (references(type.buffer_process->capacity) ||
+                                     references(type.buffer_process->throughput) ||
+                                     references(type.buffer_process->leakage))) ||
+            std::ranges::any_of(type.material_contributions, [&references](const auto& item) {
+                return references(item.amount);
+            })) {
+            throw std::invalid_argument{"calculation output is referenced by a function type"};
+        }
+    }
+
+    CalculationDefinition candidate = calculation(calculation_id);
+    const auto found = std::ranges::find(candidate.outputs, output, &CalculationOutputDefinition::id);
+    if (found == candidate.outputs.end()) {
+        throw std::invalid_argument{"calculation output port does not exist"};
+    }
+    candidate.outputs.erase(found);
+    recompile_calculation_outputs(candidate);
+    mutable_calculation(calculation_id) = std::move(candidate);
+}
+
+void WorldDefinition::set_calculation_output_expression(CalculationId calculation_id, CalculationPortId output,
+                                                         std::string_view expression_source)
+{
+    CalculationDefinition candidate = calculation(calculation_id);
+    const auto found = std::ranges::find(candidate.outputs, output, &CalculationOutputDefinition::id);
+    if (found == candidate.outputs.end()) {
+        throw std::invalid_argument{"calculation output port does not exist"};
+    }
+    found->expression_source = std::string{expression_source};
+    recompile_calculation_outputs(candidate);
+    mutable_calculation(calculation_id) = std::move(candidate);
 }
 
 std::size_t WorldDefinition::add_genome_function(TemplateId id, FunctionTypeId type_id)

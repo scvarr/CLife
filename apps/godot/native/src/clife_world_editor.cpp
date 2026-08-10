@@ -1,5 +1,7 @@
 #include "clife_world_editor.hpp"
 
+#include <clife/world/calculation.hpp>
+
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/char_string.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
@@ -880,6 +882,66 @@ std::int64_t CLifeWorldEditor::add_calculation_output(std::int64_t raw_calculati
         capture_current_error();
         return 0;
     }
+}
+
+bool CLifeWorldEditor::remove_calculation(std::int64_t raw_calculation_id)
+{
+    return edit([&] { definition_.remove_calculation(calculation_id(raw_calculation_id)); });
+}
+
+bool CLifeWorldEditor::remove_calculation_input(std::int64_t raw_calculation_id, std::int64_t raw_input_port_id)
+{
+    return edit([&] {
+        definition_.remove_calculation_input(calculation_id(raw_calculation_id), calculation_port_id(raw_input_port_id));
+    });
+}
+
+bool CLifeWorldEditor::remove_calculation_output(std::int64_t raw_calculation_id, std::int64_t raw_output_port_id)
+{
+    return edit([&] {
+        definition_.remove_calculation_output(calculation_id(raw_calculation_id),
+                                              calculation_port_id(raw_output_port_id));
+    });
+}
+
+bool CLifeWorldEditor::set_calculation_output_expression(std::int64_t raw_calculation_id,
+                                                          std::int64_t raw_output_port_id,
+                                                          const godot::String& expression)
+{
+    return edit([&] {
+        definition_.set_calculation_output_expression(calculation_id(raw_calculation_id),
+                                                      calculation_port_id(raw_output_port_id),
+                                                      to_std_string(expression));
+    });
+}
+
+godot::Array CLifeWorldEditor::evaluate_calculation(std::int64_t raw_calculation_id, const godot::Array& inputs)
+{
+    godot::Array result;
+    try {
+        require_edit_mode();
+        std::vector<world::CalculationPortAmount> amounts;
+        amounts.reserve(inputs.size());
+        for (const godot::Variant& input_value : inputs) {
+            const godot::Dictionary input = required_dictionary(input_value, "calculation input");
+            amounts.push_back({
+                .port = calculation_port_id(required_uint32(required_field(input, "port_id"), "input port_id")),
+                .amount = required_number(required_field(input, "amount"), "input amount"),
+            });
+        }
+        for (const world::CalculationPortAmount& output :
+             world::evaluate_calculation(definition_.calculation(calculation_id(raw_calculation_id)), amounts)) {
+            godot::Dictionary item;
+            item["port_id"] = static_cast<std::int64_t>(output.port.value);
+            item["amount"] = output.amount;
+            result.push_back(item);
+        }
+        clear_error();
+    } catch (...) {
+        capture_current_error();
+        result.clear();
+    }
+    return result;
 }
 
 bool CLifeWorldEditor::rename_template(std::int64_t id, const godot::String& name)
@@ -1963,6 +2025,17 @@ void CLifeWorldEditor::_bind_methods()
                                 &CLifeWorldEditor::add_calculation_input);
     godot::ClassDB::bind_method(godot::D_METHOD("add_calculation_output", "calculation_id", "name", "expression"),
                                 &CLifeWorldEditor::add_calculation_output);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_calculation", "calculation_id"),
+                                &CLifeWorldEditor::remove_calculation);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_calculation_input", "calculation_id", "input_port_id"),
+                                &CLifeWorldEditor::remove_calculation_input);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_calculation_output", "calculation_id", "output_port_id"),
+                                &CLifeWorldEditor::remove_calculation_output);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("set_calculation_output_expression", "calculation_id", "output_port_id", "expression"),
+        &CLifeWorldEditor::set_calculation_output_expression);
+    godot::ClassDB::bind_method(godot::D_METHOD("evaluate_calculation", "calculation_id", "inputs"),
+                                &CLifeWorldEditor::evaluate_calculation);
     godot::ClassDB::bind_method(godot::D_METHOD("rename_template", "id", "name"), &CLifeWorldEditor::rename_template);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_template", "id"), &CLifeWorldEditor::remove_template);
     godot::ClassDB::bind_method(godot::D_METHOD("set_initial_value", "template_id", "value_key", "amount"),

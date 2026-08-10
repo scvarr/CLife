@@ -215,6 +215,69 @@ bool test_function_type_removal()
            rejects([&] { definition.remove_function_type(used); }, "referenced type removal must fail");
 }
 
+bool test_calculation_lifecycle_and_stable_ids()
+{
+    WorldDefinition definition;
+    const CalculationId removed = definition.add_calculation("removed");
+    definition.remove_calculation(removed);
+    const CalculationId calculation = definition.add_calculation("remaining");
+    const CalculationPortId unused_input = definition.add_calculation_input(calculation, "unused");
+    definition.remove_calculation_input(calculation, unused_input);
+    const CalculationPortId input = definition.add_calculation_input(calculation, "a");
+    const CalculationPortId output = definition.add_calculation_output(calculation, "b", "a * 2");
+    definition.remove_calculation_output(calculation, output);
+    const CalculationPortId later_port = definition.add_calculation_input(calculation, "x");
+    return expect(calculation.value == removed.value + 1, "removed CalculationId must not be reused") &&
+           expect(later_port.value > output.value, "removed CalculationPortId must not be reused") &&
+           expect(definition.calculation(calculation).inputs.size() == 2, "remaining inputs must preserve order") &&
+           expect(definition.calculation(calculation).outputs.empty(), "unused output removal must work");
+}
+
+bool test_calculation_dependency_safe_edits()
+{
+    WorldDefinition definition;
+    const CalculationId calculation = definition.add_calculation("f");
+    const CalculationPortId input = definition.add_calculation_input(calculation, "a");
+    const CalculationPortId first = definition.add_calculation_output(calculation, "b", "a * 2");
+    const CalculationPortId second = definition.add_calculation_output(calculation, "c", "b + 1");
+    const bool input_referenced = rejects([&] { definition.remove_calculation_input(calculation, input); },
+                                          "referenced input removal must fail");
+    const bool output_referenced = rejects([&] { definition.remove_calculation_output(calculation, first); },
+                                           "output used by later output removal must fail");
+    definition.set_calculation_output_expression(calculation, first, "a * 3");
+    const auto values = evaluate_calculation(definition.calculation(calculation), {{{input, 2.0}}});
+    const bool changed = near(values[0].amount, 6.0, "output expression update must take effect") &&
+                         near(values[1].amount, 7.0, "later output must recompile after update");
+    const bool atomic = rejects([&] {
+                            definition.set_calculation_output_expression(calculation, first, "missing + 1");
+                        }, "invalid output expression update must fail") &&
+                        definition.calculation(calculation).outputs[0].expression_source == "a * 3";
+    definition.remove_calculation_output(calculation, second);
+    const WorldDefinition restored = WorldDefinition::from_snapshot(definition.snapshot());
+    const bool snapshot = restored.calculation(calculation).outputs.size() == 1 &&
+                          restored.calculation(calculation).outputs[0].id == first &&
+                          restored.calculation(calculation).outputs[0].expression_source == "a * 3";
+    definition.remove_calculation_output(calculation, first);
+    definition.remove_calculation_input(calculation, input);
+    return input_referenced && output_referenced && changed && atomic && snapshot &&
+           expect(definition.calculation(calculation).inputs.empty(), "input is removable after dependencies are removed");
+}
+
+bool test_calculation_references_prevent_removal()
+{
+    SynthesisWorld world = make_synthesis_world();
+    const CalculationPortId input = world.definition.calculation(world.calculation).inputs[0].id;
+    const bool calculation_referenced = rejects([&] { world.definition.remove_calculation(world.calculation); },
+                                                "bound calculation removal must fail");
+    const bool input_referenced = rejects([&] {
+        world.definition.remove_calculation_input(world.calculation, input);
+    }, "bound calculation input removal must fail");
+    const bool output_referenced = rejects([&] {
+        world.definition.remove_calculation_output(world.calculation, world.efficiency);
+    }, "FunctionValueSource output removal must fail");
+    return calculation_referenced && input_referenced && output_referenced;
+}
+
 bool test_snapshot_round_trip()
 {
     SynthesisWorld original = make_synthesis_world();
@@ -270,6 +333,9 @@ int main()
     run(test_binding_validation_and_removal, "binding validation and removal");
     run(test_buffer_calculation_sources, "buffer calculation sources");
     run(test_function_type_removal, "function type removal");
+    run(test_calculation_lifecycle_and_stable_ids, "calculation lifecycle and stable IDs");
+    run(test_calculation_dependency_safe_edits, "calculation dependency-safe edits");
+    run(test_calculation_references_prevent_removal, "calculation references prevent removal");
     run(test_snapshot_round_trip, "snapshot round trip");
     run(test_snapshot_invalid_source_and_next_ids, "snapshot invalid source and next IDs");
     return success ? 0 : 1;

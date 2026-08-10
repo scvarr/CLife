@@ -603,3 +603,33 @@ msgstr "Буферный процесс обновлён"
 
 msgid "status.function_type_deleted"
 msgstr "Тип функции удалён"
+
+msgid "ui.calculation_input_title"
+msgstr "Вход: %s [#%d]"
+
+msgid "ui.calculation_output_title"
+msgstr "%d. %s [#%d]"
+
+msgid "ui.update_expression"
+msgstr "Обновить формулу"
+
+msgid "ui.calculation_test"
+msgstr "ТЕСТ"
+
+msgid "ui.calculate"
+msgstr "Рассчитать"
+
+msgid "ui.calculation_result"
+msgstr "Результат:"
+
+msgid "status.calculation_deleted"
+msgstr "Формула удалена"
+
+msgid "status.calculation_input_deleted"
+msgstr "Вход формулы удалён"
+
+msgid "status.calculation_output_deleted"
+msgstr "Выход формулы удалён"
+
+msgid "status.calculation_output_expression_updated"
+msgstr "Формула выхода обновлена"

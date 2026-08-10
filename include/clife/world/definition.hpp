@@ -248,6 +248,11 @@ public:
     [[nodiscard]] CalculationPortId add_calculation_input(CalculationId calculation, std::string name);
     [[nodiscard]] CalculationPortId add_calculation_output(CalculationId calculation, std::string name,
                                                            std::string_view expression);
+    void remove_calculation(CalculationId id);
+    void remove_calculation_input(CalculationId calculation, CalculationPortId input);
+    void remove_calculation_output(CalculationId calculation, CalculationPortId output);
+    void set_calculation_output_expression(CalculationId calculation, CalculationPortId output,
+                                           std::string_view expression);
 
     [[nodiscard]] std::size_t add_genome_function(TemplateId id, FunctionTypeId type);
     void set_genome_parameter(TemplateId id, std::size_t index, ParameterId parameter, Amount value);

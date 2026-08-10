@@ -602,3 +602,33 @@ msgstr "Buffer process updated"
 
 msgid "status.function_type_deleted"
 msgstr "Function type deleted"
+
+msgid "ui.calculation_input_title"
+msgstr "Input: %s [#%d]"
+
+msgid "ui.calculation_output_title"
+msgstr "%d. %s [#%d]"
+
+msgid "ui.update_expression"
+msgstr "Update Formula"
+
+msgid "ui.calculation_test"
+msgstr "TEST"
+
+msgid "ui.calculate"
+msgstr "Calculate"
+
+msgid "ui.calculation_result"
+msgstr "Result:"
+
+msgid "status.calculation_deleted"
+msgstr "Calculation deleted"
+
+msgid "status.calculation_input_deleted"
+msgstr "Calculation input deleted"
+
+msgid "status.calculation_output_deleted"
+msgstr "Calculation output deleted"
+
+msgid "status.calculation_output_expression_updated"
+msgstr "Output formula updated"

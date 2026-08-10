@@ -19,6 +19,9 @@ var runtime_object_selected := false
 
 var world_tree: Tree
 var world_tree_menu: PopupMenu
+var context_target_kind := ""
+var context_calculation_id := -1
+var context_port_id := -1
 var inspector: VBoxContainer
 var mode_label: Label
 var tick_label: Label
@@ -462,20 +465,42 @@ func _on_world_item_mouse_selected(position: Vector2, mouse_button_index: int) -
 	if item == null:
 		return
 	var metadata: Variant = item.get_metadata(0)
-	if not (metadata is Dictionary) or str(metadata.get("kind", "")) != "function_type":
+	if not (metadata is Dictionary):
+		return
+	var kind := str(metadata.get("kind", ""))
+	if kind != "function_type" and kind != "calculation":
 		return
 	item.select(0)
-	selected_kind = "function_type"
+	selected_kind = kind
 	selected_identity = int(metadata.get("id", -1))
-	world_tree_menu.clear()
-	world_tree_menu.add_item(tr("ui.delete_function_type"), 1)
-	world_tree_menu.position = Vector2i(world_tree.get_screen_position() + position)
-	world_tree_menu.popup()
+	_show_context_menu(kind, selected_identity, -1, world_tree.get_screen_position() + position)
 
 
 func _on_world_tree_menu_pressed(id: int) -> void:
-	if id == 1 and selected_kind == "function_type":
+	if id != 1:
+		return
+	if context_target_kind == "function_type":
 		_finish_deletion(editor.remove_function_type(selected_identity), "status.function_type_deleted")
+	elif context_target_kind == "calculation":
+		_finish_deletion(editor.remove_calculation(selected_identity), "status.calculation_deleted")
+	elif context_target_kind == "calculation_input":
+		_finish_calculation_port_deletion(
+			editor.remove_calculation_input(context_calculation_id, context_port_id),
+			"status.calculation_input_deleted")
+	elif context_target_kind == "calculation_output":
+		_finish_calculation_port_deletion(
+			editor.remove_calculation_output(context_calculation_id, context_port_id),
+			"status.calculation_output_deleted")
+
+
+func _show_context_menu(kind: String, calculation_id: int, port_id: int, screen_position: Vector2) -> void:
+	context_target_kind = kind
+	context_calculation_id = calculation_id if kind.begins_with("calculation_") else -1
+	context_port_id = port_id
+	world_tree_menu.clear()
+	world_tree_menu.add_item(tr("ui.delete"), 1)
+	world_tree_menu.position = Vector2i(screen_position)
+	world_tree_menu.popup()
 
 
 func _show_welcome_inspector() -> void:
@@ -592,11 +617,19 @@ func _show_calculation_inspector(calculation_id: int) -> void:
 	_clear_children(inspector)
 	_add_heading(inspector, str(calculation.name))
 	_add_wrapped_label(inspector, tr("ui.stable_calculation_id") % calculation_id)
+	_add_separator(inspector)
 	_add_heading(inspector, tr("ui.calculation_inputs"))
-	var available := PackedStringArray()
 	for input in calculation.inputs:
-		_add_wrapped_label(inspector, "%s [#%d]" % [input.name, int(input.id)])
-		available.append(str(input.name))
+		var input_id := int(input.id)
+		var input_panel := _calculation_port_panel(tr("ui.calculation_input_title") % [input.name, int(input.id)])
+		input_panel.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton:
+				var mouse_event := event as InputEventMouseButton
+				if mouse_event.button_index == MOUSE_BUTTON_RIGHT and mouse_event.pressed:
+					_show_context_menu("calculation_input", calculation_id, input_id,
+						input_panel.get_global_position() + mouse_event.position)
+		)
+		inspector.add_child(input_panel)
 	_add_heading(inspector, tr("ui.new_calculation_input"))
 	var input_name := LineEdit.new()
 	input_name.placeholder_text = tr("ui.name")
@@ -607,10 +640,34 @@ func _show_calculation_inspector(calculation_id: int) -> void:
 	))
 	_add_separator(inspector)
 	_add_heading(inspector, tr("ui.calculation_outputs"))
-	for output in calculation.outputs:
-		_add_wrapped_label(inspector, "%s [#%d] = %s" % [output.name, int(output.id), output.expression_source])
-		available.append(str(output.name))
+	for output_index in calculation.outputs.size():
+		var output = calculation.outputs[output_index]
+		var output_id := int(output.id)
+		var output_panel := _calculation_port_panel(
+			tr("ui.calculation_output_title") % [output_index + 1, output.name, int(output.id)])
+		output_panel.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton:
+				var mouse_event := event as InputEventMouseButton
+				if mouse_event.button_index == MOUSE_BUTTON_RIGHT and mouse_event.pressed:
+					_show_context_menu("calculation_output", calculation_id, output_id,
+						output_panel.get_global_position() + mouse_event.position)
+		)
+		var output_box := output_panel.get_child(0) as VBoxContainer
+		var expression_edit := LineEdit.new()
+		expression_edit.text = str(output.expression_source)
+		expression_edit.placeholder_text = tr("ui.expression")
+		output_box.add_child(_labeled_control(tr("ui.expression"), expression_edit))
+		output_box.add_child(_button(tr("ui.update_expression"), func() -> void:
+			_finish_edit(editor.set_calculation_output_expression(calculation_id, output_id, expression_edit.text),
+				"status.calculation_output_expression_updated")
+		))
+		inspector.add_child(output_panel)
 	_add_heading(inspector, tr("ui.new_calculation_output"))
+	var available := PackedStringArray()
+	for input in calculation.inputs:
+		available.append(str(input.name))
+	for output in calculation.outputs:
+		available.append(str(output.name))
 	_add_wrapped_label(inspector, tr("ui.available_values_format") % ", ".join(available))
 	var output_name := LineEdit.new()
 	output_name.placeholder_text = tr("ui.name")
@@ -622,6 +679,47 @@ func _show_calculation_inspector(calculation_id: int) -> void:
 		_finish_edit(editor.add_calculation_output(calculation_id, output_name.text, output_expression.text) != 0,
 			"status.calculation_output_added")
 	))
+	_add_separator(inspector)
+	_build_calculation_test_editor(calculation_id, calculation)
+
+
+func _calculation_port_panel(title: String) -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_PASS
+	var heading := _heading_label(title, 16)
+	heading.mouse_filter = Control.MOUSE_FILTER_PASS
+	box.add_child(heading)
+	panel.add_child(box)
+	return panel
+
+
+func _build_calculation_test_editor(calculation_id: int, calculation: Dictionary) -> void:
+	_add_heading(inspector, tr("ui.calculation_test"))
+	var input_spins: Array[SpinBox] = []
+	for input in calculation.inputs:
+		var spin := _amount_spin(0.0)
+		input_spins.append(spin)
+		inspector.add_child(_labeled_control("%s [#%d]" % [input.name, int(input.id)], spin))
+	var result_box := VBoxContainer.new()
+	inspector.add_child(_button(tr("ui.calculate"), func() -> void:
+		var inputs: Array = []
+		for index in calculation.inputs.size():
+			inputs.append({"port_id": int(calculation.inputs[index].id), "amount": input_spins[index].value})
+		editor.clear_last_error()
+		var results = editor.evaluate_calculation(calculation_id, inputs)
+		if not editor.get_last_error().is_empty():
+			_show_facade_error_if_any()
+			return
+		_clear_children(result_box)
+		_add_wrapped_label(result_box, tr("ui.calculation_result"))
+		for output_index in calculation.outputs.size():
+			var output = calculation.outputs[output_index]
+			if output_index < results.size():
+				_add_wrapped_label(result_box, "%s = %.6f" % [output.name, float(results[output_index].amount)])
+	))
+	inspector.add_child(result_box)
 
 
 func _show_function_type_inspector(function_type_id: int) -> void:
@@ -1251,6 +1349,15 @@ func _finish_deletion(success: bool, message_key: String) -> void:
 	_show_welcome_inspector()
 
 
+func _finish_calculation_port_deletion(success: bool, message_key: String) -> void:
+	if not success:
+		_show_facade_error_if_any()
+		return
+	_set_status(message_key)
+	_rebuild_world_tree()
+	_show_calculation_inspector(context_calculation_id)
+
+
 func _restore_edit_inspector() -> void:
 	match selected_kind:
 		"value":
@@ -1576,10 +1683,14 @@ func _button(text: String, callback: Callable) -> Button:
 
 
 func _add_heading(parent: VBoxContainer, text: String) -> void:
+	parent.add_child(_heading_label(text, 18))
+
+
+func _heading_label(text: String, size: int) -> Label:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", 18)
-	parent.add_child(label)
+	label.add_theme_font_size_override("font_size", size)
+	return label
 
 
 func _add_wrapped_label(parent: VBoxContainer, text: String) -> void:

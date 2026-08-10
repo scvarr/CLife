@@ -22,7 +22,7 @@ Value и Template можно удалить из их inspector. FunctionType у
 
 ## 3. Библиотека calculations
 
-`CalculationDefinition` — самостоятельная чистая математическая библиотека. В inspector можно создать именованные inputs и outputs с `expression_source`:
+`CalculationDefinition` — самостоятельная чистая математическая библиотека. Специализированный Calculation inspector показывает inputs и последовательно вычисляемые outputs отдельными блоками, позволяет редактировать output `expression_source`, локально вычислять формулу на временных числах и удалить неиспользуемые Calculation/ports через контекстное меню. Удаление dependency-safe: input или output, требуемый выражением либо FunctionType, не удаляется. В inspector можно создать именованные inputs и outputs с `expression_source`:
 
 ```text
 f(a) -> b, c
@@ -31,6 +31,8 @@ c = a - b
 ```
 
 Output видит все inputs и только ранее созданные outputs. Calculation подключается к `FunctionTypeDefinition`: каждый input связывается с независимым genome parameter, а outputs становятся вычисляемыми характеристиками phenotype. Calculation не исполняется каждый tick и пока не поддерживает chaining между разными Calculations.
+
+Общий authoring-инвариант: у сущности, которую UI позволяет создать, должен появиться понятный путь удаления — предпочтительно через контекстное меню ПКМ. Эта итерация полностью реализует его для Calculation, input и output; остальные authoring-сущности получают свои lifecycle-операции отдельными задачами.
 
 ## 4. Expressions
 

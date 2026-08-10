@@ -65,6 +65,12 @@ public:
     [[nodiscard]] std::int64_t add_calculation_input(std::int64_t calculation_id, const godot::String& name);
     [[nodiscard]] std::int64_t add_calculation_output(std::int64_t calculation_id, const godot::String& name,
                                                        const godot::String& expression);
+    bool remove_calculation(std::int64_t calculation_id);
+    bool remove_calculation_input(std::int64_t calculation_id, std::int64_t input_port_id);
+    bool remove_calculation_output(std::int64_t calculation_id, std::int64_t output_port_id);
+    bool set_calculation_output_expression(std::int64_t calculation_id, std::int64_t output_port_id,
+                                           const godot::String& expression);
+    [[nodiscard]] godot::Array evaluate_calculation(std::int64_t calculation_id, const godot::Array& inputs);
     bool rename_template(std::int64_t id, const godot::String& name);
     bool remove_template(std::int64_t id);
     bool set_initial_value(std::int64_t template_id, std::int64_t value_key, double amount);
