@@ -372,6 +372,31 @@ bool test_unit_lifecycle()
     return updated && round_trip && referenced && cleared && rejects([&] { (void)unused.unit(removable); }, "unused unit removal must work");
 }
 
+bool test_genome_parameter_lifecycle()
+{
+    WorldDefinition definition;
+    const FunctionTypeId type = definition.add_function_type("Transform");
+    const ParameterId parameter = definition.add_genome_parameter(type, "Rate", 1.0);
+    definition.update_genome_parameter(type, parameter, "Throughput", 2.0);
+    const bool updated = definition.function_type(type).genome_parameters[0].name == "Throughput" &&
+                         near(definition.function_type(type).genome_parameters[0].default_value, 2.0,
+                              "updated genome parameter default");
+    definition.remove_genome_parameter(type, parameter);
+    const bool removed = definition.function_type(type).genome_parameters.empty();
+
+    const ParameterId referenced = definition.add_genome_parameter(type, "Allocation", 1.0);
+    const ValueKey input = definition.add_value("Input");
+    const ValueKey output = definition.add_value("Output");
+    const UnitId unit = definition.add_unit("U");
+    const UnitConversionId conversion = definition.add_unit_conversion({{{unit, 1}}}, 1.0, {{{unit, 1}}}, 1.0);
+    definition.set_function_process(type, {.input = input,
+                                           .throughput = genome(referenced),
+                                           .conversion = conversion,
+                                           .outputs = {{.output = output, .allocation = genome(referenced)}}});
+    return updated && removed && rejects([&] { definition.remove_genome_parameter(type, referenced); },
+                                         "referenced genome parameter removal must fail");
+}
+
 bool test_unit_conversion_lifecycle()
 {
     WorldDefinition definition;
@@ -426,6 +451,7 @@ int main()
     run(test_snapshot_invalid_source_and_next_ids, "snapshot invalid source and next IDs");
     run(test_object_characteristic_construction, "object characteristic construction");
     run(test_unit_lifecycle, "unit lifecycle");
+    run(test_genome_parameter_lifecycle, "genome parameter lifecycle");
     run(test_unit_conversion_lifecycle, "unit conversion lifecycle");
     return success ? 0 : 1;
 }

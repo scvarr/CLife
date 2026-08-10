@@ -53,6 +53,9 @@ public:
     bool set_function_process(std::int64_t function_type_id, std::int64_t input_value_key,
                               const godot::Dictionary& throughput_source, std::int64_t conversion_id,
                               std::int64_t output_value_key, const godot::Dictionary& allocation_source);
+    bool set_function_process_full(std::int64_t function_type_id, std::int64_t input_value_key,
+                                   const godot::Dictionary& throughput_source, std::int64_t conversion_id,
+                                   const godot::Array& outputs);
     bool change_function_process_settings(std::int64_t function_type_id, std::int64_t input_value_key,
                                           const godot::Dictionary& throughput_source, std::int64_t conversion_id);
     bool change_function_process_output(std::int64_t function_type_id, std::int64_t existing_output_value_key,
@@ -73,6 +76,9 @@ public:
     bool remove_function_type(std::int64_t function_type_id);
     [[nodiscard]] std::int64_t add_genome_parameter(std::int64_t function_type_id, const godot::String& name,
                                                      double default_value);
+    bool update_genome_parameter(std::int64_t function_type_id, std::int64_t parameter_id, const godot::String& name,
+                                 double default_value);
+    bool remove_genome_parameter(std::int64_t function_type_id, std::int64_t parameter_id);
     [[nodiscard]] std::int64_t add_calculation(const godot::String& name);
     [[nodiscard]] std::int64_t add_calculation_input(std::int64_t calculation_id, const godot::String& name);
     [[nodiscard]] std::int64_t add_calculation_output(std::int64_t calculation_id, const godot::String& name,

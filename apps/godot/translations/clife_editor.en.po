@@ -833,3 +833,81 @@ msgstr "compound unit"
 
 msgid "ux.delete_value_confirmation"
 msgstr "Delete world quantity \"%s\"?"
+
+msgid "menu.saved_world_not_found"
+msgstr "Saved world not found"
+
+msgid "ux.functions"
+msgstr "Functions"
+
+msgid "ux.function"
+msgstr "Function"
+
+msgid "ux.function_name"
+msgstr "Function name"
+
+msgid "ux.create_first_function"
+msgstr "Create the first function."
+
+msgid "ux.genome_parameters"
+msgstr "GENOME PARAMETERS"
+
+msgid "ux.add_parameter"
+msgstr "Add parameter"
+
+msgid "ux.parameter_name"
+msgstr "Parameter name"
+
+msgid "ux.semantic_genome_preview"
+msgstr "GENOME PREVIEW"
+
+msgid "ux.semantic_record"
+msgstr "Semantic record: %s"
+
+msgid "ux.formula"
+msgstr "Formula"
+
+msgid "ux.none"
+msgstr "None"
+
+msgid "ux.save_formula_binding"
+msgstr "Save formula binding"
+
+msgid "ux.process"
+msgstr "Process"
+
+msgid "ux.input"
+msgstr "Input"
+
+msgid "ux.throughput"
+msgstr "Throughput"
+
+msgid "ux.output"
+msgstr "World quantity"
+
+msgid "ux.allocation"
+msgstr "Allocation"
+
+msgid "ux.create_process"
+msgstr "Create process"
+
+msgid "ux.update_process"
+msgstr "Update process"
+
+msgid "ux.save_world"
+msgstr "Save"
+
+msgid "status.world_saved"
+msgstr "World saved"
+
+msgid "status.world_loaded"
+msgstr "World loaded"
+
+msgid "status.world_load_failed"
+msgstr "Could not load world: %s"
+
+msgid "ux.source_genome"
+msgstr "genome.%s"
+
+msgid "ux.source_formula"
+msgstr "formula.%s.%s"

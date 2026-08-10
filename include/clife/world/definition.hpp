@@ -289,6 +289,8 @@ public:
     void remove_function_type(FunctionTypeId id);
     [[nodiscard]] ParameterId add_genome_parameter(FunctionTypeId type, std::string name, Amount default_value);
     void rename_parameter(FunctionTypeId type, ParameterId parameter, std::string name);
+    void update_genome_parameter(FunctionTypeId type, ParameterId parameter, std::string name, Amount default_value);
+    void remove_genome_parameter(FunctionTypeId type, ParameterId parameter);
     void set_function_calculation_binding(FunctionTypeId type, FunctionCalculationBinding binding);
     void remove_function_calculation_binding(FunctionTypeId type, CalculationId calculation);
     void set_function_process(FunctionTypeId type, FunctionProcessDefinition process);

@@ -4,6 +4,8 @@ const TRANSLATION_PATHS := [
 	"res://translations/clife_editor.en.po",
 	"res://translations/clife_editor.ru.po",
 ]
+const WorldEditorSession = preload("res://scripts/world_editor_session.gd")
+const WORLD_SAVE_PATH := "user://current_world.clife.json"
 
 @onready var message: Label = $Center/Panel/Margin/Content/Message
 
@@ -22,6 +24,14 @@ func _on_pending_action() -> void:
 	message.text = tr("menu.coming_next")
 
 func _on_new_world() -> void:
+	WorldEditorSession.open_mode = WorldEditorSession.OpenMode.NEW_WORLD
+	get_tree().change_scene_to_file("res://scenes/world_definition_editor.tscn")
+
+func _on_load_world() -> void:
+	if not FileAccess.file_exists(WORLD_SAVE_PATH):
+		message.text = tr("menu.saved_world_not_found")
+		return
+	WorldEditorSession.open_mode = WorldEditorSession.OpenMode.LOAD_CURRENT_WORLD
 	get_tree().change_scene_to_file("res://scenes/world_definition_editor.tscn")
 
 func _on_exit_pressed() -> void:

@@ -864,6 +864,29 @@ bool CLifeWorldEditor::set_function_process(std::int64_t raw_type, std::int64_t 
     });
 }
 
+bool CLifeWorldEditor::set_function_process_full(std::int64_t raw_type, std::int64_t raw_input,
+                                                 const godot::Dictionary& throughput_source,
+                                                 std::int64_t raw_conversion, const godot::Array& outputs)
+{
+    return edit([&] {
+        world::FunctionProcessDefinition process{
+            .input = value_key(raw_input),
+            .throughput = function_value_source(throughput_source),
+            .conversion = unit_conversion_id(raw_conversion),
+        };
+        process.outputs.reserve(outputs.size());
+        for (const godot::Variant& value : outputs) {
+            const godot::Dictionary output = required_dictionary(value, "function process output");
+            process.outputs.push_back({
+                .output = value_key(required_uint32(required_field(output, "output_key"), "output_key")),
+                .allocation = function_value_source(required_dictionary(
+                    required_field(output, "allocation_source"), "allocation_source")),
+            });
+        }
+        definition_.set_function_process(function_type_id(raw_type), std::move(process));
+    });
+}
+
 bool CLifeWorldEditor::add_function_process_output(std::int64_t raw_type, std::int64_t raw_output,
                                                    const godot::Dictionary& allocation_source)
 {
@@ -979,6 +1002,22 @@ std::int64_t CLifeWorldEditor::add_genome_parameter(std::int64_t raw_function_ty
         capture_current_error();
         return 0;
     }
+}
+
+bool CLifeWorldEditor::update_genome_parameter(std::int64_t raw_function_type_id, std::int64_t raw_parameter_id,
+                                                const godot::String& name, double default_value)
+{
+    return edit([&] {
+        definition_.update_genome_parameter(function_type_id(raw_function_type_id), parameter_id(raw_parameter_id),
+                                             to_std_string(name), default_value);
+    });
+}
+
+bool CLifeWorldEditor::remove_genome_parameter(std::int64_t raw_function_type_id, std::int64_t raw_parameter_id)
+{
+    return edit([&] {
+        definition_.remove_genome_parameter(function_type_id(raw_function_type_id), parameter_id(raw_parameter_id));
+    });
 }
 
 std::int64_t CLifeWorldEditor::add_calculation(const godot::String& name)
@@ -2300,6 +2339,10 @@ void CLifeWorldEditor::_bind_methods()
                         "conversion_id", "output_value_key", "allocation_source"),
         &CLifeWorldEditor::set_function_process);
     godot::ClassDB::bind_method(
+        godot::D_METHOD("set_function_process_full", "function_type_id", "input_value_key", "throughput_source",
+                        "conversion_id", "outputs"),
+        &CLifeWorldEditor::set_function_process_full);
+    godot::ClassDB::bind_method(
         godot::D_METHOD("add_function_process_output", "function_type_id", "output_value_key", "allocation_source"),
         &CLifeWorldEditor::add_function_process_output);
     godot::ClassDB::bind_method(
@@ -2330,6 +2373,11 @@ void CLifeWorldEditor::_bind_methods()
                                 &CLifeWorldEditor::remove_function_type);
     godot::ClassDB::bind_method(godot::D_METHOD("add_genome_parameter", "function_type_id", "name", "default_value"),
                                 &CLifeWorldEditor::add_genome_parameter);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("update_genome_parameter", "function_type_id", "parameter_id", "name", "default_value"),
+        &CLifeWorldEditor::update_genome_parameter);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_genome_parameter", "function_type_id", "parameter_id"),
+                                &CLifeWorldEditor::remove_genome_parameter);
     godot::ClassDB::bind_method(godot::D_METHOD("add_calculation", "name"), &CLifeWorldEditor::add_calculation);
     godot::ClassDB::bind_method(godot::D_METHOD("add_calculation_input", "calculation_id", "name"),
                                 &CLifeWorldEditor::add_calculation_input);

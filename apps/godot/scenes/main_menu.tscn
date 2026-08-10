@@ -72,5 +72,5 @@ horizontal_alignment = 1
 autowrap_mode = 2
 
 [connection signal="pressed" from="Center/Panel/Margin/Content/NewWorld" to="." method="_on_new_world"]
-[connection signal="pressed" from="Center/Panel/Margin/Content/LoadWorld" to="." method="_on_pending_action"]
+[connection signal="pressed" from="Center/Panel/Margin/Content/LoadWorld" to="." method="_on_load_world"]
 [connection signal="pressed" from="Center/Panel/Margin/Content/Exit" to="." method="_on_exit_pressed"]

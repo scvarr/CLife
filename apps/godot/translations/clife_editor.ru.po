@@ -843,3 +843,81 @@ msgstr "составная единица"
 
 msgid "ux.delete_value_confirmation"
 msgstr "Удалить величину «%s»?"
+
+msgid "menu.saved_world_not_found"
+msgstr "Сохранённый мир не найден"
+
+msgid "ux.functions"
+msgstr "Функции"
+
+msgid "ux.function"
+msgstr "Функция"
+
+msgid "ux.function_name"
+msgstr "Название функции"
+
+msgid "ux.create_first_function"
+msgstr "Создайте первую функцию."
+
+msgid "ux.genome_parameters"
+msgstr "ГЕНОМНЫЕ ПАРАМЕТРЫ"
+
+msgid "ux.add_parameter"
+msgstr "Добавить параметр"
+
+msgid "ux.parameter_name"
+msgstr "Имя параметра"
+
+msgid "ux.semantic_genome_preview"
+msgstr "ПРЕДПРОСМОТР GENOME"
+
+msgid "ux.semantic_record"
+msgstr "Семантическая запись: %s"
+
+msgid "ux.formula"
+msgstr "Формула"
+
+msgid "ux.none"
+msgstr "Нет"
+
+msgid "ux.save_formula_binding"
+msgstr "Сохранить привязку формулы"
+
+msgid "ux.process"
+msgstr "Процесс"
+
+msgid "ux.input"
+msgstr "Вход"
+
+msgid "ux.throughput"
+msgstr "Пропускная способность"
+
+msgid "ux.output"
+msgstr "Величина мира"
+
+msgid "ux.allocation"
+msgstr "Доля"
+
+msgid "ux.create_process"
+msgstr "Создать процесс"
+
+msgid "ux.update_process"
+msgstr "Обновить процесс"
+
+msgid "ux.save_world"
+msgstr "Сохранить"
+
+msgid "status.world_saved"
+msgstr "Мир сохранён"
+
+msgid "status.world_loaded"
+msgstr "Мир загружен"
+
+msgid "status.world_load_failed"
+msgstr "Не удалось загрузить мир: %s"
+
+msgid "ux.source_genome"
+msgstr "genome.%s"
+
+msgid "ux.source_formula"
+msgstr "formula.%s.%s"

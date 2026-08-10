@@ -504,6 +504,65 @@ void WorldDefinition::rename_parameter(FunctionTypeId type_id, ParameterId param
     genome->name = std::move(name);
 }
 
+void WorldDefinition::update_genome_parameter(FunctionTypeId type_id, ParameterId parameter_id, std::string name,
+                                               Amount default_value)
+{
+    require_name(name, "parameter");
+    if (!std::isfinite(default_value)) {
+        throw std::invalid_argument{"genome parameter default must be finite"};
+    }
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    if (std::ranges::any_of(type.genome_parameters, [parameter_id, &name](const auto& parameter) {
+            return parameter.id != parameter_id && parameter.name == name;
+        })) {
+        throw std::invalid_argument{"parameter name must be unique within a function type"};
+    }
+    const auto genome = std::ranges::find(type.genome_parameters, parameter_id, &GenomeParameterDefinition::id);
+    if (genome == type.genome_parameters.end()) {
+        throw std::invalid_argument{"unknown ParameterId for function type"};
+    }
+    genome->name = std::move(name);
+    genome->default_value = default_value;
+}
+
+void WorldDefinition::remove_genome_parameter(FunctionTypeId type_id, ParameterId parameter_id)
+{
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    if (!parameter_belongs_to(type, parameter_id)) {
+        throw std::invalid_argument{"unknown ParameterId for function type"};
+    }
+    const auto references = [parameter_id](const FunctionValueSource& source) {
+        return source.kind == FunctionValueSourceKind::genome_parameter && source.genome_parameter == parameter_id;
+    };
+    if (std::ranges::any_of(type.calculations, [parameter_id](const FunctionCalculationBinding& binding) {
+            return std::ranges::any_of(binding.inputs, [parameter_id](const FunctionCalculationInputBinding& input) {
+                return input.genome_parameter == parameter_id;
+            });
+        }) ||
+        (type.process && (references(type.process->throughput) ||
+                          std::ranges::any_of(type.process->outputs, [&](const auto& output) {
+                              return references(output.allocation);
+                          }))) ||
+        (type.buffer_process && (references(type.buffer_process->capacity) || references(type.buffer_process->throughput) ||
+                                 references(type.buffer_process->leakage))) ||
+        std::ranges::any_of(type.material_contributions,
+                            [&](const auto& contribution) { return references(contribution.amount); }) ||
+        std::ranges::any_of(type.characteristic_contributions,
+                            [&](const auto& contribution) { return references(contribution.amount); }) ||
+        std::ranges::any_of(templates_, [type_id, parameter_id](const ObjectTemplate& object) {
+            return std::ranges::any_of(object.genome, [type_id, parameter_id](const GenomeFunctionInstance& instance) {
+                return instance.type == type_id &&
+                       std::ranges::any_of(instance.parameters, [parameter_id](const ParameterValue& value) {
+                           return value.parameter == parameter_id;
+                       });
+            });
+        })) {
+        throw std::invalid_argument{"cannot remove a referenced genome parameter"};
+    }
+    std::erase_if(type.genome_parameters,
+                  [parameter_id](const GenomeParameterDefinition& parameter) { return parameter.id == parameter_id; });
+}
+
 void WorldDefinition::set_function_calculation_binding(FunctionTypeId type_id, FunctionCalculationBinding binding)
 {
     FunctionTypeDefinition& type = mutable_function_type(type_id);
