@@ -304,8 +304,8 @@ bool test_snapshot_round_trip()
     const CompiledPhenotype phenotype = compile_phenotype(restored, original.cell);
     const CompiledFunctionPhenotype& function = phenotype.function(0);
     WorldDefinitionSnapshot old = snapshot;
-    old.schema_version = 4;
-    return expect(snapshot.schema_version == 5, "current snapshot schema") &&
+    old.schema_version = 5;
+    return expect(snapshot.schema_version == 6, "current snapshot schema") &&
            expect(type.calculations.size() == 1, "calculation binding round trip") &&
            expect(type.process->outputs.size() == 2, "process round trip") &&
            expect(type.material_contributions.size() == 1, "material source round trip") &&
@@ -325,6 +325,32 @@ bool test_snapshot_invalid_source_and_next_ids()
     snapshot.next_function_type_id = world.type.value;
     return invalid && rejects([&] { (void)WorldDefinition::from_snapshot(snapshot); },
                               "reused next function type id must be rejected");
+}
+
+bool test_object_characteristic_construction()
+{
+    WorldDefinition definition;
+    const auto volume = definition.add_object_characteristic("Volume");
+    const auto calculation = definition.add_calculation("Construction");
+    const auto base = definition.add_calculation_input(calculation, "Base");
+    const auto functions = definition.add_calculation_input(calculation, "Functions");
+    const auto output = definition.add_calculation_output(calculation, "Volume", "Base + Functions");
+    const auto type = definition.add_function_type("Size");
+    const auto parameter = definition.add_genome_parameter(type, "Size", 2.0);
+    definition.set_function_characteristic_contribution(type, volume, genome(parameter));
+    const auto cell = definition.add_template("Cell");
+    definition.set_template_base_characteristic(cell, volume, 5.0);
+    (void)definition.add_genome_function(cell, type);
+    definition.set_object_construction({.calculation = calculation,
+        .inputs = {{.input = base, .source = {.kind = ObjectConstructionSourceKind::base_characteristic, .characteristic = volume}},
+                   {.input = functions, .source = {.kind = ObjectConstructionSourceKind::function_contribution_sum, .characteristic = volume}}},
+        .outputs = {{.output = output, .characteristic = volume}}});
+    const auto phenotype = compile_phenotype(definition, cell);
+    const bool result = near(phenotype.function_contribution_sum(volume), 2.0, "function characteristic sum") &&
+                        near(phenotype.characteristic(volume), 7.0, "construction characteristic result");
+    const auto restored = WorldDefinition::from_snapshot(definition.snapshot());
+    return result && near(compile_phenotype(restored, cell).characteristic(volume), 7.0, "characteristic snapshot round trip") &&
+           rejects([&] { definition.remove_object_characteristic(volume); }, "referenced characteristic removal must fail");
 }
 
 } // namespace
@@ -356,5 +382,6 @@ int main()
     run(test_calculation_references_prevent_removal, "calculation references prevent removal");
     run(test_snapshot_round_trip, "snapshot round trip");
     run(test_snapshot_invalid_source_and_next_ids, "snapshot invalid source and next IDs");
+    run(test_object_characteristic_construction, "object characteristic construction");
     return success ? 0 : 1;
 }

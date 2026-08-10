@@ -32,11 +32,13 @@ RuntimeWorld::RuntimeWorld(const WorldDefinition& definition)
     for (const ObjectTemplate& source : definition.templates()) {
         CompiledPhenotype phenotype = compile_phenotype(definition, source.id);
         for (const HostBinding& binding : source.host_bindings) {
-            (void)require_value_id(binding.value);
+            if (binding.source_kind == HostBinding::SourceKind::value) {
+                (void)require_value_id(binding.value);
+            }
             const bool produced_by_process =
                 std::ranges::any_of(source.genome, [&](const GenomeFunctionInstance& function) {
                     const FunctionTypeDefinition& type = definition.function_type(function.type);
-                    return type.process && std::ranges::any_of(type.process->outputs,
+                    return binding.source_kind == HostBinding::SourceKind::value && type.process && std::ranges::any_of(type.process->outputs,
                                                                 [&](const FunctionProcessOutputDefinition& output) {
                                                                     return output.output == binding.value;
                                                                 });
@@ -152,7 +154,7 @@ void RuntimeWorld::set_input(ObjectId object_id, ValueKey key, Amount amount)
         throw std::invalid_argument{"host input must be finite"};
     }
     const bool is_input = std::ranges::any_of(target.bindings, [key](const HostBinding& binding) {
-        return binding.direction == HostChannelDirection::input && binding.value == key;
+        return binding.direction == HostChannelDirection::input && binding.source_kind == HostBinding::SourceKind::value && binding.value == key;
     });
     if (!is_input) {
         throw std::invalid_argument{"ValueKey is not bound as a host input for this object"};
@@ -210,6 +212,9 @@ Amount RuntimeWorld::output(ObjectId object_id, std::string_view channel) const
     });
     if (found == target.bindings.end()) {
         throw std::invalid_argument{"unknown host output channel"};
+    }
+    if (found->source_kind == HostBinding::SourceKind::object_characteristic) {
+        return compiled_template(target.source).phenotype.characteristic(found->characteristic);
     }
     return target.calculator.value(require_value_id(found->value));
 }

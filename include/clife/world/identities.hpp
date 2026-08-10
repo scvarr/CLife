@@ -53,4 +53,10 @@ struct UnitConversionId final {
     friend constexpr auto operator<=>(UnitConversionId, UnitConversionId) noexcept = default;
 };
 
+struct ObjectCharacteristicId final {
+    std::uint32_t value{};
+
+    friend constexpr auto operator<=>(ObjectCharacteristicId, ObjectCharacteristicId) noexcept = default;
+};
+
 } // namespace clife::world

@@ -33,6 +33,30 @@ void add_material(std::vector<MaterialAmount>& materials, ValueKey value, Amount
     }
 }
 
+void add_characteristic(std::vector<ObjectCharacteristicAmount>& values, ObjectCharacteristicId characteristic,
+                        Amount amount)
+{
+    if (!std::isfinite(amount)) {
+        throw std::invalid_argument{"object characteristic contribution must be finite"};
+    }
+    const auto found = std::ranges::find(values, characteristic, &ObjectCharacteristicAmount::characteristic);
+    if (found == values.end()) {
+        values.push_back({.characteristic = characteristic, .amount = amount});
+    } else {
+        found->amount += amount;
+        if (!std::isfinite(found->amount)) {
+            throw std::overflow_error{"object characteristic contribution total overflow"};
+        }
+    }
+}
+
+[[nodiscard]] Amount characteristic_value(std::span<const ObjectCharacteristicAmount> values,
+                                          ObjectCharacteristicId characteristic) noexcept
+{
+    const auto found = std::ranges::find(values, characteristic, &ObjectCharacteristicAmount::characteristic);
+    return found == values.end() ? 0.0 : found->amount;
+}
+
 [[nodiscard]] Amount source_value(const CompiledFunctionPhenotype& function, const FunctionValueSource& source)
 {
     if (source.kind == FunctionValueSourceKind::genome_parameter) {
@@ -51,6 +75,10 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
     const ObjectTemplate& object = definition.object_template(source_template);
     CompiledPhenotype phenotype;
     phenotype.source_template_ = source_template;
+    std::vector<ObjectCharacteristicAmount> base_characteristics;
+    for (const BaseObjectCharacteristicDefinition& base : object.base_characteristics) {
+        add_characteristic(base_characteristics, base.characteristic, base.amount);
+    }
     for (const TemplateMaterialContributionDefinition& contribution : object.material_contributions) {
         add_material(phenotype.material_amounts_, contribution.value, contribution.amount);
     }
@@ -143,9 +171,34 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
         for (const MaterialContributionDefinition& contribution : type.material_contributions) {
             add_material(phenotype.material_amounts_, contribution.value, source_value(function, contribution.amount));
         }
+        for (const FunctionCharacteristicContributionDefinition& contribution : type.characteristic_contributions) {
+            add_characteristic(phenotype.function_contribution_sums_, contribution.characteristic,
+                               source_value(function, contribution.amount));
+        }
         phenotype.functions_.push_back(std::move(function));
     }
     std::ranges::sort(phenotype.material_amounts_, {}, &MaterialAmount::value);
+    std::ranges::sort(phenotype.function_contribution_sums_, {}, &ObjectCharacteristicAmount::characteristic);
+    if (definition.object_construction()) {
+        const ObjectConstructionDefinition& construction = *definition.object_construction();
+        std::vector<CalculationPortAmount> inputs;
+        inputs.reserve(construction.inputs.size());
+        for (const ObjectConstructionInputBinding& binding : construction.inputs) {
+            const Amount amount = binding.source.kind == ObjectConstructionSourceKind::base_characteristic
+                                      ? characteristic_value(base_characteristics, binding.source.characteristic)
+                                      : characteristic_value(phenotype.function_contribution_sums_,
+                                                             binding.source.characteristic);
+            inputs.push_back({.port = binding.input, .amount = amount});
+        }
+        for (const CalculationPortAmount& output : evaluate_calculation(definition.calculation(construction.calculation), inputs)) {
+            const auto binding = std::ranges::find(construction.outputs, output.port,
+                                                   &ObjectConstructionOutputBinding::output);
+            if (binding != construction.outputs.end()) {
+                add_characteristic(phenotype.characteristics_, binding->characteristic, output.amount);
+            }
+        }
+    }
+    std::ranges::sort(phenotype.characteristics_, {}, &ObjectCharacteristicAmount::characteristic);
     return phenotype;
 }
 
@@ -209,6 +262,18 @@ Amount CompiledPhenotype::material_amount(ValueKey value) const noexcept
 {
     const auto found = std::ranges::find(material_amounts_, value, &MaterialAmount::value);
     return found == material_amounts_.end() ? 0.0 : found->amount;
+}
+
+std::span<const ObjectCharacteristicAmount> CompiledPhenotype::characteristics() const noexcept { return characteristics_; }
+
+Amount CompiledPhenotype::characteristic(ObjectCharacteristicId characteristic) const noexcept
+{
+    return characteristic_value(characteristics_, characteristic);
+}
+
+Amount CompiledPhenotype::function_contribution_sum(ObjectCharacteristicId characteristic) const noexcept
+{
+    return characteristic_value(function_contribution_sums_, characteristic);
 }
 
 } // namespace clife::world

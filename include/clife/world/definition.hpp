@@ -42,6 +42,11 @@ struct ValueDefinition final {
     std::optional<UnitExpression> unit;
 };
 
+struct ObjectCharacteristicDefinition final {
+    ObjectCharacteristicId id;
+    std::string name;
+};
+
 struct GenomeParameterDefinition final {
     ParameterId id;
     std::string name;
@@ -94,6 +99,11 @@ struct MaterialContributionDefinition final {
     FunctionValueSource amount;
 };
 
+struct FunctionCharacteristicContributionDefinition final {
+    ObjectCharacteristicId characteristic;
+    FunctionValueSource amount;
+};
+
 struct CalculationInputDefinition final {
     CalculationPortId id;
     std::string name;
@@ -121,6 +131,7 @@ struct FunctionTypeDefinition final {
     std::optional<FunctionProcessDefinition> process;
     std::optional<BufferProcessDefinition> buffer_process;
     std::vector<MaterialContributionDefinition> material_contributions;
+    std::vector<FunctionCharacteristicContributionDefinition> characteristic_contributions;
 };
 
 struct GenomeFunctionInstance final {
@@ -138,6 +149,37 @@ struct TemplateMaterialContributionDefinition final {
     Amount amount;
 };
 
+struct BaseObjectCharacteristicDefinition final {
+    ObjectCharacteristicId characteristic;
+    Amount amount;
+};
+
+enum class ObjectConstructionSourceKind {
+    base_characteristic,
+    function_contribution_sum,
+};
+
+struct ObjectConstructionSource final {
+    ObjectConstructionSourceKind kind;
+    ObjectCharacteristicId characteristic;
+};
+
+struct ObjectConstructionInputBinding final {
+    CalculationPortId input;
+    ObjectConstructionSource source;
+};
+
+struct ObjectConstructionOutputBinding final {
+    CalculationPortId output;
+    ObjectCharacteristicId characteristic;
+};
+
+struct ObjectConstructionDefinition final {
+    CalculationId calculation;
+    std::vector<ObjectConstructionInputBinding> inputs;
+    std::vector<ObjectConstructionOutputBinding> outputs;
+};
+
 enum class HostChannelDirection {
     input,
     output,
@@ -146,7 +188,9 @@ enum class HostChannelDirection {
 struct HostBinding final {
     std::string channel;
     HostChannelDirection direction;
-    ValueKey value;
+    enum class SourceKind { value, object_characteristic } source_kind{SourceKind::value};
+    ValueKey value{};
+    ObjectCharacteristicId characteristic{};
 };
 
 struct ObjectTemplate final {
@@ -155,6 +199,7 @@ struct ObjectTemplate final {
     std::vector<InitialValueDefinition> initial_values;
     std::vector<TemplateMaterialContributionDefinition> material_contributions;
     std::vector<GenomeFunctionInstance> genome;
+    std::vector<BaseObjectCharacteristicDefinition> base_characteristics;
     std::vector<HostBinding> host_bindings;
 };
 
@@ -173,6 +218,7 @@ struct FunctionTypeSnapshot final {
     std::optional<FunctionProcessDefinition> process;
     std::optional<BufferProcessDefinition> buffer_process;
     std::vector<MaterialContributionDefinition> material_contributions;
+    std::vector<FunctionCharacteristicContributionDefinition> characteristic_contributions;
 };
 
 struct CalculationOutputSnapshot final {
@@ -189,14 +235,16 @@ struct CalculationSnapshot final {
 };
 
 struct WorldDefinitionSnapshot final {
-    std::uint32_t schema_version{5};
+    std::uint32_t schema_version{6};
     std::vector<ValueDefinition> values;
     std::vector<UnitDefinition> units;
     std::vector<UnitConversionDefinition> unit_conversions;
+    std::vector<ObjectCharacteristicDefinition> object_characteristics;
     std::vector<CalculationSnapshot> calculations;
     std::vector<FunctionTypeSnapshot> function_types;
     std::vector<ObjectTemplate> templates;
     std::vector<WorldRuleDefinition> world_rules;
+    std::optional<ObjectConstructionDefinition> object_construction;
     std::uint32_t next_value_key{1};
     std::uint32_t next_template_id{1};
     std::uint32_t next_function_type_id{1};
@@ -205,6 +253,7 @@ struct WorldDefinitionSnapshot final {
     std::uint32_t next_calculation_port_id{1};
     std::uint32_t next_unit_id{1};
     std::uint32_t next_unit_conversion_id{1};
+    std::uint32_t next_object_characteristic_id{1};
 };
 
 class WorldDefinition final {
@@ -214,6 +263,9 @@ public:
     [[nodiscard]] UnitConversionId add_unit_conversion(UnitExpression source_unit, Amount source_amount,
                                                         UnitExpression target_unit, Amount target_amount);
     void set_value_unit(ValueKey value, UnitExpression unit);
+    [[nodiscard]] ObjectCharacteristicId add_object_characteristic(std::string name);
+    void rename_object_characteristic(ObjectCharacteristicId id, std::string name);
+    void remove_object_characteristic(ObjectCharacteristicId id);
     void rename_value(ValueKey key, std::string name);
     void remove_value(ValueKey key);
     void reorder_values(std::span<const ValueKey> order);
@@ -223,6 +275,8 @@ public:
     void remove_template(TemplateId id);
     void set_initial_value(TemplateId id, ValueKey value, Amount amount);
     void remove_initial_value(TemplateId id, ValueKey value);
+    void set_template_base_characteristic(TemplateId id, ObjectCharacteristicId characteristic, Amount amount);
+    void remove_template_base_characteristic(TemplateId id, ObjectCharacteristicId characteristic);
     void set_template_material_contribution(TemplateId id, ValueKey value, Amount amount);
 
     [[nodiscard]] FunctionTypeId add_function_type(std::string name);
@@ -244,6 +298,9 @@ public:
     void remove_buffer_process(FunctionTypeId type);
     void set_function_material_contribution(FunctionTypeId type, ValueKey value, FunctionValueSource amount);
     void remove_function_material_contribution(FunctionTypeId type, ValueKey value);
+    void set_function_characteristic_contribution(FunctionTypeId type, ObjectCharacteristicId characteristic,
+                                                  FunctionValueSource amount);
+    void remove_function_characteristic_contribution(FunctionTypeId type, ObjectCharacteristicId characteristic);
 
     [[nodiscard]] CalculationId add_calculation(std::string name);
     [[nodiscard]] CalculationPortId add_calculation_input(CalculationId calculation, std::string name);
@@ -266,10 +323,14 @@ public:
     [[nodiscard]] std::size_t add_host_binding(TemplateId id, HostBinding binding);
     void change_host_binding(TemplateId id, std::size_t index, HostBinding binding);
     void remove_host_binding(TemplateId id, std::size_t index);
+    void set_object_construction(ObjectConstructionDefinition construction);
+    void remove_object_construction();
 
     [[nodiscard]] const std::vector<ValueDefinition>& values() const noexcept;
     [[nodiscard]] const std::vector<UnitDefinition>& units() const noexcept;
     [[nodiscard]] const std::vector<UnitConversionDefinition>& unit_conversions() const noexcept;
+    [[nodiscard]] const std::vector<ObjectCharacteristicDefinition>& object_characteristics() const noexcept;
+    [[nodiscard]] const std::optional<ObjectConstructionDefinition>& object_construction() const noexcept;
     [[nodiscard]] const UnitConversionDefinition& unit_conversion(UnitConversionId id) const;
     [[nodiscard]] const std::vector<ObjectTemplate>& templates() const noexcept;
     [[nodiscard]] const std::vector<FunctionTypeDefinition>& function_types() const noexcept;
@@ -277,6 +338,7 @@ public:
     [[nodiscard]] const std::vector<WorldRuleDefinition>& world_rules() const noexcept;
     [[nodiscard]] const ValueDefinition& value(ValueKey key) const;
     [[nodiscard]] const UnitDefinition& unit(UnitId id) const;
+    [[nodiscard]] const ObjectCharacteristicDefinition& object_characteristic(ObjectCharacteristicId id) const;
     [[nodiscard]] const ObjectTemplate& object_template(TemplateId id) const;
     [[nodiscard]] const FunctionTypeDefinition& function_type(FunctionTypeId id) const;
     [[nodiscard]] const CalculationDefinition& calculation(CalculationId id) const;
@@ -292,16 +354,19 @@ private:
     void validate_function_calculation_binding(const FunctionTypeDefinition& type,
                                                 const FunctionCalculationBinding& binding) const;
     void validate_unit_expression(const UnitExpression& expression) const;
+    void validate_object_construction(const ObjectConstructionDefinition& construction) const;
     void validate_rule(const WorldRuleDefinition& rule, std::size_t ignored_index) const;
     void validate_binding(const ObjectTemplate& object, const HostBinding& binding, std::size_t ignored_index) const;
 
     std::vector<ValueDefinition> values_;
     std::vector<UnitDefinition> units_;
     std::vector<UnitConversionDefinition> unit_conversions_;
+    std::vector<ObjectCharacteristicDefinition> object_characteristics_;
     std::vector<ObjectTemplate> templates_;
     std::vector<FunctionTypeDefinition> function_types_;
     std::vector<CalculationDefinition> calculations_;
     std::vector<WorldRuleDefinition> world_rules_;
+    std::optional<ObjectConstructionDefinition> object_construction_;
     std::uint32_t next_value_key_{1};
     std::uint32_t next_template_id_{1};
     std::uint32_t next_function_type_id_{1};
@@ -310,6 +375,7 @@ private:
     std::uint32_t next_calculation_port_id_{1};
     std::uint32_t next_unit_id_{1};
     std::uint32_t next_unit_conversion_id_{1};
+    std::uint32_t next_object_characteristic_id_{1};
 };
 
 } // namespace clife::world

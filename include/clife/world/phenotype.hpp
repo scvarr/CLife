@@ -35,6 +35,11 @@ struct CompiledCalculationOutputValue final {
     Amount value;
 };
 
+struct ObjectCharacteristicAmount final {
+    ObjectCharacteristicId characteristic;
+    Amount amount;
+};
+
 class CompiledPhenotype;
 
 class CompiledFunctionPhenotype final {
@@ -65,6 +70,9 @@ public:
     [[nodiscard]] const CompiledFunctionPhenotype& function(std::size_t index) const;
     [[nodiscard]] std::span<const MaterialAmount> material_amounts() const noexcept;
     [[nodiscard]] Amount material_amount(ValueKey value) const noexcept;
+    [[nodiscard]] std::span<const ObjectCharacteristicAmount> characteristics() const noexcept;
+    [[nodiscard]] Amount characteristic(ObjectCharacteristicId characteristic) const noexcept;
+    [[nodiscard]] Amount function_contribution_sum(ObjectCharacteristicId characteristic) const noexcept;
 
 private:
     friend CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateId source_template);
@@ -72,6 +80,8 @@ private:
     TemplateId source_template_;
     std::vector<CompiledFunctionPhenotype> functions_;
     std::vector<MaterialAmount> material_amounts_;
+    std::vector<ObjectCharacteristicAmount> characteristics_;
+    std::vector<ObjectCharacteristicAmount> function_contribution_sums_;
 };
 
 [[nodiscard]] CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateId source_template);

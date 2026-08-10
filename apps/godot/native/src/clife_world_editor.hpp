@@ -25,6 +25,8 @@ public:
     [[nodiscard]] godot::Array get_values();
     [[nodiscard]] godot::Array get_units();
     [[nodiscard]] godot::Array get_unit_conversions();
+    [[nodiscard]] godot::Array get_object_characteristics();
+    [[nodiscard]] godot::Dictionary get_object_construction();
     [[nodiscard]] godot::Array get_templates();
     [[nodiscard]] godot::Array get_function_types();
     [[nodiscard]] godot::Array get_calculations();
@@ -40,6 +42,9 @@ public:
     [[nodiscard]] std::int64_t add_unit_conversion(std::int64_t source_unit_id, double source_amount,
                                                     std::int64_t target_unit_id, double target_amount);
     bool set_value_unit(std::int64_t value_key, std::int64_t unit_id);
+    [[nodiscard]] std::int64_t add_object_characteristic(const godot::String& name);
+    bool rename_object_characteristic(std::int64_t characteristic_id, const godot::String& name);
+    bool remove_object_characteristic(std::int64_t characteristic_id);
     bool set_function_process(std::int64_t function_type_id, std::int64_t input_value_key,
                               const godot::Dictionary& throughput_source, std::int64_t conversion_id,
                               std::int64_t output_value_key, const godot::Dictionary& allocation_source);
@@ -77,12 +82,17 @@ public:
     bool remove_template(std::int64_t id);
     bool set_initial_value(std::int64_t template_id, std::int64_t value_key, double amount);
     bool remove_initial_value(std::int64_t template_id, std::int64_t value_key);
+    bool set_template_base_characteristic(std::int64_t template_id, std::int64_t characteristic_id, double amount);
+    bool remove_template_base_characteristic(std::int64_t template_id, std::int64_t characteristic_id);
     bool set_function_calculation_binding(std::int64_t function_type_id, std::int64_t calculation_id,
                                           const godot::Array& input_bindings);
     bool remove_function_calculation_binding(std::int64_t function_type_id, std::int64_t calculation_id);
     bool set_function_material_contribution(std::int64_t function_type_id, std::int64_t value_key,
                                             const godot::Dictionary& amount_source);
     bool remove_function_material_contribution(std::int64_t function_type_id, std::int64_t value_key);
+    bool set_function_characteristic_contribution(std::int64_t function_type_id, std::int64_t characteristic_id,
+                                                  const godot::Dictionary& amount_source);
+    bool remove_function_characteristic_contribution(std::int64_t function_type_id, std::int64_t characteristic_id);
     bool add_genome_function(std::int64_t template_id, std::int64_t function_type_id);
     bool set_genome_parameter(std::int64_t template_id, std::int64_t index, std::int64_t parameter_id, double value);
     bool remove_genome_function(std::int64_t template_id, std::int64_t index);
@@ -97,6 +107,8 @@ public:
     bool change_host_binding(std::int64_t template_id, std::int64_t index, const godot::String& channel,
                              std::int64_t direction, std::int64_t value_key);
     bool remove_host_binding(std::int64_t template_id, std::int64_t index);
+    bool set_object_construction(std::int64_t calculation_id, const godot::Array& inputs, const godot::Array& outputs);
+    bool remove_object_construction();
 
     bool select_template(std::int64_t template_id);
     [[nodiscard]] std::int64_t get_selected_template_id() const;

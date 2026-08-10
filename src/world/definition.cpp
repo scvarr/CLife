@@ -164,6 +164,60 @@ void WorldDefinition::set_value_unit(ValueKey key, UnitExpression expression)
     entry.unit = std::move(expression);
 }
 
+ObjectCharacteristicId WorldDefinition::add_object_characteristic(std::string name)
+{
+    require_name(name, "object characteristic");
+    if (std::ranges::any_of(object_characteristics_, [&name](const auto& item) { return item.name == name; })) {
+        throw std::invalid_argument{"object characteristic name must be unique"};
+    }
+    if (next_object_characteristic_id_ == 0) {
+        throw std::overflow_error{"ObjectCharacteristicId space exhausted"};
+    }
+    const ObjectCharacteristicId id{next_object_characteristic_id_++};
+    object_characteristics_.push_back({.id = id, .name = std::move(name)});
+    return id;
+}
+
+void WorldDefinition::rename_object_characteristic(ObjectCharacteristicId id, std::string name)
+{
+    require_name(name, "object characteristic");
+    if (std::ranges::any_of(object_characteristics_, [id, &name](const auto& item) {
+            return item.id != id && item.name == name;
+        })) {
+        throw std::invalid_argument{"object characteristic name must be unique"};
+    }
+    auto& item = const_cast<ObjectCharacteristicDefinition&>(object_characteristic(id));
+    item.name = std::move(name);
+}
+
+void WorldDefinition::remove_object_characteristic(ObjectCharacteristicId id)
+{
+    (void)object_characteristic(id);
+    const auto referenced = [id](ObjectCharacteristicId candidate) { return candidate == id; };
+    if ((object_construction_ && (std::ranges::any_of(object_construction_->inputs, [&](const auto& item) {
+             return referenced(item.source.characteristic);
+         }) || std::ranges::any_of(object_construction_->outputs, [&](const auto& item) {
+             return referenced(item.characteristic);
+         }))) ||
+        std::ranges::any_of(templates_, [&](const ObjectTemplate& object) {
+            return std::ranges::any_of(object.base_characteristics, [&](const auto& item) {
+                return referenced(item.characteristic);
+            });
+        }) || std::ranges::any_of(function_types_, [&](const FunctionTypeDefinition& type) {
+            return std::ranges::any_of(type.characteristic_contributions, [&](const auto& item) {
+                return referenced(item.characteristic);
+            });
+        }) || std::ranges::any_of(templates_, [&](const ObjectTemplate& object) {
+            return std::ranges::any_of(object.host_bindings, [&](const HostBinding& item) {
+                return item.source_kind == HostBinding::SourceKind::object_characteristic &&
+                       referenced(item.characteristic);
+            });
+        })) {
+        throw std::invalid_argument{"cannot remove a referenced object characteristic"};
+    }
+    std::erase_if(object_characteristics_, [id](const auto& item) { return item.id == id; });
+}
+
 void WorldDefinition::rename_value(ValueKey key, std::string name)
 {
     require_name(name, "value");
@@ -280,6 +334,33 @@ void WorldDefinition::remove_initial_value(TemplateId id, ValueKey key)
     if (std::erase_if(object.initial_values, [key](const InitialValueDefinition& item) { return item.value == key; }) ==
         0) {
         throw std::invalid_argument{"initial value does not exist"};
+    }
+}
+
+void WorldDefinition::set_template_base_characteristic(TemplateId id, ObjectCharacteristicId characteristic,
+                                                        Amount amount)
+{
+    (void)object_characteristic(characteristic);
+    if (!std::isfinite(amount)) {
+        throw std::invalid_argument{"base characteristic amount must be finite"};
+    }
+    ObjectTemplate& object = mutable_template(id);
+    const auto found = std::ranges::find(object.base_characteristics, characteristic,
+                                         &BaseObjectCharacteristicDefinition::characteristic);
+    if (found == object.base_characteristics.end()) {
+        object.base_characteristics.push_back({.characteristic = characteristic, .amount = amount});
+    } else {
+        found->amount = amount;
+    }
+}
+
+void WorldDefinition::remove_template_base_characteristic(TemplateId id, ObjectCharacteristicId characteristic)
+{
+    ObjectTemplate& object = mutable_template(id);
+    if (std::erase_if(object.base_characteristics, [characteristic](const auto& item) {
+            return item.characteristic == characteristic;
+        }) == 0) {
+        throw std::invalid_argument{"template base characteristic does not exist"};
     }
 }
 
@@ -556,6 +637,33 @@ void WorldDefinition::remove_function_material_contribution(FunctionTypeId type_
     }
 }
 
+void WorldDefinition::set_function_characteristic_contribution(FunctionTypeId type_id,
+                                                                ObjectCharacteristicId characteristic,
+                                                                FunctionValueSource amount)
+{
+    (void)object_characteristic(characteristic);
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    validate_function_value_source(type, amount);
+    const auto found = std::ranges::find(type.characteristic_contributions, characteristic,
+                                         &FunctionCharacteristicContributionDefinition::characteristic);
+    if (found == type.characteristic_contributions.end()) {
+        type.characteristic_contributions.push_back({.characteristic = characteristic, .amount = amount});
+    } else {
+        found->amount = amount;
+    }
+}
+
+void WorldDefinition::remove_function_characteristic_contribution(FunctionTypeId type_id,
+                                                                   ObjectCharacteristicId characteristic)
+{
+    FunctionTypeDefinition& type = mutable_function_type(type_id);
+    if (std::erase_if(type.characteristic_contributions, [characteristic](const auto& item) {
+            return item.characteristic == characteristic;
+        }) == 0) {
+        throw std::invalid_argument{"function characteristic contribution does not exist"};
+    }
+}
+
 CalculationId WorldDefinition::add_calculation(std::string name)
 {
     require_name(name, "calculation");
@@ -787,11 +895,33 @@ void WorldDefinition::remove_host_binding(TemplateId id, std::size_t index)
     object.host_bindings.erase(object.host_bindings.begin() + static_cast<std::ptrdiff_t>(index));
 }
 
+void WorldDefinition::set_object_construction(ObjectConstructionDefinition construction)
+{
+    validate_object_construction(construction);
+    object_construction_ = std::move(construction);
+}
+
+void WorldDefinition::remove_object_construction()
+{
+    if (!object_construction_) {
+        throw std::invalid_argument{"object construction does not exist"};
+    }
+    object_construction_.reset();
+}
+
 const std::vector<ValueDefinition>& WorldDefinition::values() const noexcept { return values_; }
 const std::vector<UnitDefinition>& WorldDefinition::units() const noexcept { return units_; }
 const std::vector<UnitConversionDefinition>& WorldDefinition::unit_conversions() const noexcept
 {
     return unit_conversions_;
+}
+const std::vector<ObjectCharacteristicDefinition>& WorldDefinition::object_characteristics() const noexcept
+{
+    return object_characteristics_;
+}
+const std::optional<ObjectConstructionDefinition>& WorldDefinition::object_construction() const noexcept
+{
+    return object_construction_;
 }
 
 const UnitConversionDefinition& WorldDefinition::unit_conversion(UnitConversionId id) const
@@ -822,6 +952,15 @@ const UnitDefinition& WorldDefinition::unit(UnitId id) const
     const auto found = std::ranges::find(units_, id, &UnitDefinition::id);
     if (found == units_.end()) {
         throw std::invalid_argument{"unknown UnitId"};
+    }
+    return *found;
+}
+
+const ObjectCharacteristicDefinition& WorldDefinition::object_characteristic(ObjectCharacteristicId id) const
+{
+    const auto found = std::ranges::find(object_characteristics_, id, &ObjectCharacteristicDefinition::id);
+    if (found == object_characteristics_.end()) {
+        throw std::invalid_argument{"unknown ObjectCharacteristicId"};
     }
     return *found;
 }
@@ -859,8 +998,10 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
         .values = values_,
         .units = units_,
         .unit_conversions = unit_conversions_,
+        .object_characteristics = object_characteristics_,
         .templates = templates_,
         .world_rules = world_rules_,
+        .object_construction = object_construction_,
         .next_value_key = next_value_key_,
         .next_template_id = next_template_id_,
         .next_function_type_id = next_function_type_id_,
@@ -869,6 +1010,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
         .next_calculation_port_id = next_calculation_port_id_,
         .next_unit_id = next_unit_id_,
         .next_unit_conversion_id = next_unit_conversion_id_,
+        .next_object_characteristic_id = next_object_characteristic_id_,
     };
     result.calculations.reserve(calculations_.size());
     for (const CalculationDefinition& calculation : calculations_) {
@@ -888,6 +1030,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
             .process = type.process,
             .buffer_process = type.buffer_process,
             .material_contributions = type.material_contributions,
+            .characteristic_contributions = type.characteristic_contributions,
         };
         result.function_types.push_back(std::move(stored));
     }
@@ -896,7 +1039,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
 
 WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& source)
 {
-    if (source.schema_version != 5) {
+    if (source.schema_version != 6) {
         throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version"};
     }
     require_unique_snapshot_ids(source.values, &ValueDefinition::key, "ValueKey");
@@ -920,6 +1063,10 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
     WorldDefinition restored;
     restored.values_ = source.values;
     restored.units_ = source.units;
+    require_unique_snapshot_ids(source.object_characteristics, &ObjectCharacteristicDefinition::id,
+                                "ObjectCharacteristicId");
+    require_unique_snapshot_names(source.object_characteristics, "object characteristic");
+    restored.object_characteristics_ = source.object_characteristics;
     for (const ValueDefinition& value : restored.values_) {
         if (value.unit) {
             restored.validate_unit_expression(*value.unit);
@@ -1029,6 +1176,16 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
             restored.validate_function_value_source(type, contribution.amount);
             type.material_contributions.push_back(contribution);
         }
+        for (const FunctionCharacteristicContributionDefinition& contribution : stored.characteristic_contributions) {
+            (void)restored.object_characteristic(contribution.characteristic);
+            if (std::ranges::any_of(type.characteristic_contributions, [&contribution](const auto& existing) {
+                    return existing.characteristic == contribution.characteristic;
+                })) {
+                throw std::invalid_argument{"function type has duplicate characteristic contribution"};
+            }
+            restored.validate_function_value_source(type, contribution.amount);
+            type.characteristic_contributions.push_back(contribution);
+        }
         restored.function_types_.push_back(std::move(type));
     }
 
@@ -1053,6 +1210,15 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
                 throw std::invalid_argument{"template material contribution must be finite, non-negative, and unique"};
             }
             object.material_contributions.push_back(contribution);
+        }
+        for (const BaseObjectCharacteristicDefinition& base : stored.base_characteristics) {
+            (void)restored.object_characteristic(base.characteristic);
+            if (!std::isfinite(base.amount) || std::ranges::any_of(object.base_characteristics, [&base](const auto& item) {
+                    return item.characteristic == base.characteristic;
+                })) {
+                throw std::invalid_argument{"template base characteristic must be finite and unique"};
+            }
+            object.base_characteristics.push_back(base);
         }
         for (const GenomeFunctionInstance& function : stored.genome) {
             const FunctionTypeDefinition& type = restored.function_type(function.type);
@@ -1081,6 +1247,10 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
         restored.validate_rule(rule, kNoIndex);
         restored.world_rules_.push_back(rule);
     }
+    if (source.object_construction) {
+        restored.validate_object_construction(*source.object_construction);
+        restored.object_construction_ = source.object_construction;
+    }
 
     require_next_id_is_unused(source.next_value_key, source.values, &ValueDefinition::key, "ValueKey");
     require_next_id_is_unused(source.next_template_id, source.templates, &ObjectTemplate::id, "TemplateId");
@@ -1095,6 +1265,8 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
     require_next_id_is_unused(source.next_unit_id, source.units, &UnitDefinition::id, "UnitId");
     require_next_id_is_unused(source.next_unit_conversion_id, source.unit_conversions,
                               &UnitConversionDefinition::id, "UnitConversionId");
+    require_next_id_is_unused(source.next_object_characteristic_id, source.object_characteristics,
+                              &ObjectCharacteristicDefinition::id, "ObjectCharacteristicId");
     restored.next_value_key_ = source.next_value_key;
     restored.next_template_id_ = source.next_template_id;
     restored.next_function_type_id_ = source.next_function_type_id;
@@ -1103,6 +1275,7 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
     restored.next_calculation_port_id_ = source.next_calculation_port_id;
     restored.next_unit_id_ = source.next_unit_id;
     restored.next_unit_conversion_id_ = source.next_unit_conversion_id;
+    restored.next_object_characteristic_id_ = source.next_object_characteristic_id;
     return restored;
 }
 
@@ -1212,15 +1385,58 @@ void WorldDefinition::validate_binding(const ObjectTemplate& object, const HostB
                                        std::size_t ignored_index) const
 {
     require_name(binding.channel, "host channel");
-    (void)value(binding.value);
+    if (binding.source_kind == HostBinding::SourceKind::value) {
+        (void)value(binding.value);
+    } else if (binding.source_kind == HostBinding::SourceKind::object_characteristic) {
+        if (binding.direction != HostChannelDirection::output) {
+            throw std::invalid_argument{"host input binding must target a runtime value"};
+        }
+        (void)object_characteristic(binding.characteristic);
+    } else {
+        throw std::invalid_argument{"host binding source kind is invalid"};
+    }
     for (std::size_t index = 0; index < object.host_bindings.size(); ++index) {
         const HostBinding& existing = object.host_bindings[index];
         if (index != ignored_index && existing.direction == binding.direction && existing.channel == binding.channel) {
             throw std::invalid_argument{"host channel is bound more than once for its direction"};
         }
         if (index != ignored_index && binding.direction == HostChannelDirection::input &&
-            existing.direction == HostChannelDirection::input && existing.value == binding.value) {
+            existing.direction == HostChannelDirection::input && existing.source_kind == HostBinding::SourceKind::value &&
+            binding.source_kind == HostBinding::SourceKind::value && existing.value == binding.value) {
             throw std::invalid_argument{"world value has more than one host input binding"};
+        }
+    }
+}
+
+void WorldDefinition::validate_object_construction(const ObjectConstructionDefinition& construction) const
+{
+    const CalculationDefinition& calculation_definition = calculation(construction.calculation);
+    if (construction.outputs.empty() || construction.inputs.size() != calculation_definition.inputs.size()) {
+        throw std::invalid_argument{"object construction must bind every input and at least one output"};
+    }
+    for (const CalculationInputDefinition& input : calculation_definition.inputs) {
+        if (std::ranges::count(construction.inputs, input.id, &ObjectConstructionInputBinding::input) != 1) {
+            throw std::invalid_argument{"object construction must bind every calculation input exactly once"};
+        }
+    }
+    for (const ObjectConstructionInputBinding& binding : construction.inputs) {
+        if (std::ranges::none_of(calculation_definition.inputs, [&](const auto& input) { return input.id == binding.input; })) {
+            throw std::invalid_argument{"object construction contains an unknown calculation input"};
+        }
+        if (binding.source.kind != ObjectConstructionSourceKind::base_characteristic &&
+            binding.source.kind != ObjectConstructionSourceKind::function_contribution_sum) {
+            throw std::invalid_argument{"object construction source kind is invalid"};
+        }
+        (void)object_characteristic(binding.source.characteristic);
+    }
+    for (const ObjectConstructionOutputBinding& binding : construction.outputs) {
+        if (std::ranges::none_of(calculation_definition.outputs, [&](const auto& output) { return output.id == binding.output; })) {
+            throw std::invalid_argument{"object construction contains an unknown calculation output"};
+        }
+        (void)object_characteristic(binding.characteristic);
+        if (std::ranges::count(construction.outputs, binding.characteristic,
+                               &ObjectConstructionOutputBinding::characteristic) != 1) {
+            throw std::invalid_argument{"object construction output characteristic is duplicated"};
         }
     }
 }

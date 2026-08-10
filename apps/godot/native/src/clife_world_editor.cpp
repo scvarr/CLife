@@ -76,6 +76,14 @@ world::UnitConversionId unit_conversion_id(std::int64_t raw)
     return {static_cast<std::uint32_t>(raw)};
 }
 
+world::ObjectCharacteristicId object_characteristic_id(std::int64_t raw)
+{
+    if (raw <= 0 || raw > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::invalid_argument{"invalid ObjectCharacteristicId"};
+    }
+    return {static_cast<std::uint32_t>(raw)};
+}
+
 world::TemplateId template_id(std::int64_t raw)
 {
     if (raw <= 0 || raw > std::numeric_limits<std::uint32_t>::max()) {
@@ -373,6 +381,14 @@ godot::Array CLifeWorldEditor::get_templates()
             godot::Dictionary item;
             item["id"] = static_cast<std::int64_t>(object.id.value);
             item["name"] = to_godot_string(object.name);
+            godot::Array bases;
+            for (const auto& base : object.base_characteristics) {
+                godot::Dictionary entry;
+                entry["characteristic_id"] = static_cast<std::int64_t>(base.characteristic.value);
+                entry["amount"] = base.amount;
+                bases.push_back(entry);
+            }
+            item["base_characteristics"] = bases;
             result.push_back(item);
         }
         clear_error();
@@ -380,6 +396,48 @@ godot::Array CLifeWorldEditor::get_templates()
         capture_current_error();
         result.clear();
     }
+    return result;
+}
+
+godot::Array CLifeWorldEditor::get_object_characteristics()
+{
+    godot::Array result;
+    try {
+        for (const auto& characteristic : definition_.object_characteristics()) {
+            godot::Dictionary item;
+            item["id"] = static_cast<std::int64_t>(characteristic.id.value);
+            item["name"] = to_godot_string(characteristic.name);
+            result.push_back(item);
+        }
+        clear_error();
+    } catch (...) { capture_current_error(); result.clear(); }
+    return result;
+}
+
+godot::Dictionary CLifeWorldEditor::get_object_construction()
+{
+    godot::Dictionary result;
+    try {
+        if (!definition_.object_construction()) { clear_error(); return result; }
+        const auto& construction = *definition_.object_construction();
+        result["calculation_id"] = static_cast<std::int64_t>(construction.calculation.value);
+        godot::Array inputs;
+        for (const auto& binding : construction.inputs) {
+            godot::Dictionary item;
+            item["input_id"] = static_cast<std::int64_t>(binding.input.value);
+            item["kind"] = binding.source.kind == world::ObjectConstructionSourceKind::base_characteristic ? "base" : "function_sum";
+            item["characteristic_id"] = static_cast<std::int64_t>(binding.source.characteristic.value);
+            inputs.push_back(item);
+        }
+        godot::Array outputs;
+        for (const auto& binding : construction.outputs) {
+            godot::Dictionary item;
+            item["output_id"] = static_cast<std::int64_t>(binding.output.value);
+            item["characteristic_id"] = static_cast<std::int64_t>(binding.characteristic.value);
+            outputs.push_back(item);
+        }
+        result["inputs"] = inputs; result["outputs"] = outputs; clear_error();
+    } catch (...) { capture_current_error(); result.clear(); }
     return result;
 }
 
@@ -423,6 +481,14 @@ godot::Array CLifeWorldEditor::get_function_types()
             item["genome_parameters"] = genome_parameters;
             item["calculations"] = calculation_bindings;
             item["material_contributions"] = material_contributions;
+            godot::Array characteristic_contributions;
+            for (const auto& contribution : type.characteristic_contributions) {
+                godot::Dictionary entry;
+                entry["characteristic_id"] = static_cast<std::int64_t>(contribution.characteristic.value);
+                entry["amount_source"] = function_value_source_dictionary(contribution.amount);
+                characteristic_contributions.push_back(entry);
+            }
+            item["characteristic_contributions"] = characteristic_contributions;
             item["has_process"] = type.process.has_value();
             item["process"] = godot::Variant();
             if (type.process) {
@@ -714,6 +780,22 @@ bool CLifeWorldEditor::set_value_unit(std::int64_t raw_value_key, std::int64_t r
     });
 }
 
+std::int64_t CLifeWorldEditor::add_object_characteristic(const godot::String& name)
+{
+    try { require_edit_mode(); const auto id = definition_.add_object_characteristic(to_std_string(name)); clear_error(); return id.value; }
+    catch (...) { capture_current_error(); return 0; }
+}
+
+bool CLifeWorldEditor::rename_object_characteristic(std::int64_t id, const godot::String& name)
+{
+    return edit([&] { definition_.rename_object_characteristic(object_characteristic_id(id), to_std_string(name)); });
+}
+
+bool CLifeWorldEditor::remove_object_characteristic(std::int64_t id)
+{
+    return edit([&] { definition_.remove_object_characteristic(object_characteristic_id(id)); });
+}
+
 bool CLifeWorldEditor::set_function_process(std::int64_t raw_type, std::int64_t raw_input,
                                             const godot::Dictionary& throughput_source, std::int64_t raw_conversion,
                                             std::int64_t raw_output, const godot::Dictionary& allocation_source)
@@ -980,6 +1062,20 @@ bool CLifeWorldEditor::remove_initial_value(std::int64_t raw_template_id, std::i
     return edit([&] { definition_.remove_initial_value(template_id(raw_template_id), value_key(raw_value_key)); });
 }
 
+bool CLifeWorldEditor::set_template_base_characteristic(std::int64_t raw_template_id,
+                                                         std::int64_t raw_characteristic_id, double amount)
+{
+    return edit([&] { definition_.set_template_base_characteristic(template_id(raw_template_id),
+        object_characteristic_id(raw_characteristic_id), amount); });
+}
+
+bool CLifeWorldEditor::remove_template_base_characteristic(std::int64_t raw_template_id,
+                                                            std::int64_t raw_characteristic_id)
+{
+    return edit([&] { definition_.remove_template_base_characteristic(template_id(raw_template_id),
+        object_characteristic_id(raw_characteristic_id)); });
+}
+
 bool CLifeWorldEditor::set_function_calculation_binding(std::int64_t raw_function_type_id,
                                                         std::int64_t raw_calculation_id,
                                                         const godot::Array& input_bindings)
@@ -1023,6 +1119,21 @@ bool CLifeWorldEditor::remove_function_material_contribution(std::int64_t raw_fu
     return edit([&] {
         definition_.remove_function_material_contribution(function_type_id(raw_function_type_id), value_key(raw_value_key));
     });
+}
+
+bool CLifeWorldEditor::set_function_characteristic_contribution(std::int64_t raw_function_type_id,
+                                                                 std::int64_t raw_characteristic_id,
+                                                                 const godot::Dictionary& amount_source)
+{
+    return edit([&] { definition_.set_function_characteristic_contribution(function_type_id(raw_function_type_id),
+        object_characteristic_id(raw_characteristic_id), function_value_source(amount_source)); });
+}
+
+bool CLifeWorldEditor::remove_function_characteristic_contribution(std::int64_t raw_function_type_id,
+                                                                    std::int64_t raw_characteristic_id)
+{
+    return edit([&] { definition_.remove_function_characteristic_contribution(function_type_id(raw_function_type_id),
+        object_characteristic_id(raw_characteristic_id)); });
 }
 
 bool CLifeWorldEditor::add_genome_function(std::int64_t raw_template_id, std::int64_t raw_function_type_id)
@@ -1111,6 +1222,42 @@ bool CLifeWorldEditor::change_host_binding(std::int64_t raw_template_id, std::in
 bool CLifeWorldEditor::remove_host_binding(std::int64_t raw_template_id, std::int64_t index)
 {
     return edit([&] { definition_.remove_host_binding(template_id(raw_template_id), item_index(index)); });
+}
+
+bool CLifeWorldEditor::set_object_construction(std::int64_t raw_calculation_id, const godot::Array& inputs,
+                                                const godot::Array& outputs)
+{
+    return edit([&] {
+        world::ObjectConstructionDefinition construction{.calculation = calculation_id(raw_calculation_id)};
+        for (const godot::Variant& value : inputs) {
+            const auto item = required_dictionary(value, "construction input");
+            const std::string kind = required_string(required_field(item, "kind"), "construction source kind");
+            if (kind != "base" && kind != "function_sum") {
+                throw std::invalid_argument{"construction source kind must be base or function_sum"};
+            }
+            construction.inputs.push_back({
+                .input = calculation_port_id(required_uint32(required_field(item, "input_id"), "construction input id")),
+                .source = {.kind = kind == "base" ? world::ObjectConstructionSourceKind::base_characteristic :
+                                                     world::ObjectConstructionSourceKind::function_contribution_sum,
+                           .characteristic = object_characteristic_id(required_uint32(
+                               required_field(item, "characteristic_id"), "construction characteristic id"))},
+            });
+        }
+        for (const godot::Variant& value : outputs) {
+            const auto item = required_dictionary(value, "construction output");
+            construction.outputs.push_back({
+                .output = calculation_port_id(required_uint32(required_field(item, "output_id"), "construction output id")),
+                .characteristic = object_characteristic_id(required_uint32(
+                    required_field(item, "characteristic_id"), "construction characteristic id")),
+            });
+        }
+        definition_.set_object_construction(std::move(construction));
+    });
+}
+
+bool CLifeWorldEditor::remove_object_construction()
+{
+    return edit([&] { definition_.remove_object_construction(); });
 }
 
 bool CLifeWorldEditor::select_template(std::int64_t raw_template_id)
@@ -1457,6 +1604,7 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
         result["next_calculation_port_id"] = static_cast<std::int64_t>(snapshot.next_calculation_port_id);
         result["next_unit_id"] = static_cast<std::int64_t>(snapshot.next_unit_id);
         result["next_unit_conversion_id"] = static_cast<std::int64_t>(snapshot.next_unit_conversion_id);
+        result["next_object_characteristic_id"] = static_cast<std::int64_t>(snapshot.next_object_characteristic_id);
         godot::Array values;
         for (const auto& value : snapshot.values) {
             godot::Dictionary entry;
@@ -1484,6 +1632,14 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
             units.push_back(entry);
         }
         result["units"] = units;
+        godot::Array characteristics;
+        for (const auto& characteristic : snapshot.object_characteristics) {
+            godot::Dictionary entry;
+            entry["id"] = static_cast<std::int64_t>(characteristic.id.value);
+            entry["name"] = to_godot_string(characteristic.name);
+            characteristics.push_back(entry);
+        }
+        result["object_characteristics"] = characteristics;
         godot::Array unit_conversions;
         for (const world::UnitConversionDefinition& conversion : snapshot.unit_conversions) {
             godot::Dictionary entry;
@@ -1571,6 +1727,14 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
             entry["genome_parameters"] = genome_parameters;
             entry["calculations"] = calculation_bindings;
             entry["material_contributions"] = contributions;
+            godot::Array characteristic_contributions;
+            for (const auto& contribution : type.characteristic_contributions) {
+                godot::Dictionary item;
+                item["characteristic_id"] = static_cast<std::int64_t>(contribution.characteristic.value);
+                item["amount_source"] = function_value_source_dictionary(contribution.amount);
+                characteristic_contributions.push_back(item);
+            }
+            entry["characteristic_contributions"] = characteristic_contributions;
             entry["process"] = godot::Variant();
             if (type.process) {
                 godot::Dictionary process;
@@ -1618,6 +1782,13 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
                 stored["amount"] = item.amount;
                 materials.push_back(stored);
             }
+            godot::Array base_characteristics;
+            for (const auto& item : object.base_characteristics) {
+                godot::Dictionary stored;
+                stored["characteristic_id"] = static_cast<std::int64_t>(item.characteristic.value);
+                stored["amount"] = item.amount;
+                base_characteristics.push_back(stored);
+            }
             godot::Array genome;
             for (const auto& function : object.genome) {
                 godot::Dictionary stored;
@@ -1642,6 +1813,7 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
             }
             entry["initial_values"] = initials;
             entry["material_contributions"] = materials;
+            entry["base_characteristics"] = base_characteristics;
             entry["genome"] = genome;
             entry["host_bindings"] = bindings;
             templates.push_back(entry);
@@ -1657,6 +1829,28 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
             rules.push_back(entry);
         }
         result["world_rules"] = rules;
+        result["object_construction"] = godot::Variant();
+        if (snapshot.object_construction) {
+            godot::Dictionary construction;
+            construction["calculation_id"] = static_cast<std::int64_t>(snapshot.object_construction->calculation.value);
+            godot::Array inputs;
+            for (const auto& binding : snapshot.object_construction->inputs) {
+                godot::Dictionary item;
+                item["input_id"] = static_cast<std::int64_t>(binding.input.value);
+                item["kind"] = binding.source.kind == world::ObjectConstructionSourceKind::base_characteristic ? "base" : "function_sum";
+                item["characteristic_id"] = static_cast<std::int64_t>(binding.source.characteristic.value);
+                inputs.push_back(item);
+            }
+            godot::Array outputs;
+            for (const auto& binding : snapshot.object_construction->outputs) {
+                godot::Dictionary item;
+                item["output_id"] = static_cast<std::int64_t>(binding.output.value);
+                item["characteristic_id"] = static_cast<std::int64_t>(binding.characteristic.value);
+                outputs.push_back(item);
+            }
+            construction["inputs"] = inputs; construction["outputs"] = outputs;
+            result["object_construction"] = construction;
+        }
         clear_error();
     } catch (...) {
         capture_current_error();
@@ -1671,7 +1865,7 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
         require_edit_mode();
         world::WorldDefinitionSnapshot snapshot;
         snapshot.schema_version = required_uint32(required_field(serialized, "schema_version"), "schema_version");
-        if (snapshot.schema_version != 5) {
+        if (snapshot.schema_version != 6) {
             throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version; recreate the test world"};
         }
         snapshot.next_value_key = required_uint32(required_field(serialized, "next_value_key"), "next_value_key");
@@ -1684,12 +1878,18 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
         snapshot.next_calculation_port_id =
             required_uint32(required_field(serialized, "next_calculation_port_id"), "next_calculation_port_id");
         snapshot.next_unit_id = required_uint32(required_field(serialized, "next_unit_id"), "next_unit_id");
+        snapshot.next_object_characteristic_id = required_uint32(required_field(serialized, "next_object_characteristic_id"), "next_object_characteristic_id");
         for (const godot::Variant& value : required_array(required_field(serialized, "units"), "units")) {
                 const godot::Dictionary item = required_dictionary(value, "unit");
                 snapshot.units.push_back({
                     .id = {required_uint32(required_field(item, "id"), "unit id")},
                     .symbol = required_string(required_field(item, "symbol"), "unit symbol"),
                 });
+        }
+        for (const godot::Variant& value : required_array(required_field(serialized, "object_characteristics"), "object characteristics")) {
+            const godot::Dictionary item = required_dictionary(value, "object characteristic");
+            snapshot.object_characteristics.push_back({.id = {required_uint32(required_field(item, "id"), "characteristic id")},
+                .name = required_string(required_field(item, "name"), "characteristic name")});
         }
         snapshot.next_unit_conversion_id =
             required_uint32(required_field(serialized, "next_unit_conversion_id"), "next_unit_conversion_id");
@@ -1835,6 +2035,13 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                                                                         "material amount source")),
                 });
             }
+            for (const godot::Variant& contribution_value : required_array(required_field(item, "characteristic_contributions"), "function characteristic contributions")) {
+                const auto contribution = required_dictionary(contribution_value, "function characteristic contribution");
+                type.characteristic_contributions.push_back({
+                    .characteristic = {required_uint32(required_field(contribution, "characteristic_id"), "characteristic id")},
+                    .amount = function_value_source(required_dictionary(required_field(contribution, "amount_source"), "characteristic amount source")),
+                });
+            }
             snapshot.function_types.push_back(std::move(type));
         }
         for (const godot::Variant& value : required_array(required_field(serialized, "templates"), "templates")) {
@@ -1855,6 +2062,13 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                 object.material_contributions.push_back({
                     .value = {required_uint32(required_field(stored, "value_key"), "template material value key")},
                     .amount = required_number(required_field(stored, "amount"), "template material amount"),
+                });
+            }
+            for (const godot::Variant& stored_value : required_array(required_field(item, "base_characteristics"), "template base characteristics")) {
+                const auto stored = required_dictionary(stored_value, "template base characteristic");
+                object.base_characteristics.push_back({
+                    .characteristic = {required_uint32(required_field(stored, "characteristic_id"), "characteristic id")},
+                    .amount = required_number(required_field(stored, "amount"), "base characteristic amount"),
                 });
             }
             for (const godot::Variant& function_value : required_array(required_field(item, "genome"), "template genome")) {
@@ -1889,6 +2103,25 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                 .target = {required_uint32(required_field(item, "target_key"), "world rule target")},
                 .target_per_source = required_number(required_field(item, "target_per_source"), "world rule factor"),
             });
+        }
+        const godot::Variant construction_value = required_field(serialized, "object_construction");
+        if (construction_value.get_type() != godot::Variant::NIL) {
+            const auto construction = required_dictionary(construction_value, "object construction");
+            world::ObjectConstructionDefinition stored{.calculation = {required_uint32(required_field(construction, "calculation_id"), "construction calculation id")}};
+            for (const godot::Variant& input_value : required_array(required_field(construction, "inputs"), "construction inputs")) {
+                const auto input = required_dictionary(input_value, "construction input");
+                const auto kind = required_string(required_field(input, "kind"), "construction source kind");
+                if (kind != "base" && kind != "function_sum") throw std::invalid_argument{"invalid construction source kind"};
+                stored.inputs.push_back({.input = {required_uint32(required_field(input, "input_id"), "construction input id")},
+                    .source = {.kind = kind == "base" ? world::ObjectConstructionSourceKind::base_characteristic : world::ObjectConstructionSourceKind::function_contribution_sum,
+                               .characteristic = {required_uint32(required_field(input, "characteristic_id"), "characteristic id")}}});
+            }
+            for (const godot::Variant& output_value : required_array(required_field(construction, "outputs"), "construction outputs")) {
+                const auto output = required_dictionary(output_value, "construction output");
+                stored.outputs.push_back({.output = {required_uint32(required_field(output, "output_id"), "construction output id")},
+                    .characteristic = {required_uint32(required_field(output, "characteristic_id"), "characteristic id")}});
+            }
+            snapshot.object_construction = std::move(stored);
         }
         world::WorldDefinition restored = world::WorldDefinition::from_snapshot(snapshot);
         definition_ = std::move(restored);
@@ -1981,6 +2214,8 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("get_values"), &CLifeWorldEditor::get_values);
     godot::ClassDB::bind_method(godot::D_METHOD("get_units"), &CLifeWorldEditor::get_units);
     godot::ClassDB::bind_method(godot::D_METHOD("get_unit_conversions"), &CLifeWorldEditor::get_unit_conversions);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_object_characteristics"), &CLifeWorldEditor::get_object_characteristics);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_object_construction"), &CLifeWorldEditor::get_object_construction);
     godot::ClassDB::bind_method(godot::D_METHOD("get_templates"), &CLifeWorldEditor::get_templates);
     godot::ClassDB::bind_method(godot::D_METHOD("get_function_types"), &CLifeWorldEditor::get_function_types);
     godot::ClassDB::bind_method(godot::D_METHOD("get_calculations"), &CLifeWorldEditor::get_calculations);
@@ -1999,6 +2234,9 @@ void CLifeWorldEditor::_bind_methods()
                                 &CLifeWorldEditor::add_unit_conversion);
     godot::ClassDB::bind_method(godot::D_METHOD("set_value_unit", "value_key", "unit_id"),
                                 &CLifeWorldEditor::set_value_unit);
+    godot::ClassDB::bind_method(godot::D_METHOD("add_object_characteristic", "name"), &CLifeWorldEditor::add_object_characteristic);
+    godot::ClassDB::bind_method(godot::D_METHOD("rename_object_characteristic", "characteristic_id", "name"), &CLifeWorldEditor::rename_object_characteristic);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_object_characteristic", "characteristic_id"), &CLifeWorldEditor::remove_object_characteristic);
     godot::ClassDB::bind_method(
         godot::D_METHOD("set_function_process", "function_type_id", "input_value_key", "throughput_source",
                         "conversion_id", "output_value_key", "allocation_source"),
@@ -2056,6 +2294,8 @@ void CLifeWorldEditor::_bind_methods()
                                 &CLifeWorldEditor::set_initial_value);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_initial_value", "template_id", "value_key"),
                                 &CLifeWorldEditor::remove_initial_value);
+    godot::ClassDB::bind_method(godot::D_METHOD("set_template_base_characteristic", "template_id", "characteristic_id", "amount"), &CLifeWorldEditor::set_template_base_characteristic);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_template_base_characteristic", "template_id", "characteristic_id"), &CLifeWorldEditor::remove_template_base_characteristic);
     godot::ClassDB::bind_method(
         godot::D_METHOD("set_function_calculation_binding", "function_type_id", "calculation_id", "input_bindings"),
         &CLifeWorldEditor::set_function_calculation_binding);
@@ -2068,6 +2308,8 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(
         godot::D_METHOD("remove_function_material_contribution", "function_type_id", "value_key"),
         &CLifeWorldEditor::remove_function_material_contribution);
+    godot::ClassDB::bind_method(godot::D_METHOD("set_function_characteristic_contribution", "function_type_id", "characteristic_id", "amount_source"), &CLifeWorldEditor::set_function_characteristic_contribution);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_function_characteristic_contribution", "function_type_id", "characteristic_id"), &CLifeWorldEditor::remove_function_characteristic_contribution);
     godot::ClassDB::bind_method(godot::D_METHOD("add_genome_function", "template_id", "function_type_id"),
                                 &CLifeWorldEditor::add_genome_function);
     godot::ClassDB::bind_method(
@@ -2090,6 +2332,8 @@ void CLifeWorldEditor::_bind_methods()
         &CLifeWorldEditor::change_host_binding);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_host_binding", "template_id", "index"),
                                 &CLifeWorldEditor::remove_host_binding);
+    godot::ClassDB::bind_method(godot::D_METHOD("set_object_construction", "calculation_id", "inputs", "outputs"), &CLifeWorldEditor::set_object_construction);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_object_construction"), &CLifeWorldEditor::remove_object_construction);
     godot::ClassDB::bind_method(godot::D_METHOD("select_template", "template_id"), &CLifeWorldEditor::select_template);
     godot::ClassDB::bind_method(godot::D_METHOD("get_selected_template_id"),
                                 &CLifeWorldEditor::get_selected_template_id);
