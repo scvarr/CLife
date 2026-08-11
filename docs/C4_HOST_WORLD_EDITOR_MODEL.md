@@ -38,6 +38,10 @@ CompiledPhenotype
 
 Старый `RuntimeWorld::set_input(...)` сохраняет declared HostBinding semantics; он не является синонимом direct environmental input. Core не знает, что `world.light` означает свет.
 
+## Stateful editor runtime preview
+
+The current Godot Objects editor can hold one selected `ObjectTemplate` preview runtime across manual `Step` actions. `Start` creates the one-object runtime from the current definition, `Step` stages the current Godot external-input test values and executes exactly one tick, `Reset` reconstructs the same template from initial state, and `Stop` destroys the preview. The host reads runtime Values and compiled buffer state (`stored_amount`, `received_last_tick`, `supplied_last_tick`) through the existing engine-neutral `RuntimeWorld` projection. Any facade edit or template selection stops an active preview before changing its source definition.
+
 ## Persistence
 
 WorldDefinition snapshot сохраняется в `user://current_world.clife.json`. Godot-specific external-input configuration сохраняется отдельно в `user://current_world.godot.json`. Snapshot backward compatibility между schema versions пока не гарантируется: host может принимать только актуальную schema, а старый test save допускается пересоздать.

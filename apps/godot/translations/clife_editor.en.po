@@ -1031,3 +1031,36 @@ msgstr "V = %s"
 
 msgid "ux.volume_preview_mesh_invalid"
 msgstr "The current ShapePhenotype could not produce a valid preview mesh."
+
+msgid "ux.runtime_preview"
+msgstr "RUNTIME PREVIEW"
+
+msgid "ux.runtime_start"
+msgstr "Start"
+
+msgid "ux.runtime_step"
+msgstr "Step"
+
+msgid "ux.runtime_reset"
+msgstr "Reset"
+
+msgid "ux.runtime_stop"
+msgstr "Stop"
+
+msgid "ux.runtime_tick"
+msgstr "Tick: %s"
+
+msgid "ux.runtime_buffers"
+msgstr "COMPILED BUFFERS"
+
+msgid "ux.buffer_stored"
+msgstr "Stored"
+
+msgid "ux.buffer_received"
+msgstr "Received last tick"
+
+msgid "ux.buffer_supplied"
+msgstr "Supplied last tick"
+
+msgid "ux.runtime_no_buffers"
+msgstr "This object has no compiled buffers."

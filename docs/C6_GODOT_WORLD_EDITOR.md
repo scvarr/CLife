@@ -32,15 +32,11 @@
 - **Объекты** — `ObjectTemplate` с ordered `GenomeFunctionInstance`, semantic genome preview, one-step runtime proof, read-only material/characteristic preview и 3D ShapePhenotype preview.
 - **Внешние входы** — Godot host configuration: host channel → World Quantity (`ValueKey`) + test value. Она не записывается в ObjectTemplate HostBinding.
 
-One-step proof временно запускает выбранный template, подаёт внешние inputs для preview object через facade/direct runtime input, выполняет один tick, читает runtime values и останавливает runtime. Он не создаёт постоянный runtime object или simulation screen.
+Objects editor provides a minimal stateful one-object runtime proof: `Start`, manual single-tick `Step`, `Reset`, and `Stop`. It displays the current tick, runtime Values, and every compiled buffer's stored amount plus received/supplied amounts from the last tick. Before every `Step`, the current Godot external-input test configuration is staged again through direct runtime input. This remains an editor proof, not a simulation screen, real-time Play mode, physics, or multi-object simulation.
 
 ## Shape and construction-volume debug preview
 
 Objects editor uses a batched native facade to sample the engine-neutral current `ShapePhenotype` on Godot-owned fixed directional tessellation. Godot creates the closed preview mesh and corrects its discrete mesh volume uniformly to the explicitly selected final `ObjectCharacteristic` volume. That selected characteristic id remains session-only editor/debug configuration; it does not add a builtin Volume semantic or persist in the world. Therefore the semantic genome controls morphology, while final `ObjectConstruction` still supplies physical preview size.
-
-## Construction-volume debug preview
-
-В текущем Godot-редакторе Objects есть editor-only 3D debug preview construction volume. Пользователь выбирает final `ObjectCharacteristic` по stable id только для текущей editor session; этот mapping не сохраняется ни в world snapshot, ни в Godot host configuration. Preview читает `get_template_characteristic_preview`, поэтому использует final result `ObjectConstruction`. Выбранное положительное конечное значение визуализируется как `SphereMesh`, геометрический объём которой равен этому значению; сфера является только debug placeholder.
 
 ## Persistence and lifecycle
 

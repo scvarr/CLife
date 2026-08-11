@@ -158,6 +158,9 @@ private:
     template <typename Operation> bool edit(Operation&& operation)
     {
         try {
+            if (runtime_) {
+                stop();
+            }
             require_edit_mode();
             operation();
             clear_error();

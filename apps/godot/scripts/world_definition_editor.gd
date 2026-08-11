@@ -28,6 +28,7 @@ var draft_genome_function_type_id := 0
 var editing_genome_index := -1
 var last_test_inputs: Array[Dictionary] = []
 var last_runtime_values: Array[Dictionary] = []
+var last_runtime_functions: Array[Dictionary] = []
 var new_characteristic_active := false
 var selected_construction_calculation_id := 0
 var selected_formula_id_by_function: Dictionary = {}
@@ -62,6 +63,7 @@ func _ready() -> void:
 	if not startup_status.is_empty(): status.text = startup_status
 
 func _show_units() -> void:
+	_discard_runtime_preview()
 	_clear_workspace()
 	_add_title(tr("ux.units"))
 	var header := HBoxContainer.new()
@@ -115,6 +117,7 @@ func _add_new_unit_row() -> void:
 	workspace.add_child(row); row.add_child(symbol); row.add_child(description); row.add_child(save); row.add_child(cancel)
 
 func _show_conversions() -> void:
+	_discard_runtime_preview()
 	_clear_workspace()
 	_add_title(tr("ux.conversions"))
 	var header := HBoxContainer.new()
@@ -131,6 +134,7 @@ func _show_conversions() -> void:
 	workspace.add_child(add)
 
 func _show_world_quantities() -> void:
+	_discard_runtime_preview()
 	_clear_workspace()
 	_add_title(tr("ux.world_quantities"))
 	var header := HBoxContainer.new()
@@ -262,6 +266,7 @@ func _add_new_conversion_row() -> void:
 	row.add_child(source_amount); row.add_child(source_unit); row.add_child(arrow); row.add_child(target_amount); row.add_child(target_unit); row.add_child(save); row.add_child(cancel); workspace.add_child(row)
 
 func _show_external_inputs() -> void:
+	_discard_runtime_preview()
 	_clear_workspace()
 	_add_title(tr("ux.external_inputs"))
 	var header := HBoxContainer.new()
@@ -361,6 +366,7 @@ func _has_value_key(value_key: int) -> bool:
 	return false
 
 func _show_characteristics() -> void:
+	_discard_runtime_preview()
 	_clear_workspace()
 	_add_title(tr("ux.object_characteristics"))
 	for characteristic in editor.get_object_characteristics():
@@ -402,6 +408,7 @@ func _add_new_characteristic_row() -> void:
 	row.add_child(name); row.add_child(save); row.add_child(cancel); workspace.add_child(row)
 
 func _show_construction() -> void:
+	_discard_runtime_preview()
 	_clear_workspace()
 	_add_title(tr("ux.construction"))
 	var existing := editor.get_object_construction()
@@ -545,7 +552,7 @@ func _build_object_editor(parent: VBoxContainer, template: Dictionary) -> void:
 	add.pressed.connect(func(): new_genome_function_active = true; draft_genome_function_type_id = 0; _show_objects())
 	parent.add_child(add)
 	_add_object_construction_preview(parent, template)
-	_add_one_step_test(parent, template)
+	_add_stateful_runtime_preview(parent, template)
 
 func _add_object_construction_preview(parent: VBoxContainer, template: Dictionary) -> void:
 	_add_section(parent, tr("ux.object_construction_preview"))
@@ -676,34 +683,76 @@ func _add_new_genome_function_row(parent: VBoxContainer, template: Dictionary) -
 	cancel.pressed.connect(func(): new_genome_function_active = false; draft_genome_function_type_id = 0; _show_objects())
 	row.add_child(save); row.add_child(cancel); parent.add_child(row)
 
-func _add_one_step_test(parent: VBoxContainer, template: Dictionary) -> void:
-	_add_section(parent, tr("ux.one_step_test"))
+func _add_stateful_runtime_preview(parent: VBoxContainer, template: Dictionary) -> void:
+	_add_section(parent, tr("ux.runtime_preview"))
 	for mapping in external_inputs:
 		var input := Label.new(); input.text = "%s -> %s = %s" % [str(mapping.get("channel", "")), _value_name(int(mapping.get("value_key", 0))), str(mapping.get("test_value", 0.0))]; parent.add_child(input)
-	var run := Button.new(); run.text = tr("ux.run_one_step"); run.pressed.connect(func(): _run_one_step_test(int(template.id))); parent.add_child(run)
-	if not last_test_inputs.is_empty() or not last_runtime_values.is_empty():
-		_add_section(parent, tr("ux.last_step_result"))
-		var inputs_title := Label.new(); inputs_title.text = tr("ux.sent_inputs"); parent.add_child(inputs_title)
-		for input in last_test_inputs:
-			var input_label := Label.new(); input_label.text = "%s -> %s = %s" % [str(input.channel), _value_name(int(input.value_key)), str(input.amount)]; parent.add_child(input_label)
-		var values_title := Label.new(); values_title.text = tr("ux.runtime_values"); parent.add_child(values_title)
-		for value in last_runtime_values:
-			var value_label := Label.new(); value_label.text = "%s = %s" % [str(value.name), str(value.amount)]; parent.add_child(value_label)
+	var active := editor.is_run_active()
+	var tick := Label.new(); tick.text = tr("ux.runtime_tick") % editor.get_tick(); parent.add_child(tick)
+	var controls := HBoxContainer.new()
+	var start := Button.new(); start.text = tr("ux.runtime_start"); start.disabled = active
+	start.pressed.connect(func(): _start_runtime_preview(int(template.id)))
+	var step := Button.new(); step.text = tr("ux.runtime_step"); step.disabled = not active
+	step.pressed.connect(_step_runtime_preview)
+	var reset := Button.new(); reset.text = tr("ux.runtime_reset"); reset.disabled = not active
+	reset.pressed.connect(_reset_runtime_preview)
+	var stop := Button.new(); stop.text = tr("ux.runtime_stop"); stop.disabled = not active
+	stop.pressed.connect(_stop_runtime_preview)
+	controls.add_child(start); controls.add_child(step); controls.add_child(reset); controls.add_child(stop); parent.add_child(controls)
+	if not active:
+		return
+	var inputs_title := Label.new(); inputs_title.text = tr("ux.sent_inputs"); parent.add_child(inputs_title)
+	for input in last_test_inputs:
+		var input_label := Label.new(); input_label.text = "%s -> %s = %s" % [str(input.channel), _value_name(int(input.value_key)), str(input.amount)]; parent.add_child(input_label)
+	var values_title := Label.new(); values_title.text = tr("ux.runtime_values"); parent.add_child(values_title)
+	for value in last_runtime_values:
+		var value_label := Label.new(); value_label.text = "%s = %s" % [str(value.name), str(value.amount)]; parent.add_child(value_label)
+	var buffers_title := Label.new(); buffers_title.text = tr("ux.runtime_buffers"); parent.add_child(buffers_title)
+	var has_buffers := false
+	for function in last_runtime_functions:
+		var buffer: Dictionary = (function as Dictionary).get("buffer", {})
+		if buffer.is_empty(): continue
+		has_buffers = true
+		var function_title := Label.new(); function_title.text = str((function as Dictionary).get("function_type_name", "")); parent.add_child(function_title)
+		for detail in [["ux.buffer_stored", "stored_amount"], ["ux.buffer_received", "received_last_tick"], ["ux.buffer_supplied", "supplied_last_tick"]]:
+			var item := Label.new(); item.text = "%s = %s" % [tr(str(detail[0])), str(buffer.get(str(detail[1]), 0.0))]; parent.add_child(item)
+	if not has_buffers:
+		var empty := Label.new(); empty.text = tr("ux.runtime_no_buffers"); parent.add_child(empty)
 
-func _run_one_step_test(template_id: int) -> void:
-	last_test_inputs.clear(); last_runtime_values.clear()
+func _start_runtime_preview(template_id: int) -> void:
+	last_test_inputs.clear(); last_runtime_values.clear(); last_runtime_functions.clear()
 	if not editor.select_template(template_id): _show_error(); return
 	if not editor.run(): _show_error(); return
+	_refresh_runtime_preview(); _show_objects()
+
+func _step_runtime_preview() -> void:
+	if not editor.is_run_active(): return
+	last_test_inputs.clear()
 	for mapping in external_inputs:
 		if not editor.set_preview_input(int(mapping.get("value_key", 0)), float(mapping.get("test_value", 0.0))):
-			var input_error := editor.get_last_error(); editor.stop(); status.text = input_error; return
+			status.text = editor.get_last_error(); return
 		last_test_inputs.append({"channel": str(mapping.get("channel", "")), "value_key": int(mapping.get("value_key", 0)), "amount": float(mapping.get("test_value", 0.0))})
 	if not editor.step_once():
-		var step_error := editor.get_last_error(); editor.stop(); status.text = step_error; return
+		status.text = editor.get_last_error(); return
+	_refresh_runtime_preview(); _show_objects()
+
+func _reset_runtime_preview() -> void:
+	if not editor.reset_runtime(): _show_error(); return
+	last_test_inputs.clear(); _refresh_runtime_preview(); _show_objects()
+
+func _stop_runtime_preview() -> void:
+	_discard_runtime_preview()
+	if selected_template_id != 0: _show_objects()
+
+func _discard_runtime_preview() -> void:
+	if editor.is_run_active(): editor.stop()
+	last_test_inputs.clear(); last_runtime_values.clear(); last_runtime_functions.clear()
+
+func _refresh_runtime_preview() -> void:
 	last_runtime_values.assign(editor.get_runtime_values())
-	var read_error := editor.get_last_error(); editor.stop()
-	if not read_error.is_empty(): status.text = read_error; return
-	_show_objects()
+	last_runtime_functions.assign(editor.get_runtime_functions())
+	var read_error := editor.get_last_error()
+	if not read_error.is_empty(): status.text = read_error
 
 func _find_template(id: int) -> Dictionary:
 	for template in editor.get_templates():
@@ -711,6 +760,7 @@ func _find_template(id: int) -> Dictionary:
 	return {}
 
 func _show_functions() -> void:
+	_discard_runtime_preview()
 	_clear_workspace()
 	var split := HBoxContainer.new(); split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var list_panel := VBoxContainer.new(); list_panel.custom_minimum_size.x = 280
@@ -1003,6 +1053,7 @@ func _add_title_to(parent: VBoxContainer, text: String) -> void:
 	var title := Label.new(); title.text = text; title.add_theme_font_size_override("font_size", 26); parent.add_child(title)
 
 func _show_formulas() -> void:
+	_discard_runtime_preview()
 	_clear_workspace()
 	var split := HBoxContainer.new(); split.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	var list_panel := VBoxContainer.new(); list_panel.custom_minimum_size.x = 280
@@ -1226,6 +1277,7 @@ func _save_external_inputs() -> bool:
 	return true
 
 func _load_current_world() -> void:
+	_discard_runtime_preview()
 	if not FileAccess.file_exists(WORLD_SAVE_PATH):
 		startup_status = tr("menu.saved_world_not_found")
 		return
@@ -1279,4 +1331,5 @@ func _add_title(text: String) -> void:
 	var title := Label.new(); title.text = text; title.add_theme_font_size_override("font_size", 26); workspace.add_child(title)
 
 func _on_back() -> void:
+	_discard_runtime_preview()
 	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")

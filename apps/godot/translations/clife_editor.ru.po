@@ -1041,3 +1041,36 @@ msgstr "V = %s"
 
 msgid "ux.volume_preview_mesh_invalid"
 msgstr "Текущий ShapePhenotype не смог создать корректную сетку предпросмотра."
+
+msgid "ux.runtime_preview"
+msgstr "ПРЕДПРОСМОТР RUNTIME"
+
+msgid "ux.runtime_start"
+msgstr "Старт"
+
+msgid "ux.runtime_step"
+msgstr "Шаг"
+
+msgid "ux.runtime_reset"
+msgstr "Сброс"
+
+msgid "ux.runtime_stop"
+msgstr "Стоп"
+
+msgid "ux.runtime_tick"
+msgstr "Такт: %s"
+
+msgid "ux.runtime_buffers"
+msgstr "СОСТОЯНИЕ БУФЕРОВ"
+
+msgid "ux.buffer_stored"
+msgstr "Хранится"
+
+msgid "ux.buffer_received"
+msgstr "Получено за прошлый такт"
+
+msgid "ux.buffer_supplied"
+msgstr "Отдано за прошлый такт"
+
+msgid "ux.runtime_no_buffers"
+msgstr "У этого объекта нет скомпилированных буферов."
