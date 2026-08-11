@@ -259,7 +259,7 @@ struct CalculationSnapshot final {
 };
 
 struct WorldDefinitionSnapshot final {
-    std::uint32_t schema_version{7};
+    std::uint32_t schema_version{8};
     std::vector<ValueDefinition> values;
     std::vector<UnitDefinition> units;
     std::vector<UnitConversionDefinition> unit_conversions;
@@ -268,6 +268,7 @@ struct WorldDefinitionSnapshot final {
     std::vector<FunctionTypeSnapshot> function_types;
     std::vector<ObjectTemplate> templates;
     std::vector<WorldRuleDefinition> world_rules;
+    std::vector<CalculationWorldRuleDefinition> calculation_world_rules;
     std::optional<ObjectConstructionDefinition> object_construction;
     std::uint32_t next_value_key{1};
     std::uint32_t next_template_id{1};

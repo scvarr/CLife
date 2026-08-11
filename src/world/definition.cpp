@@ -1173,6 +1173,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
         .object_characteristics = object_characteristics_,
         .templates = templates_,
         .world_rules = world_rules_,
+        .calculation_world_rules = calculation_world_rules_,
         .object_construction = object_construction_,
         .next_value_key = next_value_key_,
         .next_template_id = next_template_id_,
@@ -1211,7 +1212,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
 
 WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& source)
 {
-    if (source.schema_version != 7) {
+    if (source.schema_version != 8) {
         throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version"};
     }
     require_unique_snapshot_ids(source.values, &ValueDefinition::key, "ValueKey");
@@ -1416,8 +1417,10 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
         restored.templates_.push_back(std::move(object));
     }
     for (const WorldRuleDefinition& rule : source.world_rules) {
-        restored.validate_rule(rule, kNoIndex);
-        restored.world_rules_.push_back(rule);
+        (void)restored.add_world_rule(rule);
+    }
+    for (const CalculationWorldRuleDefinition& rule : source.calculation_world_rules) {
+        (void)restored.add_calculation_world_rule(rule);
     }
     if (source.object_construction) {
         restored.validate_object_construction(*source.object_construction);

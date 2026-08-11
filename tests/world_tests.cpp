@@ -576,6 +576,8 @@ bool test_calculation_references_prevent_removal()
 bool test_snapshot_round_trip()
 {
     SynthesisWorld original = make_synthesis_world();
+    (void)original.definition.add_world_rule(
+        {.source = original.useful, .end_buffer = original.loss, .target = original.organic, .target_per_source = 0.5});
     const WorldDefinitionSnapshot snapshot = original.definition.snapshot();
     const WorldDefinition restored = WorldDefinition::from_snapshot(snapshot);
     const FunctionTypeDefinition& type = restored.function_type(original.type);
@@ -583,13 +585,84 @@ bool test_snapshot_round_trip()
     const CompiledFunctionPhenotype& function = phenotype.function(0);
     WorldDefinitionSnapshot old = snapshot;
     old.schema_version = 6;
-    return expect(snapshot.schema_version == 7, "current snapshot schema") &&
+    return expect(snapshot.schema_version == 8, "current snapshot schema") &&
            expect(type.calculations.size() == 1, "calculation binding round trip") &&
            expect(type.process->outputs.size() == 2, "process round trip") &&
            expect(type.material_contributions.size() == 1, "material source round trip") &&
+           expect(restored.world_rules().size() == 1, "legacy world rule round trip") &&
+           expect(restored.world_rules().front().target_per_source == 0.5, "legacy world rule semantics round trip") &&
            near(function.calculation_output(original.calculation, original.efficiency), 1.0,
                 "compiled output after restore") &&
            rejects([&] { (void)WorldDefinition::from_snapshot(old); }, "old schema must fail clearly");
+}
+
+bool test_calculation_world_rule_snapshot_round_trip()
+{
+    WorldDefinition definition;
+    const ValueKey energy = definition.add_value("Energy");
+    const ValueKey temperature = definition.add_value("Temperature");
+    const ValueKey exposure = definition.add_value("Exposure");
+    const ObjectCharacteristicId heat_capacity = definition.add_object_characteristic("HeatCapacity");
+    const TemplateId cell = definition.add_template("Cell");
+    definition.set_initial_value(cell, energy, 1.0);
+    const CalculationId construction = definition.add_calculation("Construction");
+    const CalculationPortId construction_output = definition.add_calculation_output(construction, "HeatCapacity", "5");
+    definition.set_object_construction({.calculation = construction,
+        .outputs = {{.output = construction_output, .characteristic = heat_capacity}}});
+    const CalculationId calculation = definition.add_calculation("Rule");
+    const CalculationPortId residual = definition.add_calculation_input(calculation, "residual");
+    const CalculationPortId current = definition.add_calculation_input(calculation, "current");
+    const CalculationPortId capacity = definition.add_calculation_input(calculation, "capacity");
+    const CalculationPortId temperature_delta =
+        definition.add_calculation_output(calculation, "temperature", "residual / capacity");
+    const CalculationPortId exposure_delta =
+        definition.add_calculation_output(calculation, "exposure", "current + residual");
+    (void)definition.add_calculation_world_rule({
+        .source = energy,
+        .calculation = calculation,
+        .inputs = {{.input = residual,
+                    .kind = CalculationWorldRuleInputSourceKind::source_residual,
+                    .value = energy},
+                   {.input = current,
+                    .kind = CalculationWorldRuleInputSourceKind::runtime_value,
+                    .value = exposure},
+                   {.input = capacity,
+                    .kind = CalculationWorldRuleInputSourceKind::object_characteristic,
+                    .characteristic = heat_capacity}},
+        .outputs = {{.output = temperature_delta, .target = temperature},
+                    {.output = exposure_delta, .target = exposure}},
+    });
+
+    WorldDefinitionSnapshot snapshot = definition.snapshot();
+    const WorldDefinition restored = WorldDefinition::from_snapshot(snapshot);
+    const auto& rule = restored.calculation_world_rules().front();
+    snapshot.world_rules.push_back({.source = temperature,
+                                    .end_buffer = exposure,
+                                    .target = energy,
+                                    .target_per_source = 1.0});
+    const bool mixed_rejected = rejects([&] { (void)WorldDefinition::from_snapshot(snapshot); },
+                                        "mixed snapshot world rule families must be rejected");
+    RuntimeWorld runtime{restored};
+    const ObjectId object = runtime.instantiate(cell);
+    runtime.step();
+    return expect(restored.calculation_world_rules().size() == 1, "calculation world rule snapshot round trip") &&
+           expect(rule.source == energy && rule.calculation == calculation, "calculation world rule identity round trip") &&
+           expect(rule.inputs.size() == 3 &&
+                      rule.inputs[0].input == residual &&
+                      rule.inputs[0].kind == CalculationWorldRuleInputSourceKind::source_residual &&
+                      rule.inputs[0].value == energy && rule.inputs[1].input == current &&
+                      rule.inputs[1].kind == CalculationWorldRuleInputSourceKind::runtime_value &&
+                      rule.inputs[1].value == exposure && rule.inputs[2].input == capacity &&
+                      rule.inputs[2].kind == CalculationWorldRuleInputSourceKind::object_characteristic &&
+                      rule.inputs[2].characteristic == heat_capacity,
+                  "all calculation world rule input kinds round trip") &&
+           expect(rule.outputs.size() == 2 && rule.outputs[0].output == temperature_delta &&
+                      rule.outputs[0].target == temperature && rule.outputs[1].output == exposure_delta &&
+                      rule.outputs[1].target == exposure,
+                  "calculation world rule output bindings round trip") &&
+           mixed_rejected && near(runtime.value(object, temperature), 0.2,
+                                  "restored calculation world rule compiles and executes") &&
+           near(runtime.value(object, exposure), 1.0, "restored multiple output bindings execute");
 }
 
 bool test_snapshot_invalid_source_and_next_ids()
@@ -890,6 +963,7 @@ int main()
     run(test_calculation_dependency_safe_edits, "calculation dependency-safe edits");
     run(test_calculation_references_prevent_removal, "calculation references prevent removal");
     run(test_snapshot_round_trip, "snapshot round trip");
+    run(test_calculation_world_rule_snapshot_round_trip, "calculation world rule snapshot round trip");
     run(test_snapshot_invalid_source_and_next_ids, "snapshot invalid source and next IDs");
     run(test_object_characteristic_construction, "object characteristic construction");
     run(test_material_construction_source, "material construction source");
