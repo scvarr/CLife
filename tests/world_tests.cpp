@@ -272,9 +272,8 @@ bool test_world_rule_families_are_exclusive()
         [&] { (void)definition.add_calculation_world_rule(modern); },
         "calculation world rule must be rejected while legacy world rules exist");
     definition.remove_world_rule(legacy_index);
-    const bool switched_after_removal = !rejects(
-        [&] { (void)definition.add_calculation_world_rule(modern); },
-        "calculation world rule must be accepted after the last legacy rule is removed");
+    (void)definition.add_calculation_world_rule(modern);
+    const bool switched_after_removal = definition.calculation_world_rules().size() == 1;
     return legacy_rejected && calculation_rejected && switched_after_removal;
 }
 
@@ -474,7 +473,8 @@ bool test_buffer_calculation_sources()
     });
     const TemplateId object = definition.add_template("Cell");
     (void)definition.add_genome_function(object, type);
-    const auto& buffer = *compile_phenotype(definition, object).function(0).buffer_parameters();
+    const CompiledPhenotype phenotype = compile_phenotype(definition, object);
+    const auto& buffer = *phenotype.function(0).buffer_parameters();
     return near(buffer.capacity, 10.0, "buffer capacity source") &&
            near(buffer.throughput, 3.0, "buffer throughput source") &&
            near(buffer.leakage, 0.0, "buffer leakage source");
