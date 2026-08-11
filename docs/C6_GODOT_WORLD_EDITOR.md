@@ -45,7 +45,3 @@ Objects editor uses a batched native facade to sample the engine-neutral current
 **Сохранить** записывает committed `WorldDefinitionSnapshot` в `user://current_world.clife.json` и Godot-specific external-input config в `user://current_world.godot.json`. **Загрузить мир** загружает единственный current world и, если существует, его host config. **Новый мир** всегда получает пустую definition и пустое host-config state; он не загружает сохранённый мир автоматически.
 
 Пока нет multi-world browser, Save As, autosave и dirty tracking.
-
-## Legacy development stand
-
-`scenes/main.tscn`, `scripts/main.gd` и его Function Library остаются legacy/development stand и всё ещё могут быть открыты вручную в Godot. Они не являются основным current UX.

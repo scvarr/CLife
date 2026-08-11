@@ -28,8 +28,11 @@ Function material contributions, aggregate materials и `material_amount` source
 
 ## Editor workspaces
 
-Новый `world_definition_editor` уже author-ит Units, World Quantities, Conversions, Formulas, Functions, Object Characteristics, Construction, Objects и External Inputs. Старый Function Library — legacy/development stand, не основной UX. Отдельные более широкие libraries и будущий simulation/world screen вводятся только при реальной необходимости.
+`world_definition_editor` already authors Units, World Quantities, Conversions, Formulas, Functions, Object Characteristics, Construction, Objects, World Rules, and External Inputs. Broader libraries and a future simulation/world screen are introduced only when genuinely needed.
 
+## Product/project name
+
+The current CLife name is historical and temporary. Near release, a separate product/project rename is needed because the system is evolving into a broader engine-neutral programmable-world/calculator framework. Nothing is renamed now.
 ## Structural operations
 
 Division, topology changes и structural mutations at tick boundary требуют отдельной модели последствий и будущей задачи.

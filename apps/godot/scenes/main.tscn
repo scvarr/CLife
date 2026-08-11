@@ -1,4 +1,4 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene format=3 uid="uid://o1xd5ohc7ffu"]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_script"]
 
@@ -15,34 +15,34 @@ height = 2.0
 [sub_resource type="SphereShape3D" id="Shape_cell"]
 radius = 1.0
 
-[node name="CLifeDemo" type="Node3D"]
+[node name="CLifeDemo" type="Node3D" unique_id=81857506]
 script = ExtResource("1_script")
 
-[node name="Cell" type="MeshInstance3D" parent="."]
+[node name="Cell" type="MeshInstance3D" parent="." unique_id=1339327182]
 mesh = SubResource("Sphere_cell")
 
-[node name="SelectionArea" type="Area3D" parent="Cell"]
+[node name="SelectionArea" type="Area3D" parent="Cell" unique_id=464889632]
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="Cell/SelectionArea"]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Cell/SelectionArea" unique_id=1365496462]
 shape = SubResource("Shape_cell")
 
-[node name="Camera3D" type="Camera3D" parent="."]
+[node name="Camera3D" type="Camera3D" parent="." unique_id=1717011198]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6)
 current = true
 
-[node name="KeyLight" type="DirectionalLight3D" parent="."]
-rotation_degrees = Vector3(-35, -35, 0)
+[node name="KeyLight" type="DirectionalLight3D" parent="." unique_id=360047201]
+transform = Transform3D(0.81915206, 0.32898995, -0.46984634, 0, 0.81915206, 0.57357645, 0.57357645, -0.46984634, 0.6710101, 0, 0, 0)
 light_energy = 1.4
 shadow_enabled = true
 
-[node name="FillLight" type="OmniLight3D" parent="."]
-position = Vector3(-2, 1.5, 3)
+[node name="FillLight" type="OmniLight3D" parent="." unique_id=916812658]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 1.5, 3)
 light_color = Color(0.3, 0.55, 1, 1)
 omni_range = 10.0
 
-[node name="UI" type="CanvasLayer" parent="."]
+[node name="UI" type="CanvasLayer" parent="." unique_id=2027265816]
 
-[node name="Root" type="Control" parent="UI"]
+[node name="Root" type="Control" parent="UI" unique_id=2077240963]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0

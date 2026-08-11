@@ -910,7 +910,7 @@ func _build_function_characteristics(parent: VBoxContainer, function_type: Dicti
 	_add_section(parent, tr("ux.function_characteristic_contributions"))
 	for contribution in function_type.get("characteristic_contributions", []):
 		var row := HBoxContainer.new()
-		var characteristic := _characteristic_selector(int(contribution.get("characteristic_id", 0))); characteristic.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var characteristic := _characteristic_selector(int(contribution.get("characteristic_id", 0)), false); characteristic.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var source := _source_selector(function_type, contribution.get("amount_source", {})); source.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		var save := Button.new(); save.text = tr("ux.save")
 		save.pressed.connect(func():
@@ -924,7 +924,7 @@ func _build_function_characteristics(parent: VBoxContainer, function_type: Dicti
 		)
 		row.add_child(characteristic); row.add_child(source); row.add_child(save); row.add_child(remove); parent.add_child(row)
 	var add_row := HBoxContainer.new()
-	var add_characteristic := _characteristic_selector(0); add_characteristic.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var add_characteristic := _characteristic_selector(0, false); add_characteristic.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var add_source := _source_selector(function_type, {}); add_source.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var add := Button.new(); add.text = tr("ux.add")
 	add.pressed.connect(func():
