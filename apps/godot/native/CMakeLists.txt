@@ -24,6 +24,11 @@ endif()
 
 add_library(clife_godot SHARED
     src/clife_world_editor.cpp
+    src/clife_world_editor_marshalling.cpp
+    src/clife_world_editor_definition.cpp
+    src/clife_world_editor_authoring.cpp
+    src/clife_world_editor_runtime.cpp
+    src/clife_world_editor_snapshot.cpp
     src/register_types.cpp
 )
 
