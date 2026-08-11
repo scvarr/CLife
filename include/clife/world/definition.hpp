@@ -213,6 +213,27 @@ struct WorldRuleDefinition final {
     Amount target_per_source;
 };
 
+enum class CalculationWorldRuleInputSourceKind { source_residual, runtime_value, object_characteristic };
+
+struct CalculationWorldRuleInputBinding final {
+    CalculationPortId input;
+    CalculationWorldRuleInputSourceKind kind;
+    ValueKey value{};
+    ObjectCharacteristicId characteristic{};
+};
+
+struct CalculationWorldRuleOutputBinding final {
+    CalculationPortId output;
+    ValueKey target;
+};
+
+struct CalculationWorldRuleDefinition final {
+    ValueKey source;
+    CalculationId calculation;
+    std::vector<CalculationWorldRuleInputBinding> inputs;
+    std::vector<CalculationWorldRuleOutputBinding> outputs;
+};
+
 struct FunctionTypeSnapshot final {
     FunctionTypeId id;
     std::string name;
@@ -328,6 +349,9 @@ public:
     [[nodiscard]] std::size_t add_world_rule(WorldRuleDefinition rule);
     void change_world_rule(std::size_t index, WorldRuleDefinition rule);
     void remove_world_rule(std::size_t index);
+    [[nodiscard]] std::size_t add_calculation_world_rule(CalculationWorldRuleDefinition rule);
+    void change_calculation_world_rule(std::size_t index, CalculationWorldRuleDefinition rule);
+    void remove_calculation_world_rule(std::size_t index);
 
     [[nodiscard]] std::size_t add_host_binding(TemplateId id, HostBinding binding);
     void change_host_binding(TemplateId id, std::size_t index, HostBinding binding);
@@ -345,6 +369,7 @@ public:
     [[nodiscard]] const std::vector<FunctionTypeDefinition>& function_types() const noexcept;
     [[nodiscard]] const std::vector<CalculationDefinition>& calculations() const noexcept;
     [[nodiscard]] const std::vector<WorldRuleDefinition>& world_rules() const noexcept;
+    [[nodiscard]] const std::vector<CalculationWorldRuleDefinition>& calculation_world_rules() const noexcept;
     [[nodiscard]] const ValueDefinition& value(ValueKey key) const;
     [[nodiscard]] const UnitDefinition& unit(UnitId id) const;
     [[nodiscard]] const ObjectCharacteristicDefinition& object_characteristic(ObjectCharacteristicId id) const;
@@ -365,6 +390,7 @@ private:
     void validate_unit_expression(const UnitExpression& expression) const;
     void validate_object_construction(const ObjectConstructionDefinition& construction) const;
     void validate_rule(const WorldRuleDefinition& rule, std::size_t ignored_index) const;
+    void validate_calculation_world_rule(const CalculationWorldRuleDefinition& rule, std::size_t ignored_index) const;
     void validate_binding(const ObjectTemplate& object, const HostBinding& binding, std::size_t ignored_index) const;
 
     std::vector<ValueDefinition> values_;
@@ -375,6 +401,7 @@ private:
     std::vector<FunctionTypeDefinition> function_types_;
     std::vector<CalculationDefinition> calculations_;
     std::vector<WorldRuleDefinition> world_rules_;
+    std::vector<CalculationWorldRuleDefinition> calculation_world_rules_;
     std::optional<ObjectConstructionDefinition> object_construction_;
     std::uint32_t next_value_key_{1};
     std::uint32_t next_template_id_{1};

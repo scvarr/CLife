@@ -255,6 +255,11 @@ void WorldDefinition::remove_object_characteristic(ObjectCharacteristicId id)
                 return item.source_kind == HostBinding::SourceKind::object_characteristic &&
                        referenced(item.characteristic);
             });
+        }) || std::ranges::any_of(calculation_world_rules_, [&](const CalculationWorldRuleDefinition& rule) {
+            return std::ranges::any_of(rule.inputs, [&](const CalculationWorldRuleInputBinding& input) {
+                return input.kind == CalculationWorldRuleInputSourceKind::object_characteristic &&
+                       referenced(input.characteristic);
+            });
         })) {
         throw std::invalid_argument{"cannot remove a referenced object characteristic"};
     }
@@ -290,6 +295,15 @@ void WorldDefinition::remove_value(ValueKey key)
     }
     if (std::ranges::any_of(world_rules_, [&](const WorldRuleDefinition& rule) {
             return referenced(rule.source) || referenced(rule.end_buffer) || referenced(rule.target);
+        }) || std::ranges::any_of(calculation_world_rules_, [&](const CalculationWorldRuleDefinition& rule) {
+            return referenced(rule.source) ||
+                   std::ranges::any_of(rule.inputs, [&](const CalculationWorldRuleInputBinding& input) {
+                       return input.kind != CalculationWorldRuleInputSourceKind::object_characteristic &&
+                              referenced(input.value);
+                   }) ||
+                   std::ranges::any_of(rule.outputs, [&](const CalculationWorldRuleOutputBinding& output) {
+                       return referenced(output.target);
+                   });
         })) {
         throw std::invalid_argument{"cannot remove a referenced value"};
     }
@@ -835,6 +849,8 @@ void WorldDefinition::remove_calculation(CalculationId id)
             return std::ranges::any_of(type.calculations, [id](const FunctionCalculationBinding& binding) {
                 return binding.calculation == id;
             });
+        }) || std::ranges::any_of(calculation_world_rules_, [id](const CalculationWorldRuleDefinition& rule) {
+            return rule.calculation == id;
         })) {
         throw std::invalid_argument{"calculation is referenced by a function type"};
     }
@@ -850,6 +866,11 @@ void WorldDefinition::remove_calculation_input(CalculationId calculation_id, Cal
                            return entry.input == input;
                        });
             });
+        }) || std::ranges::any_of(calculation_world_rules_, [calculation_id, input](const CalculationWorldRuleDefinition& rule) {
+            return rule.calculation == calculation_id &&
+                   std::ranges::any_of(rule.inputs, [input](const CalculationWorldRuleInputBinding& binding) {
+                       return binding.input == input;
+                   });
         })) {
         throw std::invalid_argument{"calculation input is referenced by a function type"};
     }
@@ -881,6 +902,14 @@ void WorldDefinition::remove_calculation_output(CalculationId calculation_id, Ca
             })) {
             throw std::invalid_argument{"calculation output is referenced by a function type"};
         }
+    }
+    if (std::ranges::any_of(calculation_world_rules_, [calculation_id, output](const CalculationWorldRuleDefinition& rule) {
+            return rule.calculation == calculation_id &&
+                   std::ranges::any_of(rule.outputs, [output](const CalculationWorldRuleOutputBinding& binding) {
+                       return binding.output == output;
+                   });
+        })) {
+        throw std::invalid_argument{"calculation output is referenced by a calculation world rule"};
     }
 
     CalculationDefinition candidate = calculation(calculation_id);
@@ -975,6 +1004,26 @@ void WorldDefinition::remove_world_rule(std::size_t index)
     world_rules_.erase(world_rules_.begin() + static_cast<std::ptrdiff_t>(index));
 }
 
+std::size_t WorldDefinition::add_calculation_world_rule(CalculationWorldRuleDefinition rule)
+{
+    validate_calculation_world_rule(rule, kNoIndex);
+    calculation_world_rules_.push_back(std::move(rule));
+    return calculation_world_rules_.size() - 1;
+}
+
+void WorldDefinition::change_calculation_world_rule(std::size_t index, CalculationWorldRuleDefinition rule)
+{
+    if (index >= calculation_world_rules_.size()) throw std::out_of_range{"calculation world rule index is out of range"};
+    validate_calculation_world_rule(rule, index);
+    calculation_world_rules_[index] = std::move(rule);
+}
+
+void WorldDefinition::remove_calculation_world_rule(std::size_t index)
+{
+    if (index >= calculation_world_rules_.size()) throw std::out_of_range{"calculation world rule index is out of range"};
+    calculation_world_rules_.erase(calculation_world_rules_.begin() + static_cast<std::ptrdiff_t>(index));
+}
+
 std::size_t WorldDefinition::add_host_binding(TemplateId id, HostBinding binding)
 {
     ObjectTemplate& object = mutable_template(id);
@@ -1044,6 +1093,10 @@ const std::vector<FunctionTypeDefinition>& WorldDefinition::function_types() con
 
 const std::vector<CalculationDefinition>& WorldDefinition::calculations() const noexcept { return calculations_; }
 const std::vector<WorldRuleDefinition>& WorldDefinition::world_rules() const noexcept { return world_rules_; }
+const std::vector<CalculationWorldRuleDefinition>& WorldDefinition::calculation_world_rules() const noexcept
+{
+    return calculation_world_rules_;
+}
 
 const ValueDefinition& WorldDefinition::value(ValueKey key) const
 {
@@ -1484,6 +1537,42 @@ void WorldDefinition::validate_rule(const WorldRuleDefinition& rule, std::size_t
     for (std::size_t index = 0; index < world_rules_.size(); ++index) {
         if (index != ignored_index && world_rules_[index].source == rule.source) {
             throw std::invalid_argument{"world value has more than one consuming rule"};
+        }
+    }
+}
+
+void WorldDefinition::validate_calculation_world_rule(const CalculationWorldRuleDefinition& rule, std::size_t ignored_index) const
+{
+    (void)value(rule.source);
+    const CalculationDefinition& calculation = this->calculation(rule.calculation);
+    if (rule.outputs.empty() || rule.inputs.size() != calculation.inputs.size()) {
+        throw std::invalid_argument{"calculation world rule bindings are incomplete"};
+    }
+    bool has_source = false;
+    for (const CalculationWorldRuleInputBinding& input : rule.inputs) {
+        if (std::ranges::count(rule.inputs, input.input, &CalculationWorldRuleInputBinding::input) != 1 ||
+            std::ranges::none_of(calculation.inputs, [&](const CalculationInputDefinition& port) { return port.id == input.input; })) {
+            throw std::invalid_argument{"calculation world rule input binding is invalid"};
+        }
+        if (input.kind == CalculationWorldRuleInputSourceKind::source_residual) {
+            (void)value(input.value);
+            if (input.value != rule.source) throw std::invalid_argument{"calculation world rule residual must match source"};
+            has_source = true;
+        } else if (input.kind == CalculationWorldRuleInputSourceKind::runtime_value) (void)value(input.value);
+        else if (input.kind == CalculationWorldRuleInputSourceKind::object_characteristic) (void)object_characteristic(input.characteristic);
+        else throw std::invalid_argument{"calculation world rule input source kind is invalid"};
+    }
+    if (!has_source) throw std::invalid_argument{"calculation world rule source residual is missing"};
+    for (const CalculationWorldRuleOutputBinding& output : rule.outputs) {
+        if (std::ranges::count(rule.outputs, output.output, &CalculationWorldRuleOutputBinding::output) != 1 ||
+            std::ranges::none_of(calculation.outputs, [&](const CalculationOutputDefinition& port) { return port.id == output.output; })) {
+            throw std::invalid_argument{"calculation world rule output binding is invalid"};
+        }
+        (void)value(output.target);
+    }
+    for (std::size_t index = 0; index < calculation_world_rules_.size(); ++index) {
+        if (index != ignored_index && calculation_world_rules_[index].source == rule.source) {
+            throw std::invalid_argument{"world value has more than one consuming calculation world rule"};
         }
     }
 }

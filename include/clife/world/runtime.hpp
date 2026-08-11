@@ -2,6 +2,7 @@
 
 #include <clife/world/definition.hpp>
 #include <clife/world/phenotype.hpp>
+#include <clife/world/runtime_rules.hpp>
 
 #include <compare>
 #include <cstdint>
@@ -51,6 +52,7 @@ private:
         Program program;
         std::vector<std::optional<std::size_t>> buffer_indices;
         std::vector<HostBinding> bindings;
+        RuntimeRuleExecutor calculation_world_rules;
     };
 
     struct RuntimeObject final {

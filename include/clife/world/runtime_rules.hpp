@@ -30,6 +30,7 @@ struct RuntimeWorldRule final {
 
 class RuntimeRuleExecutor final {
 public:
+    RuntimeRuleExecutor() = default;
     explicit RuntimeRuleExecutor(std::vector<RuntimeWorldRule> rules);
 
     void apply(Calculator& calculator, const CompiledPhenotype& phenotype) const;

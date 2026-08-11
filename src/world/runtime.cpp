@@ -116,6 +116,31 @@ RuntimeWorld::RuntimeWorld(const WorldDefinition& definition)
             }
         }
 
+        std::vector<RuntimeWorldRule> calculation_world_rules;
+        calculation_world_rules.reserve(definition.calculation_world_rules().size());
+        for (const CalculationWorldRuleDefinition& rule : definition.calculation_world_rules()) {
+            RuntimeWorldRule compiled_rule{.source = require_value_id(rule.source),
+                                            .calculation = definition.calculation(rule.calculation)};
+            for (const CalculationWorldRuleInputBinding& input : rule.inputs) {
+                RuntimeRuleInputBinding compiled_input{.input = input.input};
+                if (input.kind == CalculationWorldRuleInputSourceKind::source_residual) {
+                    compiled_input.kind = RuntimeRuleInputKind::end_residual;
+                    compiled_input.value = require_value_id(input.value);
+                } else if (input.kind == CalculationWorldRuleInputSourceKind::runtime_value) {
+                    compiled_input.kind = RuntimeRuleInputKind::runtime_value;
+                    compiled_input.value = require_value_id(input.value);
+                } else {
+                    compiled_input.kind = RuntimeRuleInputKind::object_characteristic;
+                    compiled_input.characteristic = input.characteristic;
+                }
+                compiled_rule.inputs.push_back(compiled_input);
+            }
+            for (const CalculationWorldRuleOutputBinding& output : rule.outputs) {
+                compiled_rule.outputs.push_back({.output = output.output, .target = require_value_id(output.target)});
+            }
+            calculation_world_rules.push_back(std::move(compiled_rule));
+        }
+
         // Construct once during compilation so invalid cross-definition combinations fail here.
         const Calculator validation{program};
         (void)validation;
@@ -125,6 +150,7 @@ RuntimeWorld::RuntimeWorld(const WorldDefinition& definition)
             .program = std::move(program),
             .buffer_indices = std::move(buffer_indices),
             .bindings = source.host_bindings,
+            .calculation_world_rules = RuntimeRuleExecutor{std::move(calculation_world_rules)},
         });
     }
     std::ranges::sort(templates_, {}, &CompiledTemplate::source);
@@ -208,6 +234,8 @@ void RuntimeWorld::step()
             external.push_back({.value = require_value_id(key), .amount = amount});
         }
         target.calculator.step(external);
+        const CompiledTemplate& compiled = compiled_template(target.source);
+        compiled.calculation_world_rules.apply(target.calculator, compiled.phenotype);
         target.staged_inputs.clear();
     }
 }

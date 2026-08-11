@@ -203,6 +203,132 @@ bool test_runtime_rule_executor_rejects_duplicate_source()
     return rejects([&] { RuntimeRuleExecutor{{rule, rule}}; }, "duplicate runtime rule source must be rejected");
 }
 
+bool test_calculation_world_rule_authoring_and_runtime()
+{
+    WorldDefinition definition;
+    const ValueKey energy = definition.add_value("Energy");
+    const ValueKey temperature = definition.add_value("Temperature");
+    const ValueKey exposure = definition.add_value("Exposure");
+    const ObjectCharacteristicId heat_capacity = definition.add_object_characteristic("HeatCapacity");
+    const TemplateId cell = definition.add_template("Cell");
+    definition.set_initial_value(cell, energy, 1.0);
+    const CalculationId construction = definition.add_calculation("Construction");
+    const CalculationPortId construction_output = definition.add_calculation_output(construction, "HeatCapacity", "5");
+    definition.set_object_construction({.calculation = construction,
+        .outputs = {{.output = construction_output, .characteristic = heat_capacity}}});
+    const CalculationId calculation = definition.add_calculation("Rule");
+    const CalculationPortId residual = definition.add_calculation_input(calculation, "residual");
+    const CalculationPortId current = definition.add_calculation_input(calculation, "current");
+    const CalculationPortId capacity = definition.add_calculation_input(calculation, "capacity");
+    const CalculationPortId temperature_delta = definition.add_calculation_output(calculation, "temperature", "residual / capacity");
+    const CalculationPortId exposure_delta = definition.add_calculation_output(calculation, "exposure", "current + residual * 0.05");
+    const CalculationWorldRuleDefinition rule{.source = energy, .calculation = calculation,
+        .inputs = {{.input = residual, .kind = CalculationWorldRuleInputSourceKind::source_residual, .value = energy},
+                   {.input = current, .kind = CalculationWorldRuleInputSourceKind::runtime_value, .value = temperature},
+                   {.input = capacity, .kind = CalculationWorldRuleInputSourceKind::object_characteristic, .characteristic = heat_capacity}},
+        .outputs = {{.output = temperature_delta, .target = temperature}, {.output = exposure_delta, .target = exposure}}};
+    (void)definition.add_calculation_world_rule(rule);
+    const bool duplicate_rejected = rejects([&] { (void)definition.add_calculation_world_rule(rule); }, "duplicate calculation world rule source must fail");
+    const bool missing_rejected = rejects([&] {
+        auto invalid = rule; invalid.inputs.pop_back(); (void)definition.change_calculation_world_rule(0, invalid);
+    }, "missing calculation world rule input must fail");
+    RuntimeWorld runtime{definition};
+    const ObjectId object = runtime.instantiate(cell);
+    runtime.step();
+    return duplicate_rejected && missing_rejected && near(runtime.value(object, energy), 0.0, "runtime rule consumes ordinary residual") &&
+           near(runtime.last_end_value(object, energy), 1.0, "ordinary residual reaches runtime rule") &&
+           near(runtime.value(object, temperature), 0.2, "runtime rule uses HeatCapacity") &&
+           near(runtime.value(object, exposure), 0.05, "runtime rule supports multiple outputs");
+}
+
+bool test_calculation_world_rule_consumes_function_residual()
+{
+    SynthesisWorld world = make_synthesis_world();
+    const ValueKey temperature = world.definition.add_value("Temperature");
+    const ObjectCharacteristicId heat_capacity = world.definition.add_object_characteristic("HeatCapacity");
+    const CalculationId construction = world.definition.add_calculation("Construction");
+    const CalculationPortId construction_output =
+        world.definition.add_calculation_output(construction, "HeatCapacity", "5");
+    world.definition.set_object_construction({
+        .calculation = construction,
+        .outputs = {{.output = construction_output, .characteristic = heat_capacity}},
+    });
+    const CalculationId calculation = world.definition.add_calculation("Function residual rule");
+    const CalculationPortId residual = world.definition.add_calculation_input(calculation, "residual");
+    const CalculationPortId capacity = world.definition.add_calculation_input(calculation, "capacity");
+    const CalculationPortId delta =
+        world.definition.add_calculation_output(calculation, "temperature_delta", "residual / capacity");
+    (void)world.definition.add_calculation_world_rule({
+        .source = world.useful,
+        .calculation = calculation,
+        .inputs = {{.input = residual,
+                    .kind = CalculationWorldRuleInputSourceKind::source_residual,
+                    .value = world.useful},
+                   {.input = capacity,
+                    .kind = CalculationWorldRuleInputSourceKind::object_characteristic,
+                    .characteristic = heat_capacity}},
+        .outputs = {{.output = delta, .target = temperature}},
+    });
+    RuntimeWorld runtime{world.definition};
+    const ObjectId object = runtime.instantiate(world.cell);
+    runtime.step();
+    return near(runtime.value(object, world.useful), 0.0, "function residual is finalized for the rule") &&
+           near(runtime.last_end_value(object, world.useful), 0.1,
+                "function output reaches the calculation world rule without an end transfer") &&
+           near(runtime.value(object, temperature), 0.02,
+                "function residual calculation rule applies its delta");
+}
+
+bool test_calculation_world_rule_consumes_buffer_leakage()
+{
+    WorldDefinition definition;
+    const ValueKey energy = definition.add_value("Energy");
+    const ValueKey temperature = definition.add_value("Temperature");
+    const ObjectCharacteristicId heat_capacity = definition.add_object_characteristic("HeatCapacity");
+    const FunctionTypeId storage = definition.add_function_type("Storage");
+    const ParameterId capacity = definition.add_genome_parameter(storage, "capacity", 1.0);
+    const ParameterId leakage = definition.add_genome_parameter(storage, "leakage", 0.5);
+    definition.set_buffer_process(storage, {
+        .value = energy,
+        .capacity = genome(capacity),
+        .throughput = genome(capacity),
+        .leakage = genome(leakage),
+    });
+    const TemplateId cell = definition.add_template("Cell");
+    (void)definition.add_genome_function(cell, storage);
+    definition.set_initial_value(cell, energy, 1.0);
+    const CalculationId construction = definition.add_calculation("Construction");
+    const CalculationPortId construction_output =
+        definition.add_calculation_output(construction, "HeatCapacity", "5");
+    definition.set_object_construction({
+        .calculation = construction,
+        .outputs = {{.output = construction_output, .characteristic = heat_capacity}},
+    });
+    const CalculationId calculation = definition.add_calculation("Leakage rule");
+    const CalculationPortId residual = definition.add_calculation_input(calculation, "residual");
+    const CalculationPortId capacity_input = definition.add_calculation_input(calculation, "capacity");
+    const CalculationPortId delta =
+        definition.add_calculation_output(calculation, "temperature_delta", "residual / capacity");
+    (void)definition.add_calculation_world_rule({
+        .source = energy,
+        .calculation = calculation,
+        .inputs = {{.input = residual,
+                    .kind = CalculationWorldRuleInputSourceKind::source_residual,
+                    .value = energy},
+                   {.input = capacity_input,
+                    .kind = CalculationWorldRuleInputSourceKind::object_characteristic,
+                    .characteristic = heat_capacity}},
+        .outputs = {{.output = delta, .target = temperature}},
+    });
+    RuntimeWorld runtime{definition};
+    const ObjectId object = runtime.instantiate(cell);
+    runtime.step();
+    return near(runtime.last_end_value(object, energy), 0.5,
+                "buffer leakage reaches the calculation world rule as end residual") &&
+           near(runtime.value(object, temperature), 0.1,
+                "buffer leakage calculation rule applies its delta");
+}
+
 bool test_runtime_rule_executor_is_order_independent()
 {
     WorldDefinition definition;
@@ -712,6 +838,9 @@ int main()
     run(test_runtime_rule_executor, "runtime rule executor");
     run(test_finalize_residual_combines_ordinary_value_and_leakage, "finalize residual combines leakage");
     run(test_runtime_rule_executor_rejects_duplicate_source, "runtime rule executor duplicate source");
+    run(test_calculation_world_rule_authoring_and_runtime, "calculation world rule authoring and runtime");
+    run(test_calculation_world_rule_consumes_function_residual, "calculation world rule function residual");
+    run(test_calculation_world_rule_consumes_buffer_leakage, "calculation world rule buffer leakage");
     run(test_runtime_rule_executor_is_order_independent, "runtime rule executor order independence");
     run(test_direct_external_input_without_host_binding, "direct external input without host binding");
     run(test_allocation_validation, "allocation validation");
