@@ -1017,3 +1017,24 @@ msgstr "КОНСТРУКЦИЯ ОБЪЕКТА"
 
 msgid "status.construction_input_required"
 msgstr "Выберите источник для каждого входа конструкции."
+
+msgid "ux.construction_volume_preview"
+msgstr "3D-ПРЕДПРОСМОТР"
+
+msgid "ux.volume_for_preview"
+msgstr "Объём для предпросмотра"
+
+msgid "ux.select_characteristic"
+msgstr "Выберите характеристику"
+
+msgid "ux.volume_preview_no_characteristics"
+msgstr "Для этого предпросмотра нет итоговых характеристик объекта."
+
+msgid "ux.volume_preview_select_characteristic"
+msgstr "Выберите итоговую характеристику, временно интерпретируемую как объём для debug-предпросмотра."
+
+msgid "ux.volume_preview_invalid"
+msgstr "Выбранная характеристика не является положительным конечным объёмом."
+
+msgid "ux.volume_preview_value"
+msgstr "V = %s"

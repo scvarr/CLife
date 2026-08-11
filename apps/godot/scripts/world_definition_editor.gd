@@ -1,6 +1,7 @@
 extends Control
 
 const WorldEditorSession = preload("res://scripts/world_editor_session.gd")
+const ConstructionVolumePreview = preload("res://scenes/construction_volume_preview.tscn")
 const WORLD_SAVE_PATH := "user://current_world.clife.json"
 const GODOT_HOST_CONFIG_PATH := "user://current_world.godot.json"
 
@@ -20,6 +21,7 @@ var new_function_material_active := false
 var new_external_input_active := false
 var external_inputs: Array[Dictionary] = []
 var selected_template_id := 0
+var preview_volume_characteristic_ids_by_template: Dictionary = {}
 var new_object_active := false
 var new_genome_function_active := false
 var draft_genome_function_type_id := 0
@@ -556,9 +558,52 @@ func _add_object_construction_preview(parent: VBoxContainer, template: Dictionar
 	var preview := editor.get_template_characteristic_preview(int(template.id))
 	if preview.is_empty() and not editor.get_last_error().is_empty():
 		var unavailable := Label.new(); unavailable.text = editor.get_last_error(); parent.add_child(unavailable); return
+	var characteristics: Array = preview.get("characteristics", [])
 	var characteristics_title := Label.new(); characteristics_title.text = tr("ux.object_characteristics"); parent.add_child(characteristics_title)
-	for characteristic in preview.get("characteristics", []):
+	for characteristic in characteristics:
 		var item := Label.new(); item.text = "%s = %s" % [_characteristic_name(int((characteristic as Dictionary).get("characteristic_id", 0))), str((characteristic as Dictionary).get("amount", 0.0))]; parent.add_child(item)
+	_add_construction_volume_preview(parent, int(template.id), characteristics)
+
+func _add_construction_volume_preview(parent: VBoxContainer, template_id: int, characteristics: Array) -> void:
+	_add_section(parent, tr("ux.construction_volume_preview"))
+	if characteristics.is_empty():
+		var empty := Label.new(); empty.text = tr("ux.volume_preview_no_characteristics"); parent.add_child(empty)
+		return
+	var selected_id := int(preview_volume_characteristic_ids_by_template.get(template_id, 0))
+	var selected_characteristic: Dictionary = {}
+	for characteristic in characteristics:
+		if int((characteristic as Dictionary).get("characteristic_id", 0)) == selected_id:
+			selected_characteristic = characteristic
+			break
+	if characteristics.size() == 1:
+		selected_characteristic = characteristics[0]
+		selected_id = int(selected_characteristic.get("characteristic_id", 0))
+		preview_volume_characteristic_ids_by_template[template_id] = selected_id
+	var selector := OptionButton.new(); selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	if characteristics.size() > 1:
+		selector.add_item(tr("ux.select_characteristic"), 0)
+	for characteristic in characteristics:
+		var characteristic_id := int((characteristic as Dictionary).get("characteristic_id", 0))
+		selector.add_item(_characteristic_name(characteristic_id), characteristic_id)
+		if characteristic_id == selected_id:
+			selector.select(selector.item_count - 1)
+	selector.item_selected.connect(func(index: int):
+		var characteristic_id := selector.get_item_id(index)
+		if characteristic_id == 0: preview_volume_characteristic_ids_by_template.erase(template_id)
+		else: preview_volume_characteristic_ids_by_template[template_id] = characteristic_id
+		_show_objects()
+	)
+	parent.add_child(_labeled_row(tr("ux.volume_for_preview"), selector))
+	var volume_preview = ConstructionVolumePreview.instantiate()
+	parent.add_child(volume_preview)
+	if selected_characteristic.is_empty():
+		volume_preview.show_unavailable(tr("ux.volume_preview_select_characteristic"))
+		return
+	var volume := float(selected_characteristic.get("amount", 0.0))
+	if not is_finite(volume) or volume <= 0.0:
+		volume_preview.show_unavailable(tr("ux.volume_preview_invalid"))
+		return
+	volume_preview.show_volume(volume, tr("ux.volume_preview_value") % str(volume))
 
 func _semantic_genome_entry(entry: Dictionary) -> String:
 	var parts := ["%02X" % int(entry.get("function_type_id", 0))]

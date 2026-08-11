@@ -1007,3 +1007,24 @@ msgstr "OBJECT CONSTRUCTION"
 
 msgid "status.construction_input_required"
 msgstr "Select a source for every construction input."
+
+msgid "ux.construction_volume_preview"
+msgstr "3D PREVIEW"
+
+msgid "ux.volume_for_preview"
+msgstr "Volume for preview"
+
+msgid "ux.select_characteristic"
+msgstr "Select a characteristic"
+
+msgid "ux.volume_preview_no_characteristics"
+msgstr "No final object characteristics are available for this preview."
+
+msgid "ux.volume_preview_select_characteristic"
+msgstr "Select a final characteristic to interpret as volume for this debug preview."
+
+msgid "ux.volume_preview_invalid"
+msgstr "The selected characteristic is not a positive finite volume."
+
+msgid "ux.volume_preview_value"
+msgstr "V = %s"

@@ -34,6 +34,10 @@
 
 One-step proof временно запускает выбранный template, подаёт внешние inputs для preview object через facade/direct runtime input, выполняет один tick, читает runtime values и останавливает runtime. Он не создаёт постоянный runtime object или simulation screen.
 
+## Construction-volume debug preview
+
+В текущем Godot-редакторе Objects есть editor-only 3D debug preview construction volume. Пользователь выбирает final `ObjectCharacteristic` по stable id только для текущей editor session; этот mapping не сохраняется ни в world snapshot, ни в Godot host configuration. Preview читает `get_template_characteristic_preview`, поэтому использует final result `ObjectConstruction`. Выбранное положительное конечное значение визуализируется как `SphereMesh`, геометрический объём которой равен этому значению; сфера является только debug placeholder.
+
 ## Persistence and lifecycle
 
 **Сохранить** записывает committed `WorldDefinitionSnapshot` в `user://current_world.clife.json` и Godot-specific external-input config в `user://current_world.godot.json`. **Загрузить мир** загружает единственный current world и, если существует, его host config. **Новый мир** всегда получает пустую definition и пустое host-config state; он не загружает сохранённый мир автоматически.

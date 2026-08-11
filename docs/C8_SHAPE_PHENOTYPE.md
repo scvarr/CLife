@@ -46,6 +46,10 @@ host tessellation / rendering
 
 Количество triangles — rendering property, а не biological property. Конкретная engine-neutral data structure не выбрана.
 
+## Current Godot construction-volume debug preview
+
+Текущий Godot Objects editor может временно интерпретировать одну выбранную пользователем final construction characteristic как volume и отрисовать сферу с таким геометрическим объёмом. Это editor-only debug preview уже существующего construction phenotype. Сфера не является `ShapePhenotype`, не является canonical biological shape и не выбирает, не ограничивает и не подразумевает будущий shape algorithm.
+
 ## Algorithm remains open
 
 Следующие семейства — только **NON-NORMATIVE examples**, ни одно не выбрано:
