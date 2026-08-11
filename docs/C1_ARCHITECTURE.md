@@ -29,6 +29,18 @@ CompiledPhenotype
 RuntimeWorld / Calculator
 ```
 
+Независимый от construction/runtime текущий путь shape compilation:
+
+```text
+ObjectTemplate semantic genome
+  ↓
+temporary semantic shape projection
+  ↓
+ShapePhenotype
+```
+
+Этот временный semantic projection не является `compile_phenotype()` и не зависит от runtime calculator state. `ShapePhenotype` остаётся engine-neutral результатом world layer; host получает только samples для своей tessellation.
+
 Host/environment path отделён от legacy HostBinding:
 
 ```text

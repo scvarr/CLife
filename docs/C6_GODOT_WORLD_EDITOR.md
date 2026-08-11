@@ -29,10 +29,14 @@
 - **Функции** — текущий semantic scaffold `FunctionTypeDefinition`: genome parameters, Calculation binding, process, multiple outputs и material construction contributions. Preview вида `02 | 1.0` — семантическая запись, не physical hex genome.
 - **Характеристики объектов** — `ObjectCharacteristicDefinition`.
 - **Конструкция** — singleton `ObjectConstructionDefinition`; её inputs могут использовать base/function contributions и `material_amount`.
-- **Объекты** — `ObjectTemplate` с ordered `GenomeFunctionInstance`, semantic genome preview, one-step runtime proof и read-only material/characteristic preview.
+- **Объекты** — `ObjectTemplate` с ordered `GenomeFunctionInstance`, semantic genome preview, one-step runtime proof, read-only material/characteristic preview и 3D ShapePhenotype preview.
 - **Внешние входы** — Godot host configuration: host channel → World Quantity (`ValueKey`) + test value. Она не записывается в ObjectTemplate HostBinding.
 
 One-step proof временно запускает выбранный template, подаёт внешние inputs для preview object через facade/direct runtime input, выполняет один tick, читает runtime values и останавливает runtime. Он не создаёт постоянный runtime object или simulation screen.
+
+## Shape and construction-volume debug preview
+
+Objects editor uses a batched native facade to sample the engine-neutral current `ShapePhenotype` on Godot-owned fixed directional tessellation. Godot creates the closed preview mesh and corrects its discrete mesh volume uniformly to the explicitly selected final `ObjectCharacteristic` volume. That selected characteristic id remains session-only editor/debug configuration; it does not add a builtin Volume semantic or persist in the world. Therefore the semantic genome controls morphology, while final `ObjectConstruction` still supplies physical preview size.
 
 ## Construction-volume debug preview
 

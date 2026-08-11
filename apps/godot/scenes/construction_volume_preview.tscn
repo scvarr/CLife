@@ -1,4 +1,4 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/construction_volume_preview.gd" id="1_script"]
 
@@ -6,11 +6,6 @@
 albedo_color = Color(0.16, 0.62, 0.95, 1)
 metallic = 0.15
 roughness = 0.28
-
-[sub_resource type="SphereMesh" id="Sphere_volume"]
-material = SubResource("Material_volume")
-radius = 1.0
-height = 2.0
 
 [node name="ConstructionVolumePreview" type="VBoxContainer"]
 theme_override_constants/separation = 8
@@ -32,8 +27,8 @@ size = Vector2i(480, 240)
 
 [node name="World" type="Node3D" parent="PreviewSurface/PreviewViewport"]
 
-[node name="VolumeSphere" type="MeshInstance3D" parent="PreviewSurface/PreviewViewport/World"]
-mesh = SubResource("Sphere_volume")
+[node name="MorphologyMesh" type="MeshInstance3D" parent="PreviewSurface/PreviewViewport/World"]
+material_override = SubResource("Material_volume")
 
 [node name="Camera3D" type="Camera3D" parent="PreviewSurface/PreviewViewport/World"]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 6)

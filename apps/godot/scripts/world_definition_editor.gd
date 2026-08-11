@@ -603,7 +603,11 @@ func _add_construction_volume_preview(parent: VBoxContainer, template_id: int, c
 	if not is_finite(volume) or volume <= 0.0:
 		volume_preview.show_unavailable(tr("ux.volume_preview_invalid"))
 		return
-	volume_preview.show_volume(volume, tr("ux.volume_preview_value") % str(volume))
+	var radii := editor.sample_template_shape(template_id, volume_preview.tessellation_directions())
+	if radii.is_empty() and not editor.get_last_error().is_empty():
+		volume_preview.show_unavailable(editor.get_last_error())
+		return
+	volume_preview.show_shape(volume, radii, tr("ux.volume_preview_value") % str(volume))
 
 func _semantic_genome_entry(entry: Dictionary) -> String:
 	var parts := ["%02X" % int(entry.get("function_type_id", 0))]

@@ -2,6 +2,7 @@
 #include <clife/world/definition.hpp>
 #include <clife/world/phenotype.hpp>
 #include <clife/world/runtime.hpp>
+#include <clife/world/shape.hpp>
 
 #include <cmath>
 #include <exception>
@@ -468,6 +469,131 @@ bool test_unit_conversion_lifecycle()
                               "referenced conversion removal must fail");
 }
 
+Amount shape_volume(const ShapePhenotype& shape, std::size_t latitudes = 160, std::size_t longitudes = 320)
+{
+    constexpr Amount pi = 3.141592653589793238462643383279502884;
+    const Amount z_step = 2.0 / static_cast<Amount>(latitudes);
+    const Amount phi_step = 2.0 * pi / static_cast<Amount>(longitudes);
+    Amount integral{};
+    for (std::size_t latitude = 0; latitude < latitudes; ++latitude) {
+        const Amount z = -1.0 + (static_cast<Amount>(latitude) + 0.5) * z_step;
+        const Amount radial = std::sqrt(1.0 - z * z);
+        for (std::size_t longitude = 0; longitude < longitudes; ++longitude) {
+            const Amount phi = (static_cast<Amount>(longitude) + 0.5) * phi_step;
+            const Amount radius = shape.radius(radial * std::cos(phi), z, radial * std::sin(phi));
+            integral += radius * radius * radius;
+        }
+    }
+    return integral * z_step * phi_step / 3.0;
+}
+
+struct ShapeWorld final {
+    WorldDefinition definition;
+    TemplateId empty;
+    TemplateId first;
+    TemplateId reversed;
+    FunctionTypeId alpha;
+    FunctionTypeId beta;
+    ParameterId alpha_parameter;
+    ParameterId beta_parameter;
+};
+
+ShapeWorld make_shape_world()
+{
+    WorldDefinition definition;
+    const TemplateId empty = definition.add_template("empty");
+    const FunctionTypeId alpha = definition.add_function_type("alpha");
+    const ParameterId alpha_parameter = definition.add_genome_parameter(alpha, "alpha parameter", 1.0);
+    const FunctionTypeId beta = definition.add_function_type("beta");
+    const ParameterId beta_parameter = definition.add_genome_parameter(beta, "beta parameter", 2.0);
+    const TemplateId first = definition.add_template("first");
+    (void)definition.add_genome_function(first, alpha);
+    (void)definition.add_genome_function(first, beta);
+    definition.set_genome_parameter(first, 0, alpha_parameter, 1.25);
+    definition.set_genome_parameter(first, 1, beta_parameter, -0.75);
+    const TemplateId reversed = definition.add_template("reversed");
+    (void)definition.add_genome_function(reversed, beta);
+    (void)definition.add_genome_function(reversed, alpha);
+    definition.set_genome_parameter(reversed, 0, beta_parameter, -0.75);
+    definition.set_genome_parameter(reversed, 1, alpha_parameter, 1.25);
+    return {.definition = std::move(definition), .empty = empty, .first = first, .reversed = reversed,
+            .alpha = alpha, .beta = beta, .alpha_parameter = alpha_parameter, .beta_parameter = beta_parameter};
+}
+
+bool shapes_differ(const ShapePhenotype& left, const ShapePhenotype& right)
+{
+    for (std::size_t index = 0; index < ShapePhenotype::coefficient_count; ++index) {
+        if (std::abs(left.coefficients()[index] - right.coefficients()[index]) > 1e-12) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool test_semantic_shape_empty_genome()
+{
+    ShapeWorld world = make_shape_world();
+    const ShapePhenotype shape = compile_semantic_shape_phenotype(world.definition, world.empty);
+    constexpr Amount sphere_radius = 0.6203504908994001;
+    for (const Amount coefficient : shape.coefficients()) {
+        if (!near(coefficient, 0.0, "empty genome must produce zero shape coefficients")) {
+            return false;
+        }
+    }
+    return near(shape.radius(1.0, 0.0, 0.0), sphere_radius, "empty genome radius must be unit-volume sphere") &&
+           near(shape.radius(0.0, 1.0, 0.0), sphere_radius, "empty genome must be direction-independent") &&
+           expect(std::abs(shape_volume(shape) - 1.0) <= 1e-8, "empty genome canonical volume must be one");
+}
+
+bool test_semantic_shape_determinism_and_sensitivity()
+{
+    ShapeWorld world = make_shape_world();
+    const ShapePhenotype first = compile_semantic_shape_phenotype(world.definition, world.first);
+    const ShapePhenotype repeated = compile_semantic_shape_phenotype(world.definition, world.first);
+    for (std::size_t index = 0; index < ShapePhenotype::coefficient_count; ++index) {
+        if (!near(first.coefficients()[index], repeated.coefficients()[index], "same genome shape coefficients must be deterministic")) {
+            return false;
+        }
+    }
+    const ShapePhenotype reversed = compile_semantic_shape_phenotype(world.definition, world.reversed);
+    if (!expect(shapes_differ(first, reversed), "genome entry order must normally affect shape")) {
+        return false;
+    }
+    world.definition.set_genome_parameter(world.first, 0, world.alpha_parameter, 3.5);
+    const ShapePhenotype changed_parameter = compile_semantic_shape_phenotype(world.definition, world.first);
+    if (!expect(shapes_differ(first, changed_parameter), "genome parameter value must normally affect shape")) {
+        return false;
+    }
+    return expect(std::abs(shape_volume(changed_parameter) - 1.0) <= 2e-5,
+                  "normalized semantic shape volume must be one");
+}
+
+bool test_semantic_shape_rename_invariance_and_valid_field()
+{
+    ShapeWorld world = make_shape_world();
+    const ShapePhenotype before = compile_semantic_shape_phenotype(world.definition, world.first);
+    world.definition.rename_template(world.first, "renamed template");
+    world.definition.rename_function_type(world.alpha, "renamed function");
+    world.definition.update_genome_parameter(world.alpha, world.alpha_parameter, "renamed parameter", 1.0);
+    const ShapePhenotype after = compile_semantic_shape_phenotype(world.definition, world.first);
+    if (!expect(!shapes_differ(before, after), "authoring names must not affect semantic shape")) {
+        return false;
+    }
+    for (std::size_t latitude = 1; latitude < 20; ++latitude) {
+        for (std::size_t longitude = 0; longitude < 40; ++longitude) {
+            constexpr Amount pi = 3.141592653589793238462643383279502884;
+            const Amount theta = pi * static_cast<Amount>(latitude) / 20.0;
+            const Amount phi = 2.0 * pi * static_cast<Amount>(longitude) / 40.0;
+            const Amount radius = after.radius(std::sin(theta) * std::cos(phi), std::cos(theta),
+                                               std::sin(theta) * std::sin(phi));
+            if (!expect(std::isfinite(radius) && radius > 0.0, "semantic shape field must stay finite and positive")) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 } // namespace
 
 int main()
@@ -503,5 +629,8 @@ int main()
     run(test_unit_lifecycle, "unit lifecycle");
     run(test_genome_parameter_lifecycle, "genome parameter lifecycle");
     run(test_unit_conversion_lifecycle, "unit conversion lifecycle");
+    run(test_semantic_shape_empty_genome, "semantic shape empty genome");
+    run(test_semantic_shape_determinism_and_sensitivity, "semantic shape determinism and sensitivity");
+    run(test_semantic_shape_rename_invariance_and_valid_field, "semantic shape rename invariance and valid field");
     return success ? 0 : 1;
 }

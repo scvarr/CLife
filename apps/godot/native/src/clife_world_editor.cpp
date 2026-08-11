@@ -1,6 +1,7 @@
 #include "clife_world_editor.hpp"
 
 #include <clife/world/calculation.hpp>
+#include <clife/world/shape.hpp>
 
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/char_string.hpp>
@@ -749,6 +750,25 @@ godot::Dictionary CLifeWorldEditor::get_template_characteristic_preview(std::int
         }
         result["function_sums"] = sums; result["characteristics"] = characteristics; clear_error();
     } catch (...) { capture_current_error(); }
+    return result;
+}
+
+godot::PackedFloat64Array CLifeWorldEditor::sample_template_shape(
+    std::int64_t raw_template_id, const godot::PackedVector3Array& directions)
+{
+    godot::PackedFloat64Array result;
+    try {
+        const world::ShapePhenotype shape = world::compile_semantic_shape_phenotype(definition_, template_id(raw_template_id));
+        result.resize(directions.size());
+        for (std::int64_t index = 0; index < directions.size(); ++index) {
+            const godot::Vector3 direction = directions[index];
+            result.set(index, shape.radius(direction.x, direction.y, direction.z));
+        }
+        clear_error();
+    } catch (...) {
+        capture_current_error();
+        result.clear();
+    }
     return result;
 }
 
@@ -2356,6 +2376,8 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("get_world_rules"), &CLifeWorldEditor::get_world_rules);
     godot::ClassDB::bind_method(godot::D_METHOD("get_bindings", "template_id"), &CLifeWorldEditor::get_bindings);
     godot::ClassDB::bind_method(godot::D_METHOD("get_template_characteristic_preview", "template_id"), &CLifeWorldEditor::get_template_characteristic_preview);
+    godot::ClassDB::bind_method(godot::D_METHOD("sample_template_shape", "template_id", "directions"),
+                                &CLifeWorldEditor::sample_template_shape);
     godot::ClassDB::bind_method(godot::D_METHOD("get_host_capabilities"), &CLifeWorldEditor::get_host_capabilities);
     godot::ClassDB::bind_method(godot::D_METHOD("add_value", "name"), &CLifeWorldEditor::add_value);
     godot::ClassDB::bind_method(godot::D_METHOD("add_unit", "symbol", "description"), &CLifeWorldEditor::add_unit, DEFVAL(godot::String{}));

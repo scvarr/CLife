@@ -1028,3 +1028,6 @@ msgstr "The selected characteristic is not a positive finite volume."
 
 msgid "ux.volume_preview_value"
 msgstr "V = %s"
+
+msgid "ux.volume_preview_mesh_invalid"
+msgstr "The current ShapePhenotype could not produce a valid preview mesh."

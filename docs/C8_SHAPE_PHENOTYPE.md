@@ -2,7 +2,7 @@
 
 Статус: **CURRENT / NORMATIVE TARGET MODEL**.
 
-Архитектурная граница принята; implementation и algorithm ещё не выбраны.
+Архитектурная граница принята; первый ограниченный engine-neutral implementation уже существует, а будущие replacement/extension algorithms остаются открытыми.
 
 ## One genome, deterministic shape
 
@@ -18,7 +18,7 @@ Genome не содержит renderer-oriented representation: vertices, triangl
 
 ## Independent projection
 
-Одна physical genome имеет как минимум conceptual functional, construction и future shape projections. ShapeDecoder не обязан интерпретировать semantic FunctionType так же, как functional decoder: он может детерминированно использовать encoded bytes и их order. Его API и algorithm пока открыты.
+Одна physical genome имеет как минимум conceptual functional, construction и shape projections. Current master временно использует semantic genome scaffold до появления physical genome. Будущий ShapeDecoder не обязан интерпретировать semantic FunctionType так же, как functional decoder: он может детерминированно использовать encoded bytes и их order. Его API и algorithm пока открыты.
 
 ## Volume and shape are different
 
@@ -44,13 +44,17 @@ engine-neutral ShapePhenotype
 host tessellation / rendering
 ```
 
-Количество triangles — rendering property, а не biological property. Конкретная engine-neutral data structure не выбрана.
+Количество triangles — rendering property, а не biological property. Текущая engine-neutral data structure — continuous star-shaped radial phenotype; Godot chooses only its tessellation resolution.
 
-## Current Godot construction-volume debug preview
+## Current implemented radial ShapePhenotype
 
-Текущий Godot Objects editor может временно интерпретировать одну выбранную пользователем final construction characteristic как volume и отрисовать сферу с таким геометрическим объёмом. Это editor-only debug preview уже существующего construction phenotype. Сфера не является `ShapePhenotype`, не является canonical biological shape и не выбирает, не ограничивает и не подразумевает будущий shape algorithm.
+Current `ShapePhenotype` is a continuous star-shaped radial morphology around a canonical origin. For normalized direction `d = (x, y, z)`, it defines positive radius `r(d)` and surface point `d * r(d)`. It uses the fixed eight-term low-frequency engine-neutral basis `x`, `y`, `z`, `2xy`, `2yz`, `2zx`, `x²-y²`, `0.5(3z²-1)`. The bounded radial field is `exp(clamp(sum(ci * Bi), -0.9, 0.9))`; deterministic world-layer normalization makes canonical volume equal to one.
 
-## Algorithm remains open
+This first family supports smooth sphere-like forms, elongation, flattening, asymmetry, broad lobes and smooth irregular unicellular morphology. It intentionally does not support holes, disconnected components, overhangs invisible from the canonical origin, arbitrary topology, or non-star-shaped tentacles. These are current-model limitations, not a permanent universal restriction.
+
+The current Godot Objects editor samples this `ShapePhenotype`, tessellates it, and uniformly corrects the discrete mesh to the explicitly selected final construction-characteristic volume. The resulting radial morphology is a visualization of the current `ShapePhenotype`; the selected characteristic-to-volume mapping remains editor-only debug configuration and does not define ShapePhenotype or future physical-genome decoding.
+
+## Future extension remains open
 
 Следующие семейства — только **NON-NORMATIVE examples**, ни одно не выбрано:
 

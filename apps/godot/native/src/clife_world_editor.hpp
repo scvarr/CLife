@@ -5,6 +5,8 @@
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/variant/array.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/packed_float64_array.hpp>
+#include <godot_cpp/variant/packed_vector3_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 
 #include <cstdint>
@@ -36,6 +38,8 @@ public:
     [[nodiscard]] godot::Array get_world_rules();
     [[nodiscard]] godot::Array get_bindings(std::int64_t template_id);
     [[nodiscard]] godot::Dictionary get_template_characteristic_preview(std::int64_t template_id);
+    [[nodiscard]] godot::PackedFloat64Array sample_template_shape(std::int64_t template_id,
+                                                                   const godot::PackedVector3Array& directions);
     [[nodiscard]] godot::Array get_host_capabilities();
 
     [[nodiscard]] std::int64_t add_value(const godot::String& name);

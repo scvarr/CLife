@@ -59,6 +59,10 @@ Function characteristic contributions продолжают быть отдель
 
 ## Принятая target-модель physical genome
 
+## Current temporary semantic shape projection
+
+Current master derives the first `ShapePhenotype` from the ordered semantic genome scaffold: stable `FunctionTypeId`, `ParameterId`, finite parameter values and entry order are mixed deterministically into a bounded low-frequency radial field. Authoring names and construction characteristics are not inputs. This temporary projection exists only until physical-genome decoding is implemented; it does not define a byte layout, folding rule, or mutation model for that future genome.
+
 Physical genome — каноническая encoded byte/hex sequence, а не JSON/debug serialization. Human-readable names в нём не лежат. Decoder/compiler интерпретирует encoded identity и parameters относительно WorldDefinition.
 
 Целевое направление — маленькие мутируемые primitives и их композиция. Текущий крупный FunctionType — implementation scaffold, не гарантированный окончательный атом мутации. Canonical physical genome уже принят как target, но точные byte layout, opcode width, record width, float representation, endian, primitive alphabet, encoder, decoder и mutation engine остаются **OPEN / NOT YET DESIGNED**.

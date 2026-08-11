@@ -1038,3 +1038,6 @@ msgstr "Выбранная характеристика не является п
 
 msgid "ux.volume_preview_value"
 msgstr "V = %s"
+
+msgid "ux.volume_preview_mesh_invalid"
+msgstr "Текущий ShapePhenotype не смог создать корректную сетку предпросмотра."
