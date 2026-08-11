@@ -141,6 +141,7 @@ Calculator::Calculator(Program program)
 
 void Calculator::step(std::span<const ValueAmount> external_values)
 {
+    std::fill(end_buffer_.begin(), end_buffer_.end(), 0.0);
     for (std::size_t index = 0; index < generated_.size(); ++index) {
         if (generated_[index]) {
             values_[index] = 0.0;
@@ -254,11 +255,12 @@ void Calculator::step(std::span<const ValueAmount> external_values)
     for (std::size_t index = 0; index < program_.buffers.size(); ++index) {
         const BufferProcess& buffer = program_.buffers[index];
         BufferState& state = buffer_states_[index];
-        state.stored_amount -= std::min(state.stored_amount, buffer.leakage);
+        const Amount leaked = std::min(state.stored_amount, buffer.leakage);
+        state.stored_amount -= leaked;
         state.stored_amount = std::clamp(state.stored_amount, 0.0, buffer.capacity);
+        end_buffer_[buffer.value.index] += leaked;
     }
 
-    std::fill(end_buffer_.begin(), end_buffer_.end(), 0.0);
     std::fill(end_delta_.begin(), end_delta_.end(), 0.0);
 
     for (const EndBufferTransfer& transfer : program_.end_buffer_transfers) {

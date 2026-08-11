@@ -249,6 +249,22 @@ bool test_end_buffer_is_not_pipeline_input_and_clears()
     return expect_near(calculator.end_value(heat), 0.0, "end buffer clears between ticks");
 }
 
+bool test_buffer_leakage_reaches_end_buffer_after_function_flow()
+{
+    constexpr clife::ValueId energy{0};
+    constexpr clife::ValueId used{1};
+    clife::Calculator calculator{{
+        .value_count = 2,
+        .functions = {{.input = energy, .output = used, .throughput = 1.0}},
+        .buffers = {{.value = energy, .capacity = 2.0, .throughput = 2.0, .leakage = 1.0, .initial_amount = 2.0}},
+    }};
+    calculator.step({});
+    const clife::BufferState state = calculator.buffer_state(0);
+    return expect_near(state.stored_amount, 0.0, "leakage removes the remaining stored amount") &&
+           expect_near(calculator.end_value(energy), 1.0, "leakage reaches the same Value end residue") &&
+           expect_near(calculator.value(used), 1.0, "function consumes only pre-leak buffer amount");
+}
+
 bool test_buffer_surplus_limits_and_end_buffer()
 {
     constexpr clife::ValueId flow{0};
@@ -403,6 +419,9 @@ int main()
         return 1;
     }
     if (!test_end_buffer_is_not_pipeline_input_and_clears()) {
+        return 1;
+    }
+    if (!test_buffer_leakage_reaches_end_buffer_after_function_flow()) {
         return 1;
     }
     if (!test_buffer_surplus_limits_and_end_buffer()) {
