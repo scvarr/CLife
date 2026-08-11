@@ -14,7 +14,7 @@ var last_runtime_functions: Array[Dictionary] = []
 var last_end_buffer: Array[Dictionary] = []
 var external_inputs: Array[Dictionary]
 
-func configure(shell_instance: Control, editor_instance: Object, workspace_instance: VBoxContainer, status_instance: Label, host_config_instance: RefCounted) -> void:
+func configure(shell_instance: Control, editor_instance: CLifeWorldEditor, workspace_instance: VBoxContainer, status_instance: Label, host_config_instance: RefCounted) -> void:
 	super.configure(shell_instance, editor_instance, workspace_instance, status_instance, host_config_instance)
 	external_inputs = host_config.external_inputs
 

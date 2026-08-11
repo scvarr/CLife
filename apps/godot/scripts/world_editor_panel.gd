@@ -2,12 +2,12 @@ extends RefCounted
 class_name WorldEditorPanel
 
 var shell
-var editor
+var editor: CLifeWorldEditor
 var workspace: VBoxContainer
 var status: Label
 var host_config
 
-func configure(shell_instance: Control, editor_instance: Object, workspace_instance: VBoxContainer, status_instance: Label, host_config_instance: RefCounted) -> void:
+func configure(shell_instance: Control, editor_instance: CLifeWorldEditor, workspace_instance: VBoxContainer, status_instance: Label, host_config_instance: RefCounted) -> void:
 	shell = shell_instance
 	editor = editor_instance
 	workspace = workspace_instance
@@ -68,8 +68,23 @@ func _has_complex_value_unit(value: Dictionary) -> bool:
 func _value_selector(selected_id: int) -> OptionButton:
 	return shell._value_selector(selected_id)
 
+func _characteristic_selector(selected_id: int, allow_none: bool) -> OptionButton:
+	var selector := OptionButton.new()
+	if allow_none:
+		selector.add_item(tr("ux.none"), 0)
+	for characteristic in editor.get_object_characteristics():
+		selector.add_item(str(characteristic.name), int(characteristic.id))
+		if int(characteristic.id) == selected_id:
+			selector.select(selector.item_count - 1)
+	return selector
+
 func _conversion_selector(selected_id: int) -> OptionButton:
 	return shell._conversion_selector(selected_id)
+
+func _conversion_unit_symbol(components: Array) -> String:
+	if components.size() == 1 and int((components[0] as Dictionary).get("exponent", 0)) == 1:
+		return _unit_symbol(int((components[0] as Dictionary).get("id", 0)))
+	return tr("ux.complex_unit")
 
 func _parameter_selector(function_type: Dictionary, selected_id: int) -> OptionButton:
 	return shell._parameter_selector(function_type, selected_id)
@@ -85,6 +100,12 @@ func _source_matches(left: Dictionary, right: Dictionary) -> bool:
 
 func _find_calculation(id: int) -> Dictionary:
 	return shell._find_calculation(id)
+
+func _find_function(id: int) -> Dictionary:
+	for function_type in editor.get_function_types():
+		if int(function_type.id) == id:
+			return function_type
+	return {}
 
 func _value_name(key: int) -> String:
 	return shell._value_name(key)
