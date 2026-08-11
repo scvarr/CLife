@@ -892,6 +892,48 @@ msgstr "Вход"
 msgid "ux.throughput"
 msgstr "Пропускная способность"
 
+msgid "ux.initial_values"
+msgstr "НАЧАЛЬНЫЕ ЗНАЧЕНИЯ"
+
+msgid "ux.function_characteristic_contributions"
+msgstr "ВКЛАДЫ В ХАРАКТЕРИСТИКИ ОБЪЕКТА"
+
+msgid "ux.remove_formula_binding"
+msgstr "Удалить привязку формулы"
+
+msgid "ux.remove_process"
+msgstr "Удалить процесс"
+
+msgid "ux.world_rules"
+msgstr "Правила мира"
+
+msgid "ux.add_rule"
+msgstr "ДОБАВИТЬ ПРАВИЛО МИРА"
+
+msgid "ux.source"
+msgstr "Источник"
+
+msgid "ux.end_buffer"
+msgstr "Конечный буфер"
+
+msgid "ux.target"
+msgstr "Цель"
+
+msgid "ux.target_per_source"
+msgstr "Цель на единицу источника"
+
+msgid "ux.update_rule"
+msgstr "Обновить правило"
+
+msgid "ux.remove_rule"
+msgstr "Удалить правило"
+
+msgid "ux.runtime_end_buffer"
+msgstr "КОНЕЧНЫЙ БУФЕР"
+
+msgid "ux.runtime_no_end_buffer"
+msgstr "Значения конечного буфера не настроены."
+
 msgid "ux.buffer_process"
 msgstr "Буферный процесс"
 

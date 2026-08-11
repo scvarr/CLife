@@ -29,6 +29,7 @@ var editing_genome_index := -1
 var last_test_inputs: Array[Dictionary] = []
 var last_runtime_values: Array[Dictionary] = []
 var last_runtime_functions: Array[Dictionary] = []
+var last_end_buffer: Array[Dictionary] = []
 var new_characteristic_active := false
 var selected_construction_calculation_id := 0
 var selected_formula_id_by_function: Dictionary = {}
@@ -49,6 +50,7 @@ func _ready() -> void:
 	$Layout/Sidebar/Characteristics.text = tr("ux.object_characteristics")
 	$Layout/Sidebar/Construction.text = tr("ux.construction")
 	$Layout/Sidebar/Objects.text = tr("ux.objects")
+	$Layout/Sidebar/WorldRules.text = tr("ux.world_rules")
 	$Layout/Sidebar/ExternalInputs.text = tr("ux.external_inputs")
 	$Layout/Sidebar/Save.text = tr("ux.save_world")
 	add_child(context_menu)
@@ -264,6 +266,48 @@ func _add_new_conversion_row() -> void:
 	)
 	cancel.pressed.connect(func(): new_conversion_row_active = false; _show_conversions())
 	row.add_child(source_amount); row.add_child(source_unit); row.add_child(arrow); row.add_child(target_amount); row.add_child(target_unit); row.add_child(save); row.add_child(cancel); workspace.add_child(row)
+
+func _show_world_rules() -> void:
+	_discard_runtime_preview()
+	_clear_workspace()
+	_add_title(tr("ux.world_rules"))
+	for rule in editor.get_world_rules():
+		_add_world_rule_card(rule)
+	_add_section(workspace, tr("ux.add_rule"))
+	var add_row := HBoxContainer.new()
+	var source := _value_selector(0); source.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var end_buffer := _value_selector(0); end_buffer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var target := _value_selector(0); target.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var factor := SpinBox.new(); factor.step = 0.1; factor.value = 1.0
+	var add := Button.new(); add.text = tr("ux.add")
+	add.pressed.connect(func():
+		if not editor.add_world_rule(_selected_unit_id(source), _selected_unit_id(end_buffer), _selected_unit_id(target), factor.value): _show_error(); return
+		_show_world_rules()
+	)
+	add_row.add_child(source); add_row.add_child(end_buffer); add_row.add_child(target); add_row.add_child(factor); add_row.add_child(add); workspace.add_child(add_row)
+
+func _add_world_rule_card(rule: Dictionary) -> void:
+	var card := PanelContainer.new(); var box := VBoxContainer.new(); card.add_child(box)
+	var source := _value_selector(int(rule.get("source_key", 0)))
+	var end_buffer := _value_selector(int(rule.get("end_buffer_key", 0)))
+	var target := _value_selector(int(rule.get("target_key", 0)))
+	var factor := SpinBox.new(); factor.step = 0.1; factor.value = float(rule.get("target_per_source", 1.0))
+	box.add_child(_labeled_row(tr("ux.source"), source))
+	box.add_child(_labeled_row(tr("ux.end_buffer"), end_buffer))
+	box.add_child(_labeled_row(tr("ux.target"), target))
+	box.add_child(_labeled_row(tr("ux.target_per_source"), factor))
+	var actions := HBoxContainer.new()
+	var update := Button.new(); update.text = tr("ux.update_rule")
+	update.pressed.connect(func():
+		if not editor.change_world_rule(int(rule.get("index", -1)), _selected_unit_id(source), _selected_unit_id(end_buffer), _selected_unit_id(target), factor.value): _show_error(); return
+		_show_world_rules()
+	)
+	var remove := Button.new(); remove.text = tr("ux.remove_rule")
+	remove.pressed.connect(func():
+		if not editor.remove_world_rule(int(rule.get("index", -1))): _show_error(); return
+		_show_world_rules()
+	)
+	actions.add_child(update); actions.add_child(remove); box.add_child(actions); workspace.add_child(card)
 
 func _show_external_inputs() -> void:
 	_discard_runtime_preview()
@@ -543,6 +587,7 @@ func _build_object_editor(parent: VBoxContainer, template: Dictionary) -> void:
 		_show_objects()
 	)
 	name_row.add_child(name); name_row.add_child(save_name); parent.add_child(_labeled_row(tr("ux.name"), name_row))
+	_build_initial_values(parent, template)
 	_add_section(parent, tr("ux.genome"))
 	for entry in editor.get_genome(int(template.id)):
 		_add_genome_entry_card(parent, template, entry)
@@ -553,6 +598,33 @@ func _build_object_editor(parent: VBoxContainer, template: Dictionary) -> void:
 	parent.add_child(add)
 	_add_object_construction_preview(parent, template)
 	_add_stateful_runtime_preview(parent, template)
+
+func _build_initial_values(parent: VBoxContainer, template: Dictionary) -> void:
+	_add_section(parent, tr("ux.initial_values"))
+	for initial in editor.get_initial_values(int(template.id)):
+		var row := HBoxContainer.new()
+		var value := _value_selector(int(initial.get("value_key", 0))); value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var amount := SpinBox.new(); amount.step = 0.1; amount.value = float(initial.get("amount", 0.0))
+		var save := Button.new(); save.text = tr("ux.save")
+		save.pressed.connect(func():
+			if not editor.set_initial_value(int(template.id), _selected_unit_id(value), amount.value): _show_error(); return
+			_show_objects()
+		)
+		var remove := Button.new(); remove.text = tr("ux.delete")
+		remove.pressed.connect(func():
+			if not editor.remove_initial_value(int(template.id), int(initial.get("value_key", 0))): _show_error(); return
+			_show_objects()
+		)
+		row.add_child(value); row.add_child(amount); row.add_child(save); row.add_child(remove); parent.add_child(row)
+	var add_row := HBoxContainer.new()
+	var add_value := _value_selector(0); add_value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var add_amount := SpinBox.new(); add_amount.step = 0.1
+	var add := Button.new(); add.text = tr("ux.add")
+	add.pressed.connect(func():
+		if not editor.set_initial_value(int(template.id), _selected_unit_id(add_value), add_amount.value): _show_error(); return
+		_show_objects()
+	)
+	add_row.add_child(add_value); add_row.add_child(add_amount); add_row.add_child(add); parent.add_child(add_row)
 
 func _add_object_construction_preview(parent: VBoxContainer, template: Dictionary) -> void:
 	_add_section(parent, tr("ux.object_construction_preview"))
@@ -707,6 +779,12 @@ func _add_stateful_runtime_preview(parent: VBoxContainer, template: Dictionary) 
 	var values_title := Label.new(); values_title.text = tr("ux.runtime_values"); parent.add_child(values_title)
 	for value in last_runtime_values:
 		var value_label := Label.new(); value_label.text = "%s = %s" % [str(value.name), str(value.amount)]; parent.add_child(value_label)
+	var end_title := Label.new(); end_title.text = tr("ux.runtime_end_buffer"); parent.add_child(end_title)
+	if last_end_buffer.is_empty():
+		var end_empty := Label.new(); end_empty.text = tr("ux.runtime_no_end_buffer"); parent.add_child(end_empty)
+	else:
+		for value in last_end_buffer:
+			var end_value_label := Label.new(); end_value_label.text = "%s = %s" % [str(value.name), str(value.amount)]; parent.add_child(end_value_label)
 	var buffers_title := Label.new(); buffers_title.text = tr("ux.runtime_buffers"); parent.add_child(buffers_title)
 	var has_buffers := false
 	for function in last_runtime_functions:
@@ -720,7 +798,7 @@ func _add_stateful_runtime_preview(parent: VBoxContainer, template: Dictionary) 
 		var empty := Label.new(); empty.text = tr("ux.runtime_no_buffers"); parent.add_child(empty)
 
 func _start_runtime_preview(template_id: int) -> void:
-	last_test_inputs.clear(); last_runtime_values.clear(); last_runtime_functions.clear()
+	last_test_inputs.clear(); last_runtime_values.clear(); last_runtime_functions.clear(); last_end_buffer.clear()
 	if not editor.select_template(template_id): _show_error(); return
 	if not editor.run(): _show_error(); return
 	_refresh_runtime_preview(); _show_objects()
@@ -746,11 +824,12 @@ func _stop_runtime_preview() -> void:
 
 func _discard_runtime_preview() -> void:
 	if editor.is_run_active(): editor.stop()
-	last_test_inputs.clear(); last_runtime_values.clear(); last_runtime_functions.clear()
+	last_test_inputs.clear(); last_runtime_values.clear(); last_runtime_functions.clear(); last_end_buffer.clear()
 
 func _refresh_runtime_preview() -> void:
 	last_runtime_values.assign(editor.get_runtime_values())
 	last_runtime_functions.assign(editor.get_runtime_functions())
+	last_end_buffer.assign(editor.get_last_end_buffer())
 	var read_error := editor.get_last_error()
 	if not read_error.is_empty(): status.text = read_error
 
@@ -822,9 +901,37 @@ func _build_function_editor(parent: VBoxContainer, function_type: Dictionary) ->
 	_add_section(parent, tr("ux.semantic_genome_preview"))
 	var preview := Label.new(); preview.text = tr("ux.semantic_record") % _semantic_genome_preview(function_type); parent.add_child(preview)
 	_build_function_formula(parent, function_type)
+	_build_function_characteristics(parent, function_type)
 	_build_function_process(parent, function_type)
 	_build_function_buffer(parent, function_type)
 	_build_function_materials(parent, function_type)
+
+func _build_function_characteristics(parent: VBoxContainer, function_type: Dictionary) -> void:
+	_add_section(parent, tr("ux.function_characteristic_contributions"))
+	for contribution in function_type.get("characteristic_contributions", []):
+		var row := HBoxContainer.new()
+		var characteristic := _characteristic_selector(int(contribution.get("characteristic_id", 0))); characteristic.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var source := _source_selector(function_type, contribution.get("amount_source", {})); source.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var save := Button.new(); save.text = tr("ux.save")
+		save.pressed.connect(func():
+			if not editor.set_function_characteristic_contribution(int(function_type.id), _selected_unit_id(characteristic), _selected_source(source)): _show_error(); return
+			_show_functions()
+		)
+		var remove := Button.new(); remove.text = tr("ux.delete")
+		remove.pressed.connect(func():
+			if not editor.remove_function_characteristic_contribution(int(function_type.id), int(contribution.get("characteristic_id", 0))): _show_error(); return
+			_show_functions()
+		)
+		row.add_child(characteristic); row.add_child(source); row.add_child(save); row.add_child(remove); parent.add_child(row)
+	var add_row := HBoxContainer.new()
+	var add_characteristic := _characteristic_selector(0); add_characteristic.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var add_source := _source_selector(function_type, {}); add_source.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var add := Button.new(); add.text = tr("ux.add")
+	add.pressed.connect(func():
+		if not editor.set_function_characteristic_contribution(int(function_type.id), _selected_unit_id(add_characteristic), _selected_source(add_source)): _show_error(); return
+		_show_functions()
+	)
+	add_row.add_child(add_characteristic); add_row.add_child(add_source); add_row.add_child(add); parent.add_child(add_row)
 
 func _build_function_buffer(parent: VBoxContainer, function_type: Dictionary) -> void:
 	_add_section(parent, tr("ux.buffer_process"))
@@ -953,6 +1060,13 @@ func _build_function_formula(parent: VBoxContainer, function_type: Dictionary) -
 		_show_functions()
 	)
 	parent.add_child(save)
+	if not binding.is_empty():
+		var remove := Button.new(); remove.text = tr("ux.remove_formula_binding")
+		remove.pressed.connect(func():
+			if not editor.remove_function_calculation_binding(int(function_type.id), selected_id): _show_error(); return
+			_show_functions()
+		)
+		parent.add_child(remove)
 
 func _build_function_process(parent: VBoxContainer, function_type: Dictionary) -> void:
 	_add_section(parent, tr("ux.process"))
@@ -978,6 +1092,12 @@ func _build_function_process(parent: VBoxContainer, function_type: Dictionary) -
 		_show_functions()
 	)
 	parent.add_child(update)
+	var remove := Button.new(); remove.text = tr("ux.remove_process")
+	remove.pressed.connect(func():
+		if not editor.remove_function_process(int(function_type.id)): _show_error(); return
+		_show_functions()
+	)
+	parent.add_child(remove)
 	_add_section(parent, tr("ux.outputs"))
 	for output in process.outputs:
 		_add_process_output_card(parent, function_type, output)

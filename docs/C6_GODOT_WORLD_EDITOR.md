@@ -15,6 +15,7 @@
 Характеристики объектов
 Конструкция
 Объекты
+Правила мира
 Внешние входы
 
 Сохранить
@@ -26,13 +27,14 @@
 - **Величины мира** — текущие backend `ValueDefinition`; это не genome parameters.
 - **Преобразования** — `UnitConversionDefinition` между единицами.
 - **Формулы** — `CalculationDefinition`: inputs, ordered outputs и expressions. Поздний output может ссылаться на предыдущий.
-- **Функции** — текущий semantic scaffold `FunctionTypeDefinition`: genome parameters, Calculation binding, process, `BufferProcess` (Value, capacity/throughput/leakage sources), multiple outputs и material construction contributions. Источники параметров BufferProcess выбираются из genome parameter или Calculation output. Preview вида `02 | 1.0` — семантическая запись, не physical hex genome.
+- **Функции** — текущий semantic scaffold `FunctionTypeDefinition`: genome parameters, Calculation binding, process, `BufferProcess` (Value, capacity/throughput/leakage sources), multiple outputs, function characteristic contributions и material construction contributions. Источники параметров BufferProcess и contributions выбираются из genome parameter или Calculation output. Preview вида `02 | 1.0` — семантическая запись, не physical hex genome.
 - **Характеристики объектов** — `ObjectCharacteristicDefinition`.
 - **Конструкция** — singleton `ObjectConstructionDefinition`; её inputs могут использовать base/function contributions и `material_amount`.
-- **Объекты** — `ObjectTemplate` с ordered `GenomeFunctionInstance`, semantic genome preview, one-step runtime proof, read-only material/characteristic preview и 3D ShapePhenotype preview.
+- **Объекты** — `ObjectTemplate` с initial Values, ordered `GenomeFunctionInstance`, semantic genome preview, stateful runtime proof, read-only material/characteristic preview и 3D ShapePhenotype preview.
+- **Правила мира** — `WorldRuleDefinition`: source Value, end-buffer Value, target Value и target-per-source; их можно создавать, изменять и удалять.
 - **Внешние входы** — Godot host configuration: host channel → World Quantity (`ValueKey`) + test value. Она не записывается в ObjectTemplate HostBinding.
 
-Objects editor provides a minimal stateful one-object runtime proof: `Start`, manual single-tick `Step`, `Reset`, and `Stop`. It displays the current tick, runtime Values, and every compiled buffer's stored amount plus received/supplied amounts from the last tick. Before every `Step`, the current Godot external-input test configuration is staged again through direct runtime input. This remains an editor proof, not a simulation screen, real-time Play mode, physics, or multi-object simulation.
+Objects editor provides a minimal stateful one-object runtime proof: `Start`, manual single-tick `Step`, `Reset`, and `Stop`. It displays the current tick, runtime Values, current end-buffer values, and every compiled buffer's stored amount plus received/supplied amounts from the last tick. Before every `Step`, the current Godot external-input test configuration is staged again through direct runtime input. This remains an editor proof, not a simulation screen, real-time Play mode, physics, or multi-object simulation.
 
 ## Shape and construction-volume debug preview
 

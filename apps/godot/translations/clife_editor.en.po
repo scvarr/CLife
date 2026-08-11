@@ -882,6 +882,48 @@ msgstr "Input"
 msgid "ux.throughput"
 msgstr "Throughput"
 
+msgid "ux.initial_values"
+msgstr "INITIAL VALUES"
+
+msgid "ux.function_characteristic_contributions"
+msgstr "OBJECT CHARACTERISTIC CONTRIBUTIONS"
+
+msgid "ux.remove_formula_binding"
+msgstr "Remove formula binding"
+
+msgid "ux.remove_process"
+msgstr "Remove process"
+
+msgid "ux.world_rules"
+msgstr "World rules"
+
+msgid "ux.add_rule"
+msgstr "ADD WORLD RULE"
+
+msgid "ux.source"
+msgstr "Source"
+
+msgid "ux.end_buffer"
+msgstr "End buffer"
+
+msgid "ux.target"
+msgstr "Target"
+
+msgid "ux.target_per_source"
+msgstr "Target per source"
+
+msgid "ux.update_rule"
+msgstr "Update rule"
+
+msgid "ux.remove_rule"
+msgstr "Remove rule"
+
+msgid "ux.runtime_end_buffer"
+msgstr "END BUFFER"
+
+msgid "ux.runtime_no_end_buffer"
+msgstr "No end-buffer values are configured."
+
 msgid "ux.buffer_process"
 msgstr "Buffer process"
 

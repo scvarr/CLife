@@ -36,6 +36,8 @@ layout_mode = 2
 layout_mode = 2
 [node name="Objects" type="Button" parent="Layout/Sidebar"]
 layout_mode = 2
+[node name="WorldRules" type="Button" parent="Layout/Sidebar"]
+layout_mode = 2
 [node name="ExternalInputs" type="Button" parent="Layout/Sidebar"]
 layout_mode = 2
 [node name="Spacer" type="Control" parent="Layout/Sidebar"]
@@ -66,5 +68,6 @@ layout_mode = 2
 [connection signal="pressed" from="Layout/Sidebar/Characteristics" to="." method="_show_characteristics"]
 [connection signal="pressed" from="Layout/Sidebar/Construction" to="." method="_show_construction"]
 [connection signal="pressed" from="Layout/Sidebar/Objects" to="." method="_show_objects"]
+[connection signal="pressed" from="Layout/Sidebar/WorldRules" to="." method="_show_world_rules"]
 [connection signal="pressed" from="Layout/Sidebar/ExternalInputs" to="." method="_show_external_inputs"]
 [connection signal="pressed" from="Layout/Sidebar/Save" to="." method="_save_current_world"]
