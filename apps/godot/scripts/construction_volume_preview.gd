@@ -5,6 +5,7 @@ const LONGITUDE_DIVISIONS := 56
 
 var pending_volume := 0.0
 var pending_status := ""
+var pending_radii := PackedFloat64Array()
 var has_valid_volume := false
 
 @onready var preview_surface: SubViewportContainer = $PreviewSurface
@@ -12,6 +13,9 @@ var has_valid_volume := false
 @onready var status: Label = $Status
 
 func _ready() -> void:
+	if has_valid_volume:
+		has_valid_volume = _build_mesh(tessellation_directions(), pending_radii)
+		if not has_valid_volume: pending_status = tr("ux.volume_preview_mesh_invalid")
 	_apply_state()
 
 func tessellation_directions() -> PackedVector3Array:
@@ -32,14 +36,16 @@ func show_shape(volume: float, radii: PackedFloat64Array, volume_status: String)
 	has_valid_volume = is_finite(volume) and volume > 0.0 and radii.size() == directions.size()
 	pending_volume = volume
 	pending_status = volume_status
-	if has_valid_volume:
-		has_valid_volume = _build_mesh(directions, radii)
+	pending_radii = radii
+	if has_valid_volume and is_node_ready():
+		has_valid_volume = _build_mesh(directions, pending_radii)
 		if not has_valid_volume: pending_status = tr("ux.volume_preview_mesh_invalid")
 	if is_node_ready(): _apply_state()
 
 func show_unavailable(message: String) -> void:
 	has_valid_volume = false
 	pending_status = message
+	pending_radii.clear()
 	if is_node_ready(): _apply_state()
 
 func _apply_state() -> void:
