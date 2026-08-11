@@ -368,3 +368,5 @@ FodyWeavers.xsd
 apps/godot/.godot/
 apps/godot/bin/
 apps/godot/**/*.translation
+
+/apps/unreal/
