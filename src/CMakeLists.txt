@@ -23,6 +23,7 @@ add_library(clife_world STATIC
     world/expression.cpp
     world/phenotype.cpp
     world/runtime.cpp
+    world/runtime_rules.cpp
     world/shape.cpp
 )
 

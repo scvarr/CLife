@@ -297,6 +297,18 @@ Amount Calculator::value(ValueId id) const noexcept
     return index < values_.size() ? values_[index] : 0.0;
 }
 
+void Calculator::apply_delta(ValueId id, Amount delta)
+{
+    validate_value(id, "runtime value delta");
+    if (!std::isfinite(delta)) {
+        throw std::invalid_argument{"runtime value delta must be finite"};
+    }
+    values_[id.index] += delta;
+    if (!std::isfinite(values_[id.index])) {
+        throw std::overflow_error{"runtime value delta produced a non-finite value"};
+    }
+}
+
 const BufferState& Calculator::buffer_state(std::size_t index) const
 {
     if (index >= buffer_states_.size()) {

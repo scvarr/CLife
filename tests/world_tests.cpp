@@ -2,9 +2,11 @@
 #include <clife/world/definition.hpp>
 #include <clife/world/phenotype.hpp>
 #include <clife/world/runtime.hpp>
+#include <clife/world/runtime_rules.hpp>
 #include <clife/world/shape.hpp>
 
 #include <cmath>
+#include <array>
 #include <exception>
 #include <iostream>
 #include <limits>
@@ -136,6 +138,52 @@ bool test_runtime_multi_output_scenario()
     runtime.step();
     return near(runtime.value(object, world.useful), 0.1, "runtime useful output") &&
            near(runtime.value(object, world.loss), 0.0, "runtime loss output");
+}
+
+bool test_runtime_rule_executor()
+{
+    WorldDefinition definition;
+    const ValueKey energy = definition.add_value("Energy");
+    const ValueKey temperature = definition.add_value("Temperature");
+    const ValueKey exposure = definition.add_value("Exposure");
+    const ObjectCharacteristicId heat_capacity = definition.add_object_characteristic("HeatCapacity");
+    const TemplateId cell = definition.add_template("Cell");
+    const CalculationId construction = definition.add_calculation("Construction");
+    const CalculationPortId construction_output = definition.add_calculation_output(construction, "HeatCapacity", "5");
+    definition.set_object_construction({.calculation = construction,
+        .outputs = {{.output = construction_output, .characteristic = heat_capacity}}});
+    const CalculationId calculation = definition.add_calculation("WorldRule");
+    const CalculationPortId residual = definition.add_calculation_input(calculation, "residual");
+    const CalculationPortId current = definition.add_calculation_input(calculation, "current");
+    const CalculationPortId capacity = definition.add_calculation_input(calculation, "capacity");
+    const CalculationPortId temperature_delta = definition.add_calculation_output(calculation, "temperature_delta", "residual / capacity");
+    const CalculationPortId exposure_delta = definition.add_calculation_output(calculation, "exposure_delta", "current + residual * 0.05");
+    const CompiledPhenotype phenotype = compile_phenotype(definition, cell);
+    clife::Calculator calculator{{
+        .value_count = 3,
+        .end_buffer_transfers = {{.source = clife::ValueId{0}, .target = clife::ValueId{0}}},
+        .initial_values = {{.value = clife::ValueId{1}, .amount = 1.0}},
+    }};
+    const std::array input{clife::ValueAmount{.value = clife::ValueId{0}, .amount = 1.0}};
+    calculator.step(input);
+    RuntimeRuleExecutor executor{{{
+        .source = clife::ValueId{0},
+        .calculation = definition.calculation(calculation),
+        .inputs = {{.input = residual, .kind = RuntimeRuleInputKind::end_residual, .value = clife::ValueId{0}},
+                   {.input = current, .kind = RuntimeRuleInputKind::runtime_value, .value = clife::ValueId{1}},
+                   {.input = capacity, .kind = RuntimeRuleInputKind::object_characteristic, .characteristic = heat_capacity}},
+        .outputs = {{.output = temperature_delta, .target = clife::ValueId{1}},
+                    {.output = exposure_delta, .target = clife::ValueId{2}}},
+    }}};
+    executor.apply(calculator, phenotype);
+    return near(calculator.value(clife::ValueId{1}), 1.2, "rule reads residual, characteristic and current runtime value") &&
+           near(calculator.value(clife::ValueId{2}), 1.05, "one rule applies multiple output deltas");
+}
+
+bool test_runtime_rule_executor_rejects_duplicate_source()
+{
+    const RuntimeWorldRule rule{.source = clife::ValueId{0}};
+    return rejects([&] { RuntimeRuleExecutor{{rule, rule}}; }, "duplicate runtime rule source must be rejected");
 }
 
 bool test_direct_external_input_without_host_binding()
@@ -613,6 +661,8 @@ int main()
     };
     run(test_calculation_binding_and_sources, "calculation binding and sources");
     run(test_runtime_multi_output_scenario, "runtime multi-output scenario");
+    run(test_runtime_rule_executor, "runtime rule executor");
+    run(test_runtime_rule_executor_rejects_duplicate_source, "runtime rule executor duplicate source");
     run(test_direct_external_input_without_host_binding, "direct external input without host binding");
     run(test_allocation_validation, "allocation validation");
     run(test_binding_validation_and_removal, "binding validation and removal");
