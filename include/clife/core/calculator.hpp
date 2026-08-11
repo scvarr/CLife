@@ -78,6 +78,7 @@ public:
 
     void step(std::span<const ValueAmount> external_values);
     void apply_delta(ValueId id, Amount delta);
+    Amount finalize_residual(ValueId id);
 
     [[nodiscard]] Amount value(ValueId id) const noexcept;
     [[nodiscard]] const BufferState& buffer_state(std::size_t index) const;

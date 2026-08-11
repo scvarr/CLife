@@ -161,11 +161,11 @@ bool test_runtime_rule_executor()
     const CompiledPhenotype phenotype = compile_phenotype(definition, cell);
     clife::Calculator calculator{{
         .value_count = 3,
-        .end_buffer_transfers = {{.source = clife::ValueId{0}, .target = clife::ValueId{0}}},
-        .initial_values = {{.value = clife::ValueId{1}, .amount = 1.0}},
+        .initial_values = {{.value = clife::ValueId{0}, .amount = 1.0},
+                           {.value = clife::ValueId{1}, .amount = 1.0}},
     }};
-    const std::array input{clife::ValueAmount{.value = clife::ValueId{0}, .amount = 1.0}};
-    calculator.step(input);
+    const std::array<clife::ValueAmount, 0> no_input{};
+    calculator.step(no_input);
     RuntimeRuleExecutor executor{{{
         .source = clife::ValueId{0},
         .calculation = definition.calculation(calculation),
@@ -176,14 +176,62 @@ bool test_runtime_rule_executor()
                     {.output = exposure_delta, .target = clife::ValueId{2}}},
     }}};
     executor.apply(calculator, phenotype);
-    return near(calculator.value(clife::ValueId{1}), 1.2, "rule reads residual, characteristic and current runtime value") &&
+    return near(calculator.value(clife::ValueId{0}), 0.0, "finalized source ordinary value is consumed") &&
+           near(calculator.end_value(clife::ValueId{0}), 1.0, "ordinary residual needs no end transfer") &&
+           near(calculator.value(clife::ValueId{1}), 1.2, "rule reads residual, characteristic and current runtime value") &&
            near(calculator.value(clife::ValueId{2}), 1.05, "one rule applies multiple output deltas");
+}
+
+bool test_finalize_residual_combines_ordinary_value_and_leakage()
+{
+    constexpr clife::ValueId energy{0};
+    clife::Calculator calculator{{
+        .value_count = 1,
+        .buffers = {{.value = energy, .capacity = 1.0, .throughput = 1.0, .leakage = 0.5, .initial_amount = 1.0}},
+    }};
+    const std::array input{clife::ValueAmount{.value = energy, .amount = 2.0}};
+    calculator.step(input);
+    const clife::Amount residual = calculator.finalize_residual(energy);
+    return near(residual, 2.5, "ordinary residual and leakage combine") &&
+           near(calculator.end_value(energy), 2.5, "combined residual remains observable") &&
+           near(calculator.value(energy), 0.0, "finalization clears ordinary value");
 }
 
 bool test_runtime_rule_executor_rejects_duplicate_source()
 {
     const RuntimeWorldRule rule{.source = clife::ValueId{0}};
     return rejects([&] { RuntimeRuleExecutor{{rule, rule}}; }, "duplicate runtime rule source must be rejected");
+}
+
+bool test_runtime_rule_executor_is_order_independent()
+{
+    WorldDefinition definition;
+    const TemplateId cell = definition.add_template("Cell");
+    const CalculationId first_calculation = definition.add_calculation("First");
+    const CalculationPortId first_input = definition.add_calculation_input(first_calculation, "residual");
+    const CalculationPortId first_output = definition.add_calculation_output(first_calculation, "delta", "residual");
+    const CalculationId second_calculation = definition.add_calculation("Second");
+    const CalculationPortId second_residual = definition.add_calculation_input(second_calculation, "residual");
+    const CalculationPortId second_current = definition.add_calculation_input(second_calculation, "current");
+    const CalculationPortId second_output = definition.add_calculation_output(second_calculation, "delta", "current");
+    const CompiledPhenotype phenotype = compile_phenotype(definition, cell);
+    const RuntimeWorldRule first{.source = clife::ValueId{0}, .calculation = definition.calculation(first_calculation),
+        .inputs = {{.input = first_input, .kind = RuntimeRuleInputKind::end_residual, .value = clife::ValueId{0}}},
+        .outputs = {{.output = first_output, .target = clife::ValueId{1}}}};
+    const RuntimeWorldRule second{.source = clife::ValueId{2}, .calculation = definition.calculation(second_calculation),
+        .inputs = {{.input = second_residual, .kind = RuntimeRuleInputKind::end_residual, .value = clife::ValueId{2}},
+                   {.input = second_current, .kind = RuntimeRuleInputKind::runtime_value, .value = clife::ValueId{1}}},
+        .outputs = {{.output = second_output, .target = clife::ValueId{1}}}};
+    const auto run = [&](std::vector<RuntimeWorldRule> rules) {
+        clife::Calculator calculator{{.value_count = 3,
+            .initial_values = {{.value = clife::ValueId{0}, .amount = 1.0}, {.value = clife::ValueId{2}, .amount = 1.0}}}};
+        const std::array<clife::ValueAmount, 0> no_input{};
+        calculator.step(no_input);
+        RuntimeRuleExecutor{std::move(rules)}.apply(calculator, phenotype);
+        return calculator.value(clife::ValueId{1});
+    };
+    return near(run({first, second}), 1.0, "rules read the pre-delta runtime state") &&
+           near(run({second, first}), 1.0, "runtime rule list order does not change result");
 }
 
 bool test_direct_external_input_without_host_binding()
@@ -662,7 +710,9 @@ int main()
     run(test_calculation_binding_and_sources, "calculation binding and sources");
     run(test_runtime_multi_output_scenario, "runtime multi-output scenario");
     run(test_runtime_rule_executor, "runtime rule executor");
+    run(test_finalize_residual_combines_ordinary_value_and_leakage, "finalize residual combines leakage");
     run(test_runtime_rule_executor_rejects_duplicate_source, "runtime rule executor duplicate source");
+    run(test_runtime_rule_executor_is_order_independent, "runtime rule executor order independence");
     run(test_direct_external_input_without_host_binding, "direct external input without host binding");
     run(test_allocation_validation, "allocation validation");
     run(test_binding_validation_and_removal, "binding validation and removal");

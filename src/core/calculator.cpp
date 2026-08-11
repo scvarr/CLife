@@ -309,6 +309,21 @@ void Calculator::apply_delta(ValueId id, Amount delta)
     }
 }
 
+Amount Calculator::finalize_residual(ValueId id)
+{
+    validate_value(id, "residual value");
+    const Amount ordinary = values_[id.index];
+    if (!std::isfinite(ordinary)) {
+        throw std::domain_error{"residual value must be finite"};
+    }
+    end_buffer_[id.index] += ordinary;
+    if (!std::isfinite(end_buffer_[id.index])) {
+        throw std::overflow_error{"residual value produced a non-finite end buffer"};
+    }
+    values_[id.index] = 0.0;
+    return end_buffer_[id.index];
+}
+
 const BufferState& Calculator::buffer_state(std::size_t index) const
 {
     if (index >= buffer_states_.size()) {

@@ -44,6 +44,14 @@ RuntimeRuleExecutor::RuntimeRuleExecutor(std::vector<RuntimeWorldRule> rules) : 
 void RuntimeRuleExecutor::apply(Calculator& calculator, const CompiledPhenotype& phenotype) const
 {
     for (const RuntimeWorldRule& rule : rules_) {
+        if (rule.source.index >= calculator.value_count()) {
+            throw std::invalid_argument{"runtime rule source value is outside calculator"};
+        }
+        (void)calculator.finalize_residual(rule.source);
+    }
+
+    std::vector<std::pair<ValueId, Amount>> deltas;
+    for (const RuntimeWorldRule& rule : rules_) {
         std::vector<CalculationPortAmount> inputs;
         inputs.reserve(rule.inputs.size());
         for (const RuntimeRuleInputBinding& binding : rule.inputs) {
@@ -61,9 +69,10 @@ void RuntimeRuleExecutor::apply(Calculator& calculator, const CompiledPhenotype&
         for (const RuntimeRuleOutputBinding& binding : rule.outputs) {
             const auto found = std::ranges::find(outputs, binding.output, &CalculationPortAmount::port);
             if (found == outputs.end()) throw std::invalid_argument{"runtime rule calculation output is missing"};
-            calculator.apply_delta(binding.target, found->amount);
+            deltas.push_back({binding.target, found->amount});
         }
     }
+    for (const auto& [target, delta] : deltas) calculator.apply_delta(target, delta);
 }
 
 } // namespace clife::world
