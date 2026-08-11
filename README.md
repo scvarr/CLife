@@ -4,7 +4,7 @@
 
 **Current / normative:** [C0](docs/C0_CONCEPT.md), [C1](docs/C1_ARCHITECTURE.md), [C3](docs/C3_CALCULATOR_MODEL.md), [C4](docs/C4_HOST_WORLD_EDITOR_MODEL.md), [C6](docs/C6_GODOT_WORLD_EDITOR.md), [C7](docs/C7_GENOTYPE_PHENOTYPE.md).
 
-**Historical:** [C2](docs/C2_WORLD_DEFINITION.md) is the former Field/Resource/State/Matter/Measure model; [C5](docs/C5_DUAL_ENGINE_ADAPTERS.md) is a historical dual-engine integration slice.
+**Historical:** [C2](docs/C2_WORLD_DEFINITION.md) is the former Field/Resource/State/Matter/Measure model.
 
 **Non-normative:** [FUTURE_IDEAS](docs/FUTURE_IDEAS.md).
 
@@ -22,7 +22,6 @@ CLife — проект искусственной жизни с переноси
 Архитектурные правила реализации: [`docs/C1_ARCHITECTURE.md`](docs/C1_ARCHITECTURE.md).
 Компактный calculator core реализован: [`docs/C3_CALCULATOR_MODEL.md`](docs/C3_CALCULATOR_MODEL.md).
 Текущая модель world/runtime и host-интеграции: [`docs/C4_HOST_WORLD_EDITOR_MODEL.md`](docs/C4_HOST_WORLD_EDITOR_MODEL.md).
-Dual-engine integration: [`docs/C5_DUAL_ENGINE_ADAPTERS.md`](docs/C5_DUAL_ENGINE_ADAPTERS.md).
 Current Godot editor model: [`docs/C6_GODOT_WORLD_EDITOR.md`](docs/C6_GODOT_WORLD_EDITOR.md).
 Genotype / phenotype model: [`docs/C7_GENOTYPE_PHENOTYPE.md`](docs/C7_GENOTYPE_PHENOTYPE.md).
 Журнал ненормативных будущих идей: [`docs/FUTURE_IDEAS.md`](docs/FUTURE_IDEAS.md).
@@ -45,9 +44,10 @@ Genotype / phenotype model: [`docs/C7_GENOTYPE_PHENOTYPE.md`](docs/C7_GENOTYPE_P
 ## Архитектурная граница
 
 ```text
-clife_core <- clife_world <- headless / Godot
+clife_core <- clife_world <- hosts
+                         <- headless
+                         <- Godot (current graphical/editor host)
                          <- clife_presets <- preset tests/examples
-                         <- Unreal (separate deferred host)
 ```
 
 `clife_core` не имеет `main()` и содержит универсальный числовой runtime. `clife_world` содержит authoring-модель мира, expressions, calculations, phenotype и runtime-объекты. Godot adapter зависит непосредственно от `clife_world`; preset не является его обязательным источником. Хост подаёт внешние значения, вызывает fixed ticks и читает результаты; CLife не вызывает engine callbacks.
@@ -65,13 +65,7 @@ Godot 4.7.1 GDExtension world editor (stable Godot 4.5 API baseline):
 godot --editor --path .\apps\godot
 ```
 
-Unreal Engine 5.8 plugin/demo:
-
-```powershell
-.\scripts\build_unreal_demo.ps1 -UnrealEngineRoot 'C:\Program Files\Epic Games\UE_5.8'
-```
-
-Godot is the primary editor/development host in C6. Unreal remains the validated C5 alternative renderer host and is not abandoned. Full editor lifecycle details are in [`docs/C6_GODOT_WORLD_EDITOR.md`](docs/C6_GODOT_WORLD_EDITOR.md); dual-engine build/run boundaries remain in [`docs/C5_DUAL_ENGINE_ADAPTERS.md`](docs/C5_DUAL_ENGINE_ADAPTERS.md).
+Godot is the current implemented graphical/editor host. Full editor lifecycle details are in [`docs/C6_GODOT_WORLD_EDITOR.md`](docs/C6_GODOT_WORLD_EDITOR.md). `clife_core` and `clife_world` remain engine-neutral; hosts consume their engine-neutral results.
 
 ## Первый world preset
 

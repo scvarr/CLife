@@ -367,13 +367,4 @@ FodyWeavers.xsd
 # Godot generated/imported data and native adapter outputs
 apps/godot/.godot/
 apps/godot/bin/
-
-# Unreal generated project/plugin data and staged CLife third-party files
-apps/unreal/Binaries/
-apps/unreal/DerivedDataCache/
-apps/unreal/Intermediate/
-apps/unreal/Saved/
-apps/unreal/Plugins/*/Binaries/
-apps/unreal/Plugins/*/Intermediate/
-apps/unreal/Plugins/CLife/Source/CLifeRuntimeExternal/Include/
-apps/unreal/Plugins/CLife/Source/CLifeRuntimeExternal/Libraries/
+apps/godot/**/*.translation

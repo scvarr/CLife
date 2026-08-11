@@ -4,9 +4,10 @@
 
 ```text
 clife_core <- clife_world <- hosts
+                         <- Godot (current graphical/editor host)
 ```
 
-`clife_core` — универсальный числовой runtime/calculator. Он получает готовую программу с числовыми параметрами и не знает authoring expressions, units или phenotype. `clife_world` — authoring model и compilation boundary: Values, Units/UnitConversions, Calculations, semantic genotype/FunctionTypes, ObjectTemplates, ObjectCharacteristics, ObjectConstruction, HostBindings, snapshots, phenotype и RuntimeWorld. Godot — текущий основной editor host; Unreal — отдельный host.
+`clife_core` — универсальный числовой runtime/calculator. Он получает готовую программу с числовыми параметрами и не знает authoring expressions, units или phenotype. `clife_world` — authoring model и compilation boundary: Values, Units/UnitConversions, Calculations, semantic genotype/FunctionTypes, ObjectTemplates, ObjectCharacteristics, ObjectConstruction, HostBindings, snapshots, phenotype и RuntimeWorld. Godot — текущий реализованный graphical/editor host.
 
 Реализованный путь compilation:
 
@@ -51,4 +52,4 @@ Physical Genome
   └── future shape phenotype projection
 ```
 
-Godot и Unreal остаются consumers/adapters этих результатов, а не владельцами biological shape semantics.
+Rendering hosts, включая current Godot host, остаются consumers/adapters этих результатов, а не владельцами biological shape semantics.

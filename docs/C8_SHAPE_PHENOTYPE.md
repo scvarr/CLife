@@ -34,7 +34,7 @@ Shape decoder не может создать дополнительную мат
 
 ## Engine-neutral boundary
 
-Godot и Unreal не являются source of truth canonical shape:
+Rendering hosts, включая current Godot host, не являются source of truth canonical shape:
 
 ```text
 PhysicalGenome
