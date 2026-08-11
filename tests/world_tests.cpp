@@ -241,6 +241,43 @@ bool test_calculation_world_rule_authoring_and_runtime()
            near(runtime.value(object, exposure), 0.05, "runtime rule supports multiple outputs");
 }
 
+bool test_world_rule_families_are_exclusive()
+{
+    WorldDefinition definition;
+    const ValueKey source = definition.add_value("Source");
+    const ValueKey other_source = definition.add_value("Other source");
+    const ValueKey end_buffer = definition.add_value("End buffer");
+    const ValueKey target = definition.add_value("Target");
+    const CalculationId calculation = definition.add_calculation("Calculation rule");
+    const CalculationPortId residual = definition.add_calculation_input(calculation, "residual");
+    const CalculationPortId delta = definition.add_calculation_output(calculation, "delta", "residual");
+    const WorldRuleDefinition legacy{.source = source, .end_buffer = end_buffer, .target = target,
+                                     .target_per_source = 1.0};
+    const CalculationWorldRuleDefinition modern{
+        .source = other_source,
+        .calculation = calculation,
+        .inputs = {{.input = residual,
+                    .kind = CalculationWorldRuleInputSourceKind::source_residual,
+                    .value = other_source}},
+        .outputs = {{.output = delta, .target = target}},
+    };
+
+    (void)definition.add_calculation_world_rule(modern);
+    const bool legacy_rejected = rejects(
+        [&] { (void)definition.add_world_rule(legacy); },
+        "legacy world rule must be rejected while calculation world rules exist");
+    definition.remove_calculation_world_rule(0);
+    const std::size_t legacy_index = definition.add_world_rule(legacy);
+    const bool calculation_rejected = rejects(
+        [&] { (void)definition.add_calculation_world_rule(modern); },
+        "calculation world rule must be rejected while legacy world rules exist");
+    definition.remove_world_rule(legacy_index);
+    const bool switched_after_removal = !rejects(
+        [&] { (void)definition.add_calculation_world_rule(modern); },
+        "calculation world rule must be accepted after the last legacy rule is removed");
+    return legacy_rejected && calculation_rejected && switched_after_removal;
+}
+
 bool test_calculation_world_rule_consumes_function_residual()
 {
     SynthesisWorld world = make_synthesis_world();
@@ -839,6 +876,7 @@ int main()
     run(test_finalize_residual_combines_ordinary_value_and_leakage, "finalize residual combines leakage");
     run(test_runtime_rule_executor_rejects_duplicate_source, "runtime rule executor duplicate source");
     run(test_calculation_world_rule_authoring_and_runtime, "calculation world rule authoring and runtime");
+    run(test_world_rule_families_are_exclusive, "world rule families are exclusive");
     run(test_calculation_world_rule_consumes_function_residual, "calculation world rule function residual");
     run(test_calculation_world_rule_consumes_buffer_leakage, "calculation world rule buffer leakage");
     run(test_runtime_rule_executor_is_order_independent, "runtime rule executor order independence");

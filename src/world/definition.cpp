@@ -982,6 +982,9 @@ void WorldDefinition::remove_genome_function(TemplateId id, std::size_t index)
 
 std::size_t WorldDefinition::add_world_rule(WorldRuleDefinition rule)
 {
+    if (!calculation_world_rules_.empty()) {
+        throw std::invalid_argument{"legacy and calculation world rules cannot be mixed"};
+    }
     validate_rule(rule, kNoIndex);
     world_rules_.push_back(rule);
     return world_rules_.size() - 1;
@@ -991,6 +994,9 @@ void WorldDefinition::change_world_rule(std::size_t index, WorldRuleDefinition r
 {
     if (index >= world_rules_.size()) {
         throw std::out_of_range{"world rule index is out of range"};
+    }
+    if (!calculation_world_rules_.empty()) {
+        throw std::invalid_argument{"legacy and calculation world rules cannot be mixed"};
     }
     validate_rule(rule, index);
     world_rules_[index] = rule;
@@ -1006,6 +1012,9 @@ void WorldDefinition::remove_world_rule(std::size_t index)
 
 std::size_t WorldDefinition::add_calculation_world_rule(CalculationWorldRuleDefinition rule)
 {
+    if (!world_rules_.empty()) {
+        throw std::invalid_argument{"legacy and calculation world rules cannot be mixed"};
+    }
     validate_calculation_world_rule(rule, kNoIndex);
     calculation_world_rules_.push_back(std::move(rule));
     return calculation_world_rules_.size() - 1;
@@ -1014,6 +1023,9 @@ std::size_t WorldDefinition::add_calculation_world_rule(CalculationWorldRuleDefi
 void WorldDefinition::change_calculation_world_rule(std::size_t index, CalculationWorldRuleDefinition rule)
 {
     if (index >= calculation_world_rules_.size()) throw std::out_of_range{"calculation world rule index is out of range"};
+    if (!world_rules_.empty()) {
+        throw std::invalid_argument{"legacy and calculation world rules cannot be mixed"};
+    }
     validate_calculation_world_rule(rule, index);
     calculation_world_rules_[index] = std::move(rule);
 }
