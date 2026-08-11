@@ -882,6 +882,27 @@ msgstr "Input"
 msgid "ux.throughput"
 msgstr "Throughput"
 
+msgid "ux.buffer_process"
+msgstr "Buffer process"
+
+msgid "ux.value"
+msgstr "World quantity"
+
+msgid "ux.capacity"
+msgstr "Capacity"
+
+msgid "ux.leakage"
+msgstr "Leakage"
+
+msgid "ux.create_buffer_process"
+msgstr "Create buffer process"
+
+msgid "ux.update_buffer_process"
+msgstr "Update buffer process"
+
+msgid "ux.remove_buffer_process"
+msgstr "Remove buffer process"
+
 msgid "ux.output"
 msgstr "World quantity"
 

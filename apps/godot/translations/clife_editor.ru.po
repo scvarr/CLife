@@ -892,6 +892,27 @@ msgstr "Вход"
 msgid "ux.throughput"
 msgstr "Пропускная способность"
 
+msgid "ux.buffer_process"
+msgstr "Буферный процесс"
+
+msgid "ux.value"
+msgstr "Величина мира"
+
+msgid "ux.capacity"
+msgstr "Ёмкость"
+
+msgid "ux.leakage"
+msgstr "Утечка"
+
+msgid "ux.create_buffer_process"
+msgstr "Создать буферный процесс"
+
+msgid "ux.update_buffer_process"
+msgstr "Обновить буферный процесс"
+
+msgid "ux.remove_buffer_process"
+msgstr "Удалить буферный процесс"
+
 msgid "ux.output"
 msgstr "Величина мира"
 

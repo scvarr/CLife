@@ -26,7 +26,7 @@
 - **Величины мира** — текущие backend `ValueDefinition`; это не genome parameters.
 - **Преобразования** — `UnitConversionDefinition` между единицами.
 - **Формулы** — `CalculationDefinition`: inputs, ordered outputs и expressions. Поздний output может ссылаться на предыдущий.
-- **Функции** — текущий semantic scaffold `FunctionTypeDefinition`: genome parameters, Calculation binding, process, multiple outputs и material construction contributions. Preview вида `02 | 1.0` — семантическая запись, не physical hex genome.
+- **Функции** — текущий semantic scaffold `FunctionTypeDefinition`: genome parameters, Calculation binding, process, `BufferProcess` (Value, capacity/throughput/leakage sources), multiple outputs и material construction contributions. Источники параметров BufferProcess выбираются из genome parameter или Calculation output. Preview вида `02 | 1.0` — семантическая запись, не physical hex genome.
 - **Характеристики объектов** — `ObjectCharacteristicDefinition`.
 - **Конструкция** — singleton `ObjectConstructionDefinition`; её inputs могут использовать base/function contributions и `material_amount`.
 - **Объекты** — `ObjectTemplate` с ordered `GenomeFunctionInstance`, semantic genome preview, one-step runtime proof, read-only material/characteristic preview и 3D ShapePhenotype preview.

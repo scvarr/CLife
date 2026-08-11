@@ -823,7 +823,35 @@ func _build_function_editor(parent: VBoxContainer, function_type: Dictionary) ->
 	var preview := Label.new(); preview.text = tr("ux.semantic_record") % _semantic_genome_preview(function_type); parent.add_child(preview)
 	_build_function_formula(parent, function_type)
 	_build_function_process(parent, function_type)
+	_build_function_buffer(parent, function_type)
 	_build_function_materials(parent, function_type)
+
+func _build_function_buffer(parent: VBoxContainer, function_type: Dictionary) -> void:
+	_add_section(parent, tr("ux.buffer_process"))
+	var buffer_value = function_type.get("buffer")
+	var buffer: Dictionary = buffer_value if buffer_value is Dictionary else {}
+	var value := _value_selector(int(buffer.get("value_key", 0)))
+	var capacity := _source_selector(function_type, buffer.get("capacity_source", {}))
+	var throughput := _source_selector(function_type, buffer.get("throughput_source", {}))
+	var leakage := _source_selector(function_type, buffer.get("leakage_source", {}))
+	parent.add_child(_labeled_row(tr("ux.value"), value))
+	parent.add_child(_labeled_row(tr("ux.capacity"), capacity))
+	parent.add_child(_labeled_row(tr("ux.throughput"), throughput))
+	parent.add_child(_labeled_row(tr("ux.leakage"), leakage))
+	var save := Button.new()
+	save.text = tr("ux.update_buffer_process") if not buffer.is_empty() else tr("ux.create_buffer_process")
+	save.pressed.connect(func():
+		if not editor.set_buffer_process(int(function_type.id), _selected_unit_id(value), _selected_source(capacity), _selected_source(throughput), _selected_source(leakage)): _show_error(); return
+		_show_functions()
+	)
+	parent.add_child(save)
+	if buffer.is_empty(): return
+	var remove := Button.new(); remove.text = tr("ux.remove_buffer_process")
+	remove.pressed.connect(func():
+		if not editor.remove_buffer_process(int(function_type.id)): _show_error(); return
+		_show_functions()
+	)
+	parent.add_child(remove)
 
 func _build_function_materials(parent: VBoxContainer, function_type: Dictionary) -> void:
 	_add_section(parent, tr("ux.construction_materials"))
