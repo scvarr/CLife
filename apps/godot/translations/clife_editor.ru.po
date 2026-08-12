@@ -64,6 +64,9 @@ msgstr "Преобразования"
 msgid "ux.no_conversions"
 msgstr "Преобразований пока нет."
 
+msgid "ux.no_conversion"
+msgstr "Без преобразования"
+
 msgid "ux.formulas"
 msgstr "Формулы"
 

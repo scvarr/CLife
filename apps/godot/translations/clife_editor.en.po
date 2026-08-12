@@ -63,6 +63,9 @@ msgstr "Conversions"
 msgid "ux.no_conversions"
 msgstr "No conversions yet."
 
+msgid "ux.no_conversion"
+msgstr "No conversion"
+
 msgid "ux.formulas"
 msgstr "Formulas"
 

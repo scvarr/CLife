@@ -123,6 +123,10 @@ RuntimeWorld::RuntimeWorld(const WorldDefinition& definition)
                                             .calculation = definition.calculation(rule.calculation)};
             for (const CalculationWorldRuleInputBinding& input : rule.inputs) {
                 RuntimeRuleInputBinding compiled_input{.input = input.input};
+                if (input.conversion) {
+                    const UnitConversionDefinition& conversion = definition.unit_conversion(*input.conversion);
+                    compiled_input.multiplier = conversion.target_amount / conversion.source_amount;
+                }
                 if (input.kind == CalculationWorldRuleInputSourceKind::source_residual) {
                     compiled_input.kind = RuntimeRuleInputKind::end_residual;
                     compiled_input.value = require_value_id(input.value);

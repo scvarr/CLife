@@ -62,7 +62,13 @@ func _add_new_formula_row(parent: VBoxContainer) -> void:
 	row.add_child(save); row.add_child(cancel); parent.add_child(row)
 
 func _build_formula_editor(parent: VBoxContainer, calculation: Dictionary) -> void:
-	var title := Label.new(); title.text = str(calculation.name); title.add_theme_font_size_override("font_size", 26); parent.add_child(title)
+	var name := LineEdit.new(); name.text = str(calculation.name); name.placeholder_text = tr("ux.formula_name"); name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var save_name := Button.new(); save_name.text = tr("ux.save")
+	save_name.pressed.connect(func():
+		if not editor.rename_calculation(int(calculation.id), name.text): _show_error(); return
+		_show_formulas()
+	)
+	var name_row := HBoxContainer.new(); name_row.add_child(name); name_row.add_child(save_name); parent.add_child(_labeled_row(tr("ux.formula_name"), name_row))
 	_add_section(parent, tr("ux.inputs"))
 	for input in calculation.inputs:
 		_add_input_card(parent, calculation, input)

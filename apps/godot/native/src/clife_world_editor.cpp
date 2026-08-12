@@ -90,6 +90,8 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("remove_genome_parameter", "function_type_id", "parameter_id"),
                                 &CLifeWorldEditor::remove_genome_parameter);
     godot::ClassDB::bind_method(godot::D_METHOD("add_calculation", "name"), &CLifeWorldEditor::add_calculation);
+    godot::ClassDB::bind_method(godot::D_METHOD("rename_calculation", "calculation_id", "name"),
+                                &CLifeWorldEditor::rename_calculation);
     godot::ClassDB::bind_method(godot::D_METHOD("add_calculation_input", "calculation_id", "name"),
                                 &CLifeWorldEditor::add_calculation_input);
     godot::ClassDB::bind_method(godot::D_METHOD("add_calculation_output", "calculation_id", "name", "expression"),

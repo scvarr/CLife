@@ -275,6 +275,11 @@ std::int64_t CLifeWorldEditor::add_calculation(const godot::String& name)
     }
 }
 
+bool CLifeWorldEditor::rename_calculation(std::int64_t raw_calculation_id, const godot::String& name)
+{
+    return edit([&] { definition_.rename_calculation(calculation_id(raw_calculation_id), to_std_string(name)); });
+}
+
 std::int64_t CLifeWorldEditor::add_calculation_input(std::int64_t raw_calculation_id, const godot::String& name)
 {
     try {

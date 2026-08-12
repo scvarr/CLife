@@ -85,6 +85,7 @@ public:
                                  double default_value);
     bool remove_genome_parameter(std::int64_t function_type_id, std::int64_t parameter_id);
     [[nodiscard]] std::int64_t add_calculation(const godot::String& name);
+    bool rename_calculation(std::int64_t calculation_id, const godot::String& name);
     [[nodiscard]] std::int64_t add_calculation_input(std::int64_t calculation_id, const godot::String& name);
     [[nodiscard]] std::int64_t add_calculation_output(std::int64_t calculation_id, const godot::String& name,
                                                        const godot::String& expression);

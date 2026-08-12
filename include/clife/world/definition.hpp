@@ -220,6 +220,7 @@ struct CalculationWorldRuleInputBinding final {
     CalculationWorldRuleInputSourceKind kind;
     ValueKey value{};
     ObjectCharacteristicId characteristic{};
+    std::optional<UnitConversionId> conversion;
 };
 
 struct CalculationWorldRuleOutputBinding final {
@@ -260,7 +261,7 @@ struct CalculationSnapshot final {
 };
 
 struct WorldDefinitionSnapshot final {
-    std::uint32_t schema_version{9};
+    std::uint32_t schema_version{10};
     std::vector<ValueDefinition> values;
     std::vector<UnitDefinition> units;
     std::vector<UnitConversionDefinition> unit_conversions;
@@ -334,6 +335,7 @@ public:
     void remove_function_characteristic_contribution(FunctionTypeId type, ObjectCharacteristicId characteristic);
 
     [[nodiscard]] CalculationId add_calculation(std::string name);
+    void rename_calculation(CalculationId id, std::string name);
     [[nodiscard]] CalculationPortId add_calculation_input(CalculationId calculation, std::string name);
     [[nodiscard]] CalculationPortId add_calculation_output(CalculationId calculation, std::string name,
                                                            std::string_view expression);

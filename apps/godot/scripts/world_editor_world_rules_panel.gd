@@ -49,8 +49,19 @@ func _add_calculation_world_rule_editor(parent: VBoxContainer, rule: Dictionary,
 	for input in calculation.get("inputs", []):
 		var binding := _find_input_binding(rule.get("inputs", []), int(input.id))
 		var selector := _world_rule_input_selector(_selected_unit_id(source), binding)
-		parent.add_child(_labeled_row(str(input.name), selector))
-		input_selectors.append({"input": int(input.id), "selector": selector})
+		var conversion := _world_rule_conversion_selector(int(binding.get("conversion_id", 0)))
+		var input_row := HBoxContainer.new()
+		selector.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		conversion.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		input_row.add_child(selector); input_row.add_child(conversion)
+		var selected_source: Dictionary = selector.get_item_metadata(selector.selected) if selector.selected >= 0 else {}
+		conversion.visible = str(selected_source.get("kind", "")) != "object_characteristic"
+		selector.item_selected.connect(func(index: int):
+			var selected: Dictionary = selector.get_item_metadata(index)
+			conversion.visible = str(selected.get("kind", "")) != "object_characteristic"
+		)
+		parent.add_child(_labeled_row(str(input.name), input_row))
+		input_selectors.append({"input": int(input.id), "selector": selector, "conversion": conversion})
 	_add_section(parent, tr("ux.outputs"))
 	var output_selectors := []
 	for output in calculation.get("outputs", []):
@@ -121,6 +132,14 @@ func _world_rule_input_selector(source_id: int, selected_binding: Dictionary) ->
 	if selector.selected < 0: selector.select(0)
 	return selector
 
+func _world_rule_conversion_selector(selected_id: int) -> OptionButton:
+	var selector := OptionButton.new()
+	selector.add_item(tr("ux.no_conversion"), 0)
+	for conversion in editor.get_unit_conversions():
+		selector.add_item("%s %s → %s %s" % [str(conversion.source_amount), _conversion_unit_symbol(conversion.source_components), str(conversion.target_amount), _conversion_unit_symbol(conversion.target_components)], int(conversion.id))
+		if int(conversion.id) == selected_id: selector.select(selector.item_count - 1)
+	return selector
+
 func _collect_input_bindings(selectors: Array) -> Array:
 	var bindings := []
 	for entry in selectors:
@@ -128,7 +147,11 @@ func _collect_input_bindings(selectors: Array) -> Array:
 		var source: Dictionary = selector.get_item_metadata(selector.selected) if selector.selected >= 0 else {}
 		var binding := {"input": int(entry.input), "kind": str(source.get("kind", ""))}
 		if binding.kind == "object_characteristic": binding["characteristic"] = int(source.get("characteristic", 0))
-		else: binding["value"] = int(source.get("value", 0))
+		else:
+			binding["value"] = int(source.get("value", 0))
+			var conversion: OptionButton = entry.conversion
+			var conversion_id := _selected_unit_id(conversion)
+			if conversion_id != 0: binding["conversion_id"] = conversion_id
 		bindings.append(binding)
 	return bindings
 

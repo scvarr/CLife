@@ -311,7 +311,7 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
         world::WorldDefinitionSnapshot snapshot;
         const std::uint32_t source_schema_version =
             required_uint32(required_field(serialized, "schema_version"), "schema_version");
-        if (source_schema_version != 8 && source_schema_version != 9) {
+        if (source_schema_version != 8 && source_schema_version != 9 && source_schema_version != 10) {
             throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version; recreate the test world"};
         }
         snapshot.schema_version = source_schema_version;

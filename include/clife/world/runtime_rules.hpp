@@ -14,6 +14,7 @@ struct RuntimeRuleInputBinding final {
     RuntimeRuleInputKind kind;
     ValueId value{};
     ObjectCharacteristicId characteristic{};
+    Amount multiplier{1.0};
 };
 
 struct RuntimeRuleOutputBinding final {

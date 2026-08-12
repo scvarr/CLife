@@ -63,7 +63,10 @@ void RuntimeRuleExecutor::apply(Calculator& calculator, const CompiledPhenotype&
             if (binding.kind == RuntimeRuleInputKind::end_residual) amount = calculator.end_value(binding.value);
             else if (binding.kind == RuntimeRuleInputKind::runtime_value) amount = calculator.value(binding.value);
             else amount = phenotype.characteristic(binding.characteristic);
-            inputs.push_back({.port = binding.input, .amount = amount});
+            if (!std::isfinite(binding.multiplier)) {
+                throw std::invalid_argument{"runtime rule input multiplier must be finite"};
+            }
+            inputs.push_back({.port = binding.input, .amount = amount * binding.multiplier});
         }
         const std::vector<CalculationPortAmount> outputs = evaluate_calculation(rule.calculation, inputs);
         for (const RuntimeRuleOutputBinding& binding : rule.outputs) {

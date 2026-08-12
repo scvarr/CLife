@@ -636,7 +636,7 @@ bool test_snapshot_round_trip()
     const CompiledFunctionPhenotype& function = phenotype.function(0);
     WorldDefinitionSnapshot old = snapshot;
     old.schema_version = 6;
-    return expect(snapshot.schema_version == 9, "current snapshot schema") &&
+    return expect(snapshot.schema_version == 10, "current snapshot schema") &&
            expect(type.calculations.size() == 1, "calculation binding round trip") &&
            expect(type.process->outputs.size() == 2, "process round trip") &&
            expect(type.material_contributions.size() == 1, "material source round trip") &&
@@ -714,6 +714,110 @@ bool test_calculation_world_rule_snapshot_round_trip()
            mixed_rejected && near(runtime.value(object, temperature), 0.2,
                                   "restored calculation world rule compiles and executes") &&
            near(runtime.value(object, exposure), 1.0, "restored multiple output bindings execute");
+}
+
+bool test_calculation_world_rule_input_conversions()
+{
+    WorldDefinition definition;
+    const UnitId organic_unit = definition.add_unit("O");
+    const UnitId energy_unit = definition.add_unit("E");
+    const ValueKey organic = definition.add_value("Organic");
+    const ValueKey energy = definition.add_value("Energy");
+    const ValueKey temperature = definition.add_value("Temperature");
+    const ObjectCharacteristicId heat_capacity = definition.add_object_characteristic("HeatCapacity");
+    const UnitConversionId organic_to_energy = definition.add_unit_conversion(
+        {{{organic_unit, 1}}}, 0.1, {{{energy_unit, 1}}}, 1.0);
+    const UnitConversionId energy_scale = definition.add_unit_conversion(
+        {{{energy_unit, 1}}}, 0.2, {{{energy_unit, 1}}}, 1.0);
+    const TemplateId cell = definition.add_template("Cell");
+    definition.set_initial_value(cell, organic, 0.05);
+    definition.set_initial_value(cell, energy, 0.2);
+    const CalculationId construction = definition.add_calculation("Construction");
+    const CalculationPortId capacity_output = definition.add_calculation_output(construction, "capacity", "5");
+    definition.set_object_construction({.calculation = construction,
+        .outputs = {{.output = capacity_output, .characteristic = heat_capacity}}});
+    const CalculationId calculation = definition.add_calculation("Converted rule");
+    const CalculationPortId residual = definition.add_calculation_input(calculation, "residual");
+    const CalculationPortId current = definition.add_calculation_input(calculation, "current");
+    const CalculationPortId capacity = definition.add_calculation_input(calculation, "capacity");
+    const CalculationPortId delta = definition.add_calculation_output(calculation, "delta", "residual + current + capacity");
+    const CalculationWorldRuleDefinition converted{
+        .source = organic,
+        .calculation = calculation,
+        .inputs = {{.input = residual, .kind = CalculationWorldRuleInputSourceKind::source_residual,
+                    .value = organic, .conversion = organic_to_energy},
+                   {.input = current, .kind = CalculationWorldRuleInputSourceKind::runtime_value,
+                    .value = energy, .conversion = energy_scale},
+                   {.input = capacity, .kind = CalculationWorldRuleInputSourceKind::object_characteristic,
+                    .characteristic = heat_capacity}},
+        .outputs = {{.output = delta, .target = temperature}},
+    };
+    (void)definition.add_calculation_world_rule(converted);
+    RuntimeWorld converted_runtime{definition};
+    const ObjectId converted_object = converted_runtime.instantiate(cell);
+    converted_runtime.step();
+
+    const bool conversion_applied = near(converted_runtime.last_end_value(converted_object, organic), 0.05,
+                                         "world rule source residual remains raw") &&
+                                    near(converted_runtime.value(converted_object, temperature), 6.5,
+                                         "world rule value inputs use their conversion ratios");
+    const bool removal_rejected = rejects([&] { definition.remove_unit_conversion(organic_to_energy); },
+                                          "world rule input conversion must block removal");
+    const bool characteristic_rejected = rejects([&] {
+        auto invalid = converted;
+        invalid.inputs[2].conversion = organic_to_energy;
+        definition.change_calculation_world_rule(0, std::move(invalid));
+    }, "object characteristic input conversion must be rejected");
+
+    const WorldDefinitionSnapshot current_snapshot = definition.snapshot();
+    const WorldDefinition restored = WorldDefinition::from_snapshot(current_snapshot);
+    const bool current_round_trip = restored.calculation_world_rules().front().inputs[0].conversion == organic_to_energy &&
+                                    restored.calculation_world_rules().front().inputs[1].conversion == energy_scale;
+    WorldDefinitionSnapshot schema9 = current_snapshot;
+    schema9.schema_version = 9;
+    for (auto& input : schema9.calculation_world_rules.front().inputs) input.conversion.reset();
+    WorldDefinitionSnapshot schema8 = schema9;
+    schema8.schema_version = 8;
+    const WorldDefinition migrated9 = WorldDefinition::from_snapshot(schema9);
+    const WorldDefinition migrated8 = WorldDefinition::from_snapshot(schema8);
+    const bool old_schemas_have_no_conversion = !migrated9.calculation_world_rules().front().inputs[0].conversion &&
+                                                !migrated8.calculation_world_rules().front().inputs[1].conversion;
+
+    auto unconverted = converted;
+    unconverted.inputs[0].conversion.reset();
+    unconverted.inputs[1].conversion.reset();
+    definition.change_calculation_world_rule(0, std::move(unconverted));
+    RuntimeWorld raw_runtime{definition};
+    const ObjectId raw_object = raw_runtime.instantiate(cell);
+    raw_runtime.step();
+    return conversion_applied && removal_rejected && characteristic_rejected && current_round_trip &&
+           old_schemas_have_no_conversion && near(raw_runtime.value(raw_object, temperature), 5.25,
+                                                  "world rule without conversion preserves raw input amounts");
+}
+
+bool test_calculation_rename_preserves_id_and_references()
+{
+    SynthesisWorld world = make_synthesis_world();
+    const CalculationPortId input = world.definition.calculation(world.calculation).inputs.front().id;
+    (void)world.definition.add_calculation_world_rule({
+        .source = world.useful,
+        .calculation = world.calculation,
+        .inputs = {{.input = input, .kind = CalculationWorldRuleInputSourceKind::source_residual,
+                    .value = world.useful}},
+        .outputs = {{.output = world.efficiency, .target = world.organic}},
+    });
+    (void)world.definition.add_calculation("Other calculation");
+    world.definition.rename_calculation(world.calculation, "Renamed calculation");
+    const auto& type = world.definition.function_type(world.type);
+    const auto& rule = world.definition.calculation_world_rules().front();
+    const bool duplicate_rejected = rejects([&] { world.definition.rename_calculation(world.calculation, "Other calculation"); },
+                                            "calculation rename must keep names unique");
+    return expect(world.definition.calculation(world.calculation).name == "Renamed calculation",
+                  "calculation rename updates its name") &&
+           expect(type.calculations.front().calculation == world.calculation,
+                  "calculation rename preserves function binding identity") &&
+           expect(rule.calculation == world.calculation,
+                  "calculation rename preserves world rule identity") && duplicate_rejected;
 }
 
 bool test_snapshot_invalid_source_and_next_ids()
@@ -1014,6 +1118,8 @@ int main()
     run(test_calculation_references_prevent_removal, "calculation references prevent removal");
     run(test_snapshot_round_trip, "snapshot round trip");
     run(test_calculation_world_rule_snapshot_round_trip, "calculation world rule snapshot round trip");
+    run(test_calculation_world_rule_input_conversions, "calculation world rule input conversions");
+    run(test_calculation_rename_preserves_id_and_references, "calculation rename preserves references");
     run(test_snapshot_invalid_source_and_next_ids, "snapshot invalid source and next IDs");
     run(test_object_characteristic_construction, "object characteristic construction");
     run(test_material_construction_source, "material construction source");

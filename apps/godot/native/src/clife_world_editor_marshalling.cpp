@@ -120,6 +120,7 @@ godot::Dictionary calculation_world_rule_input_dictionary(const world::Calculati
 {
     godot::Dictionary result;
     result["input"] = static_cast<std::int64_t>(binding.input.value);
+    result["conversion_id"] = binding.conversion ? static_cast<std::int64_t>(binding.conversion->value) : 0;
     if (binding.kind == world::CalculationWorldRuleInputSourceKind::source_residual) {
         result["kind"] = "source_residual";
         result["value"] = static_cast<std::int64_t>(binding.value.value);
@@ -141,6 +142,10 @@ world::CalculationWorldRuleInputBinding calculation_world_rule_input_binding(con
         .input = calculation_port_id(required_uint32(required_field(binding, "input"), "calculation world rule input")),
     };
     const std::string kind = required_string(required_field(binding, "kind"), "calculation world rule input kind");
+    if (binding.has("conversion_id")) {
+        const std::uint32_t raw_conversion = required_uint32(binding["conversion_id"], "calculation world rule input conversion");
+        if (raw_conversion != 0) result.conversion = unit_conversion_id(raw_conversion);
+    }
     if (kind == "source_residual") {
         result.kind = world::CalculationWorldRuleInputSourceKind::source_residual;
         result.value = value_key(required_uint32(required_field(binding, "value"), "calculation world rule residual value"));

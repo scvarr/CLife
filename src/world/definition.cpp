@@ -191,6 +191,10 @@ void WorldDefinition::remove_unit_conversion(UnitConversionId id)
                                                        [id](const FunctionProcessOutputDefinition& output) {
                                                            return output.conversion == id;
                                                        });
+        }) || std::ranges::any_of(calculation_world_rules_, [id](const CalculationWorldRuleDefinition& rule) {
+            return std::ranges::any_of(rule.inputs, [id](const CalculationWorldRuleInputBinding& input) {
+                return input.conversion && *input.conversion == id;
+            });
         })) {
         throw std::invalid_argument{"cannot remove a referenced unit conversion"};
     }
@@ -802,6 +806,17 @@ CalculationId WorldDefinition::add_calculation(std::string name)
     return id;
 }
 
+void WorldDefinition::rename_calculation(CalculationId id, std::string name)
+{
+    require_name(name, "calculation");
+    if (std::ranges::any_of(calculations_, [id, &name](const CalculationDefinition& calculation) {
+            return calculation.id != id && calculation.name == name;
+        })) {
+        throw std::invalid_argument{"calculation name must be unique"};
+    }
+    mutable_calculation(id).name = std::move(name);
+}
+
 CalculationPortId WorldDefinition::add_calculation_input(CalculationId calculation_id, std::string name)
 {
     require_name(name, "calculation port");
@@ -1213,7 +1228,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
 
 WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& source)
 {
-    if (source.schema_version != 8 && source.schema_version != 9) {
+    if (source.schema_version != 8 && source.schema_version != 9 && source.schema_version != 10) {
         throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version"};
     }
     require_unique_snapshot_ids(source.values, &ValueDefinition::key, "ValueKey");
@@ -1583,8 +1598,14 @@ void WorldDefinition::validate_calculation_world_rule(const CalculationWorldRule
             (void)value(input.value);
             if (input.value != rule.source) throw std::invalid_argument{"calculation world rule residual must match source"};
             has_source = true;
-        } else if (input.kind == CalculationWorldRuleInputSourceKind::runtime_value) (void)value(input.value);
-        else if (input.kind == CalculationWorldRuleInputSourceKind::object_characteristic) (void)object_characteristic(input.characteristic);
+            if (input.conversion) (void)unit_conversion(*input.conversion);
+        } else if (input.kind == CalculationWorldRuleInputSourceKind::runtime_value) {
+            (void)value(input.value);
+            if (input.conversion) (void)unit_conversion(*input.conversion);
+        } else if (input.kind == CalculationWorldRuleInputSourceKind::object_characteristic) {
+            (void)object_characteristic(input.characteristic);
+            if (input.conversion) throw std::invalid_argument{"object characteristic world rule input cannot use a conversion"};
+        }
         else throw std::invalid_argument{"calculation world rule input source kind is invalid"};
     }
     if (!has_source) throw std::invalid_argument{"calculation world rule source residual is missing"};
