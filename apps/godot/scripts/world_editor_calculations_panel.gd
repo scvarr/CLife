@@ -68,7 +68,8 @@ func _build_formula_editor(parent: VBoxContainer, calculation: Dictionary) -> vo
 		if not editor.rename_calculation(int(calculation.id), name.text): _show_error(); return
 		_show_formulas()
 	)
-	var name_row := HBoxContainer.new(); name_row.add_child(name); name_row.add_child(save_name); parent.add_child(_labeled_row(tr("ux.formula_name"), name_row))
+	var name_label := Label.new(); name_label.text = tr("ux.formula_name"); parent.add_child(name_label)
+	var name_row := HBoxContainer.new(); name_row.add_child(name); name_row.add_child(save_name); parent.add_child(name_row)
 	_add_section(parent, tr("ux.inputs"))
 	for input in calculation.inputs:
 		_add_input_card(parent, calculation, input)
