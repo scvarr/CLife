@@ -36,6 +36,7 @@ public:
     [[nodiscard]] godot::Array get_material_contributions(std::int64_t template_id);
     [[nodiscard]] godot::Array get_genome(std::int64_t template_id);
     [[nodiscard]] godot::Array get_world_rules();
+    [[nodiscard]] godot::Array get_calculation_world_rules();
     [[nodiscard]] godot::Array get_bindings(std::int64_t template_id);
     [[nodiscard]] godot::Dictionary get_template_characteristic_preview(std::int64_t template_id);
     [[nodiscard]] godot::PackedFloat64Array sample_template_shape(std::int64_t template_id,
@@ -117,6 +118,11 @@ public:
                            std::int64_t target_key,
                            double target_per_source);
     bool remove_world_rule(std::int64_t index);
+    bool add_calculation_world_rule(std::int64_t source_key, std::int64_t calculation_id,
+                                    const godot::Array& input_bindings, const godot::Array& output_bindings);
+    bool change_calculation_world_rule(std::int64_t index, std::int64_t source_key, std::int64_t calculation_id,
+                                       const godot::Array& input_bindings, const godot::Array& output_bindings);
+    bool remove_calculation_world_rule(std::int64_t index);
     bool add_host_binding(std::int64_t template_id, const godot::String& channel, std::int64_t direction,
                           const godot::Dictionary& source);
     bool change_host_binding(std::int64_t template_id, std::int64_t index, const godot::String& channel,

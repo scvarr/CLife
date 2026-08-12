@@ -523,6 +523,54 @@ bool CLifeWorldEditor::remove_world_rule(std::int64_t index)
     return edit([&] { definition_.remove_world_rule(item_index(index)); });
 }
 
+bool CLifeWorldEditor::add_calculation_world_rule(std::int64_t raw_source_key, std::int64_t raw_calculation_id,
+                                                  const godot::Array& input_bindings,
+                                                  const godot::Array& output_bindings)
+{
+    return edit([&] {
+        world::CalculationWorldRuleDefinition rule{
+            .source = value_key(raw_source_key),
+            .calculation = calculation_id(raw_calculation_id),
+        };
+        for (const godot::Variant& value : input_bindings) {
+            rule.inputs.push_back(calculation_world_rule_input_binding(
+                required_dictionary(value, "calculation world rule input binding")));
+        }
+        for (const godot::Variant& value : output_bindings) {
+            rule.outputs.push_back(calculation_world_rule_output_binding(
+                required_dictionary(value, "calculation world rule output binding")));
+        }
+        (void)definition_.add_calculation_world_rule(std::move(rule));
+    });
+}
+
+bool CLifeWorldEditor::change_calculation_world_rule(std::int64_t index, std::int64_t raw_source_key,
+                                                     std::int64_t raw_calculation_id,
+                                                     const godot::Array& input_bindings,
+                                                     const godot::Array& output_bindings)
+{
+    return edit([&] {
+        world::CalculationWorldRuleDefinition rule{
+            .source = value_key(raw_source_key),
+            .calculation = calculation_id(raw_calculation_id),
+        };
+        for (const godot::Variant& value : input_bindings) {
+            rule.inputs.push_back(calculation_world_rule_input_binding(
+                required_dictionary(value, "calculation world rule input binding")));
+        }
+        for (const godot::Variant& value : output_bindings) {
+            rule.outputs.push_back(calculation_world_rule_output_binding(
+                required_dictionary(value, "calculation world rule output binding")));
+        }
+        definition_.change_calculation_world_rule(item_index(index), std::move(rule));
+    });
+}
+
+bool CLifeWorldEditor::remove_calculation_world_rule(std::int64_t index)
+{
+    return edit([&] { definition_.remove_calculation_world_rule(item_index(index)); });
+}
+
 bool CLifeWorldEditor::add_host_binding(std::int64_t raw_template_id, const godot::String& channel,
                                         std::int64_t direction, const godot::Dictionary& source)
 {

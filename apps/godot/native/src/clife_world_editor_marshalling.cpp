@@ -116,6 +116,63 @@ world::FunctionValueSource function_value_source(const godot::Dictionary& source
     throw std::invalid_argument{"function value source kind must be genome or calculation"};
 }
 
+godot::Dictionary calculation_world_rule_input_dictionary(const world::CalculationWorldRuleInputBinding& binding)
+{
+    godot::Dictionary result;
+    result["input"] = static_cast<std::int64_t>(binding.input.value);
+    if (binding.kind == world::CalculationWorldRuleInputSourceKind::source_residual) {
+        result["kind"] = "source_residual";
+        result["value"] = static_cast<std::int64_t>(binding.value.value);
+    } else if (binding.kind == world::CalculationWorldRuleInputSourceKind::runtime_value) {
+        result["kind"] = "runtime_value";
+        result["value"] = static_cast<std::int64_t>(binding.value.value);
+    } else if (binding.kind == world::CalculationWorldRuleInputSourceKind::object_characteristic) {
+        result["kind"] = "object_characteristic";
+        result["characteristic"] = static_cast<std::int64_t>(binding.characteristic.value);
+    } else {
+        throw std::invalid_argument{"calculation world rule input kind is invalid"};
+    }
+    return result;
+}
+
+world::CalculationWorldRuleInputBinding calculation_world_rule_input_binding(const godot::Dictionary& binding)
+{
+    world::CalculationWorldRuleInputBinding result{
+        .input = calculation_port_id(required_uint32(required_field(binding, "input"), "calculation world rule input")),
+    };
+    const std::string kind = required_string(required_field(binding, "kind"), "calculation world rule input kind");
+    if (kind == "source_residual") {
+        result.kind = world::CalculationWorldRuleInputSourceKind::source_residual;
+        result.value = value_key(required_uint32(required_field(binding, "value"), "calculation world rule residual value"));
+    } else if (kind == "runtime_value") {
+        result.kind = world::CalculationWorldRuleInputSourceKind::runtime_value;
+        result.value = value_key(required_uint32(required_field(binding, "value"), "calculation world rule runtime value"));
+    } else if (kind == "object_characteristic") {
+        result.kind = world::CalculationWorldRuleInputSourceKind::object_characteristic;
+        result.characteristic = object_characteristic_id(
+            required_uint32(required_field(binding, "characteristic"), "calculation world rule characteristic"));
+    } else {
+        throw std::invalid_argument{"calculation world rule input kind is invalid"};
+    }
+    return result;
+}
+
+godot::Dictionary calculation_world_rule_output_dictionary(const world::CalculationWorldRuleOutputBinding& binding)
+{
+    godot::Dictionary result;
+    result["output"] = static_cast<std::int64_t>(binding.output.value);
+    result["target"] = static_cast<std::int64_t>(binding.target.value);
+    return result;
+}
+
+world::CalculationWorldRuleOutputBinding calculation_world_rule_output_binding(const godot::Dictionary& binding)
+{
+    return {
+        .output = calculation_port_id(required_uint32(required_field(binding, "output"), "calculation world rule output")),
+        .target = value_key(required_uint32(required_field(binding, "target"), "calculation world rule target")),
+    };
+}
+
 std::size_t item_index(std::int64_t raw)
 {
     if (raw < 0) {

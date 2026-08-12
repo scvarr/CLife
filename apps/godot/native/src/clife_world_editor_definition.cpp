@@ -407,6 +407,37 @@ godot::Array CLifeWorldEditor::get_world_rules()
     return result;
 }
 
+godot::Array CLifeWorldEditor::get_calculation_world_rules()
+{
+    godot::Array result;
+    try {
+        const auto& rules = definition_.calculation_world_rules();
+        for (std::size_t index = 0; index < rules.size(); ++index) {
+            const world::CalculationWorldRuleDefinition& rule = rules[index];
+            godot::Dictionary item;
+            item["index"] = static_cast<std::int64_t>(index);
+            item["source"] = static_cast<std::int64_t>(rule.source.value);
+            item["calculation"] = static_cast<std::int64_t>(rule.calculation.value);
+            godot::Array inputs;
+            for (const auto& binding : rule.inputs) {
+                inputs.push_back(calculation_world_rule_input_dictionary(binding));
+            }
+            godot::Array outputs;
+            for (const auto& binding : rule.outputs) {
+                outputs.push_back(calculation_world_rule_output_dictionary(binding));
+            }
+            item["inputs"] = inputs;
+            item["outputs"] = outputs;
+            result.push_back(item);
+        }
+        clear_error();
+    } catch (...) {
+        capture_current_error();
+        result.clear();
+    }
+    return result;
+}
+
 godot::Array CLifeWorldEditor::get_bindings(std::int64_t raw_template_id)
 {
     godot::Array result;

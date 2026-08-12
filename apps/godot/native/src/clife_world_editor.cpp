@@ -22,6 +22,8 @@ void CLifeWorldEditor::_bind_methods()
                                 &CLifeWorldEditor::get_material_contributions);
     godot::ClassDB::bind_method(godot::D_METHOD("get_genome", "template_id"), &CLifeWorldEditor::get_genome);
     godot::ClassDB::bind_method(godot::D_METHOD("get_world_rules"), &CLifeWorldEditor::get_world_rules);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_calculation_world_rules"),
+                                &CLifeWorldEditor::get_calculation_world_rules);
     godot::ClassDB::bind_method(godot::D_METHOD("get_bindings", "template_id"), &CLifeWorldEditor::get_bindings);
     godot::ClassDB::bind_method(godot::D_METHOD("get_template_characteristic_preview", "template_id"), &CLifeWorldEditor::get_template_characteristic_preview);
     godot::ClassDB::bind_method(godot::D_METHOD("sample_template_shape", "template_id", "directions"),
@@ -140,6 +142,16 @@ void CLifeWorldEditor::_bind_methods()
                         "target_per_source"),
         &CLifeWorldEditor::change_world_rule);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_world_rule", "index"), &CLifeWorldEditor::remove_world_rule);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("add_calculation_world_rule", "source_key", "calculation_id", "input_bindings",
+                        "output_bindings"),
+        &CLifeWorldEditor::add_calculation_world_rule);
+    godot::ClassDB::bind_method(
+        godot::D_METHOD("change_calculation_world_rule", "index", "source_key", "calculation_id",
+                        "input_bindings", "output_bindings"),
+        &CLifeWorldEditor::change_calculation_world_rule);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_calculation_world_rule", "index"),
+                                &CLifeWorldEditor::remove_calculation_world_rule);
     godot::ClassDB::bind_method(godot::D_METHOD("add_host_binding", "template_id", "channel", "direction", "value_key"),
                                 &CLifeWorldEditor::add_host_binding);
     godot::ClassDB::bind_method(

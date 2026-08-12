@@ -246,6 +246,24 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
             rules.push_back(entry);
         }
         result["world_rules"] = rules;
+        godot::Array calculation_rules;
+        for (const auto& rule : snapshot.calculation_world_rules) {
+            godot::Dictionary entry;
+            entry["source"] = static_cast<std::int64_t>(rule.source.value);
+            entry["calculation"] = static_cast<std::int64_t>(rule.calculation.value);
+            godot::Array inputs;
+            for (const auto& binding : rule.inputs) {
+                inputs.push_back(calculation_world_rule_input_dictionary(binding));
+            }
+            godot::Array outputs;
+            for (const auto& binding : rule.outputs) {
+                outputs.push_back(calculation_world_rule_output_dictionary(binding));
+            }
+            entry["inputs"] = inputs;
+            entry["outputs"] = outputs;
+            calculation_rules.push_back(entry);
+        }
+        result["calculation_world_rules"] = calculation_rules;
         result["object_construction"] = godot::Variant();
         if (snapshot.object_construction) {
             godot::Dictionary construction;
@@ -292,7 +310,7 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
         require_edit_mode();
         world::WorldDefinitionSnapshot snapshot;
         snapshot.schema_version = required_uint32(required_field(serialized, "schema_version"), "schema_version");
-        if (snapshot.schema_version != 7) {
+        if (snapshot.schema_version != 8) {
             throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version; recreate the test world"};
         }
         snapshot.next_value_key = required_uint32(required_field(serialized, "next_value_key"), "next_value_key");
@@ -533,6 +551,25 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                 .target = {required_uint32(required_field(item, "target_key"), "world rule target")},
                 .target_per_source = required_number(required_field(item, "target_per_source"), "world rule factor"),
             });
+        }
+        for (const godot::Variant& value : required_array(
+                 required_field(serialized, "calculation_world_rules"), "calculation world rules")) {
+            const godot::Dictionary item = required_dictionary(value, "calculation world rule");
+            world::CalculationWorldRuleDefinition rule{
+                .source = {required_uint32(required_field(item, "source"), "calculation world rule source")},
+                .calculation = {required_uint32(required_field(item, "calculation"), "calculation world rule calculation")},
+            };
+            for (const godot::Variant& input_value :
+                 required_array(required_field(item, "inputs"), "calculation world rule inputs")) {
+                rule.inputs.push_back(calculation_world_rule_input_binding(
+                    required_dictionary(input_value, "calculation world rule input binding")));
+            }
+            for (const godot::Variant& output_value :
+                 required_array(required_field(item, "outputs"), "calculation world rule outputs")) {
+                rule.outputs.push_back(calculation_world_rule_output_binding(
+                    required_dictionary(output_value, "calculation world rule output binding")));
+            }
+            snapshot.calculation_world_rules.push_back(std::move(rule));
         }
         const godot::Variant construction_value = required_field(serialized, "object_construction");
         if (construction_value.get_type() != godot::Variant::NIL) {
