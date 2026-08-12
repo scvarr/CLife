@@ -1,21 +1,22 @@
 # Codex verification
 
 Date: 2026-08-12
-Starting HEAD: `dd98cefc8ac044b1d1ef6d15caa5760a5ab69abf`
-Scope: Add native/GDScript facade and Godot Dictionary snapshot import/export for `CalculationWorldRuleDefinition`; no Godot UI changes.
+Starting HEAD: `ad7af636f0d2ae3a57838e11562aadde6d33f657`
+Scope: Make deletion of an existing function construction-material contribution explicit in the current Godot editor.
 
 ## Commands
 
 - `cmake --build --preset vs2022-debug` — PASS
 - `ctest --preset vs2022-debug` — PASS (3/3 tests)
-- `.\scripts\build_godot.ps1 -Configuration Debug` — PASS
+- `./scripts/build_godot.ps1 -Configuration Debug` — PASS
 - `git diff --check` — PASS
+- `Get-Command godot` — PASS: no executable available on `PATH`
 
 ## Result
 
-The native adapter builds successfully and the baseline test suite passes.
+The existing material-contribution row now has an explicit Delete button that calls the existing native facade and refreshes the Functions panel on success.
 
 ## Notes
 
-- Release build/test was not run: it is not required for this iteration by `reports/codex/README.md` and was not separately requested.
-- The project has no separate native-adapter test target. Existing C++ snapshot tests cover the same three input kinds and multiple output bindings; this slice additionally verifies native compilation through the required Godot build.
+- No Godot project parsing or visual smoke test ran because a Godot executable is not available on `PATH`.
+- Release build/test was not run; it is not required for this focused UI change.

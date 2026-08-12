@@ -151,7 +151,12 @@ func _add_function_material_card(parent: VBoxContainer, function_type: Dictionar
 		if not editor.set_function_material_contribution(int(function_type.id), _selected_unit_id(material), _selected_source(amount)): _show_error(); return
 		_show_functions()
 	)
-	row.add_child(material); row.add_child(amount); row.add_child(save)
+	var remove := Button.new(); remove.text = tr("ux.delete")
+	remove.pressed.connect(func():
+		if not editor.remove_function_material_contribution(int(function_type.id), int(contribution.get("value_key", 0))): _show_error(); return
+		_show_functions()
+	)
+	row.add_child(material); row.add_child(amount); row.add_child(save); row.add_child(remove)
 	card.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and (event as InputEventMouseButton).pressed and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_RIGHT:
 			_show_delete_menu({"kind": "function_material", "function_id": int(function_type.id), "contribution": contribution}, card.get_global_position() + (event as InputEventMouseButton).position)
