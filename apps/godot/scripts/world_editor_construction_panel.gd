@@ -41,7 +41,7 @@ func _show_construction() -> void:
 			var source = field.selector.get_item_metadata(field.selector.selected) if field.selector.selected >= 0 else {}
 			if not (source is Dictionary) or source.is_empty(): status.text = tr("status.construction_input_required"); return
 			var item := {"input_id": field.input_id, "kind": source.kind}
-			if str(source.kind) == "material": item["material_id"] = int(source.material_id)
+			if str(source.kind) == "material": item["value_key"] = int(source.value_key)
 			else: item["characteristic_id"] = int(source.characteristic_id)
 			inputs.append(item)
 		for field in output_fields:
@@ -58,9 +58,9 @@ func _show_construction() -> void:
 
 func _construction_source_selector(selected: Dictionary) -> OptionButton:
 	var selector := OptionButton.new(); selector.add_item(tr("ux.none")); selector.set_item_metadata(0, {})
-	for material in editor.get_materials():
-		var source := {"kind": "material", "material_id": int(material.id)}
-		selector.add_item(tr("ux.material_source") % str(material.name)); selector.set_item_metadata(selector.item_count - 1, source)
+	for value in editor.get_values():
+		var source := {"kind": "material", "value_key": int(value.key)}
+		selector.add_item(tr("ux.material_source") % str(value.name)); selector.set_item_metadata(selector.item_count - 1, source)
 		if selected == source: selector.select(selector.item_count - 1)
 	for characteristic in editor.get_object_characteristics():
 		for kind in ["base", "function_sum"]:
@@ -81,7 +81,7 @@ func _find_construction_input(inputs: Array, input_id: int) -> Dictionary:
 	for input in inputs:
 		if int((input as Dictionary).get("input_id", 0)) == input_id:
 			var item: Dictionary = input
-			return {"kind": str(item.get("kind", "")), "material_id": int(item.get("material_id", 0))} if str(item.get("kind", "")) == "material" else {"kind": str(item.get("kind", "")), "characteristic_id": int(item.get("characteristic_id", 0))}
+			return {"kind": str(item.get("kind", "")), "value_key": int(item.get("value_key", 0))} if str(item.get("kind", "")) == "material" else {"kind": str(item.get("kind", "")), "characteristic_id": int(item.get("characteristic_id", 0))}
 	return {}
 
 func _construction_output_characteristic(outputs: Array, output_id: int) -> int:

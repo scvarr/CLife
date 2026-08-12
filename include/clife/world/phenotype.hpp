@@ -25,7 +25,7 @@ struct CompiledBufferParameters final {
 };
 
 struct MaterialAmount final {
-    MaterialId material;
+    ValueKey value;
     Amount amount;
 };
 
@@ -69,7 +69,7 @@ public:
     [[nodiscard]] std::span<const CompiledFunctionPhenotype> functions() const noexcept;
     [[nodiscard]] const CompiledFunctionPhenotype& function(std::size_t index) const;
     [[nodiscard]] std::span<const MaterialAmount> material_amounts() const noexcept;
-    [[nodiscard]] Amount material_amount(MaterialId material) const noexcept;
+    [[nodiscard]] Amount material_amount(ValueKey value) const noexcept;
     [[nodiscard]] std::span<const ObjectCharacteristicAmount> characteristics() const noexcept;
     [[nodiscard]] Amount characteristic(ObjectCharacteristicId characteristic) const noexcept;
     [[nodiscard]] Amount function_contribution_sum(ObjectCharacteristicId characteristic) const noexcept;

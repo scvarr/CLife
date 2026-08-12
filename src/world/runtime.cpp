@@ -86,6 +86,11 @@ RuntimeWorld::RuntimeWorld(const WorldDefinition& definition)
             initial_amounts[id.index] += initial.amount;
             has_initial[id.index] = true;
         }
+        for (const MaterialAmount& material : phenotype.material_amounts()) {
+            const ValueId id = require_value_id(material.value);
+            initial_amounts[id.index] += material.amount;
+            has_initial[id.index] = true;
+        }
         for (std::size_t index = 0; index < initial_amounts.size(); ++index) {
             if (has_initial[index]) {
                 program.initial_values.push_back({

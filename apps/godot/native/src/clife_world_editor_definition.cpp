@@ -32,21 +32,6 @@ godot::Array CLifeWorldEditor::get_values()
     return result;
 }
 
-godot::Array CLifeWorldEditor::get_materials()
-{
-    godot::Array result;
-    try {
-        for (const world::MaterialDefinition& material : definition_.materials()) {
-            godot::Dictionary item;
-            item["id"] = static_cast<std::int64_t>(material.id.value);
-            item["name"] = to_godot_string(material.name);
-            result.push_back(item);
-        }
-        clear_error();
-    } catch (...) { capture_current_error(); result.clear(); }
-    return result;
-}
-
 godot::Array CLifeWorldEditor::get_units()
 {
     godot::Array result;
@@ -161,7 +146,7 @@ godot::Dictionary CLifeWorldEditor::get_object_construction()
                 item["characteristic_id"] = static_cast<std::int64_t>(binding.source.characteristic.value);
             } else if (binding.source.kind == world::ObjectConstructionSourceKind::material_amount) {
                 item["kind"] = "material";
-                item["material_id"] = static_cast<std::int64_t>(binding.source.material.value);
+                item["value_key"] = static_cast<std::int64_t>(binding.source.value.value);
             } else {
                 throw std::invalid_argument{"invalid construction source kind"};
             }
@@ -212,7 +197,7 @@ godot::Array CLifeWorldEditor::get_function_types()
             godot::Array material_contributions;
             for (const world::MaterialContributionDefinition& contribution : type.material_contributions) {
                 godot::Dictionary entry;
-                entry["material_id"] = static_cast<std::int64_t>(contribution.material.value);
+                entry["value_key"] = static_cast<std::int64_t>(contribution.value.value);
                 entry["amount_source"] = function_value_source_dictionary(contribution.amount);
                 material_contributions.push_back(entry);
             }
@@ -325,7 +310,7 @@ godot::Array CLifeWorldEditor::get_material_contributions(std::int64_t raw_templ
         const world::CompiledPhenotype phenotype = world::compile_phenotype(definition_, id);
         for (const world::MaterialAmount& material : phenotype.material_amounts()) {
             godot::Dictionary item;
-            item["material_id"] = static_cast<std::int64_t>(material.material.value);
+            item["value_key"] = static_cast<std::int64_t>(material.value.value);
             item["amount"] = material.amount;
             result.push_back(item);
         }

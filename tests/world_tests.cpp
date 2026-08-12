@@ -59,7 +59,6 @@ struct SynthesisWorld final {
     ValueKey useful;
     ValueKey loss;
     ValueKey organic;
-    MaterialId structural_organic;
     FunctionTypeId type;
     ParameterId channel;
     CalculationId calculation;
@@ -103,13 +102,12 @@ SynthesisWorld make_synthesis_world(Amount channel_default = 1.0)
         .outputs = {{.output = useful, .allocation = calculated(calculation, efficiency)},
                     {.output = loss, .allocation = calculated(calculation, losses)}},
     });
-    const MaterialId structural_organic = definition.add_material("Structural organic");
-    definition.set_function_material_contribution(type, structural_organic, calculated(calculation, size));
+    definition.set_function_material_contribution(type, organic, calculated(calculation, size));
     const TemplateId cell = definition.add_template("Клетка");
     (void)definition.add_genome_function(cell, type);
     definition.set_initial_value(cell, light, 1.0);
     return {.definition = std::move(definition), .light = light, .useful = useful, .loss = loss,
-            .organic = organic, .structural_organic = structural_organic, .type = type, .channel = channel, .calculation = calculation,
+            .organic = organic, .type = type, .channel = channel, .calculation = calculation,
             .efficiency = efficiency, .losses = losses, .cell = cell};
 }
 
@@ -128,7 +126,7 @@ bool test_calculation_binding_and_sources()
                 "conversion and efficiency must compile") &&
            near(function.process_parameters()->outputs[1].result_per_input, 0.0,
                 "loss allocation must compile") &&
-           near(phenotype.material_amount(world.structural_organic), 1.0,
+           near(phenotype.material_amount(world.organic), 1.0,
                 "material contribution must use calculation output");
 }
 
@@ -448,7 +446,7 @@ bool test_binding_validation_and_removal()
     }, "foreign genome parameter must be rejected");
     definition.set_function_calculation_binding(type, {
         .calculation = calculation, .inputs = {{.input = a, .genome_parameter = x}}});
-    definition.set_function_material_contribution(type, definition.add_material("material"), calculated(calculation, b));
+    definition.set_function_material_contribution(type, definition.add_value("material"), calculated(calculation, b));
     const bool referenced = rejects([&] { definition.remove_function_calculation_binding(type, calculation); },
                                     "referenced calculation binding must not be removed");
     return missing && wrong && referenced;
@@ -587,7 +585,7 @@ bool test_snapshot_round_trip()
     const CompiledFunctionPhenotype& function = phenotype.function(0);
     WorldDefinitionSnapshot old = snapshot;
     old.schema_version = 6;
-    return expect(snapshot.schema_version == 9, "current snapshot schema") &&
+    return expect(snapshot.schema_version == 8, "current snapshot schema") &&
            expect(type.calculations.size() == 1, "calculation binding round trip") &&
            expect(type.process->outputs.size() == 2, "process round trip") &&
            expect(type.material_contributions.size() == 1, "material source round trip") &&
@@ -709,29 +707,28 @@ bool test_object_characteristic_construction()
 bool test_material_construction_source()
 {
     WorldDefinition definition;
-    const ValueKey organic = definition.add_value("Organic");
-    const MaterialId structural_organic = definition.add_material("StructuralOrganic");
+    const ValueKey organic = definition.add_value("StructuralOrganic");
     const ObjectCharacteristicId volume = definition.add_object_characteristic("Volume");
     const CalculationId calculation = definition.add_calculation("Volume from material");
     const CalculationPortId input = definition.add_calculation_input(calculation, "StructuralOrganic");
     const CalculationPortId output = definition.add_calculation_output(calculation, "Volume", "StructuralOrganic");
     const FunctionTypeId type = definition.add_function_type("Channel");
     const ParameterId channel = definition.add_genome_parameter(type, "Channel", 2.0);
-    definition.set_function_material_contribution(type, structural_organic, genome(channel));
+    definition.set_function_material_contribution(type, organic, genome(channel));
     const TemplateId object = definition.add_template("Object");
     (void)definition.add_genome_function(object, type);
     (void)definition.add_genome_function(object, type);
     definition.set_genome_parameter(object, 1, channel, 3.0);
     definition.set_object_construction({.calculation = calculation,
-        .inputs = {{.input = input, .source = {.kind = ObjectConstructionSourceKind::material_amount, .material = structural_organic}}},
+        .inputs = {{.input = input, .source = {.kind = ObjectConstructionSourceKind::material_amount, .value = organic}}},
         .outputs = {{.output = output, .characteristic = volume}}});
     const CompiledPhenotype phenotype = compile_phenotype(definition, object);
-    const bool compiled = near(phenotype.material_amount(structural_organic), 5.0, "genome material contributions must aggregate") &&
+    const bool compiled = near(phenotype.material_amount(organic), 5.0, "genome material contributions must aggregate") &&
                           near(phenotype.characteristic(volume), 5.0, "material construction source must resolve") &&
-                          rejects([&] { definition.remove_material(structural_organic); },
-                                  "construction material source must prevent material removal");
+                          rejects([&] { definition.remove_value(organic); },
+                                  "construction material source must prevent value removal");
     const WorldDefinition restored = WorldDefinition::from_snapshot(definition.snapshot());
-    return compiled && near(compile_phenotype(restored, object).material_amount(structural_organic), 5.0,
+    return compiled && near(compile_phenotype(restored, object).material_amount(organic), 5.0,
                             "material construction snapshot material round trip") &&
            near(compile_phenotype(restored, object).characteristic(volume), 5.0,
                 "material construction snapshot characteristic round trip");

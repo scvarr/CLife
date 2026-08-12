@@ -122,7 +122,7 @@ func _add_object_construction_preview(parent: VBoxContainer, template: Dictionar
 		var unavailable := Label.new(); unavailable.text = editor.get_last_error(); parent.add_child(unavailable); return
 	var materials_title := Label.new(); materials_title.text = tr("ux.materials"); parent.add_child(materials_title)
 	for material in materials:
-		var item := Label.new(); item.text = "%s = %s" % [_material_name(int(material.material_id)), str(material.amount)]; parent.add_child(item)
+		var item := Label.new(); item.text = "%s = %s" % [_value_name(int(material.value_key)), str(material.amount)]; parent.add_child(item)
 	var preview := editor.get_template_characteristic_preview(int(template.id))
 	if preview.is_empty() and not editor.get_last_error().is_empty():
 		var unavailable := Label.new(); unavailable.text = editor.get_last_error(); parent.add_child(unavailable); return

@@ -28,7 +28,6 @@ FirstWorldPreset make_first_world_preset()
     const world::ValueKey heat = definition.add_value("Heat");
     const world::ValueKey temperature = definition.add_value("Temperature");
     const world::ValueKey organic = definition.add_value("Organic");
-    const world::MaterialId structural_organic = definition.add_material("Structural organic");
     const world::UnitId legacy_unit = definition.add_unit("legacy");
     const world::UnitConversionId identity_conversion = definition.add_unit_conversion(
         {.components = {{.unit = legacy_unit, .exponent = 1}}}, 1.0,
@@ -44,7 +43,7 @@ FirstWorldPreset make_first_world_preset()
                                                           .conversion = identity_conversion,
                                                           .outputs = {{.output = energy, .allocation = genome(light_result)}},
                                                       });
-    definition.set_function_material_contribution(light_absorption, structural_organic, genome(light_result));
+    definition.set_function_material_contribution(light_absorption, organic, genome(light_result));
 
     const world::FunctionTypeId energy_use = definition.add_function_type("Energy Use");
     const world::ParameterId use_throughput = definition.add_genome_parameter(energy_use, "Throughput", 0.5);
@@ -55,7 +54,7 @@ FirstWorldPreset make_first_world_preset()
                                                     .conversion = identity_conversion,
                                                     .outputs = {{.output = used_energy, .allocation = genome(use_result)}},
                                                 });
-    definition.set_function_material_contribution(energy_use, structural_organic, genome(use_result));
+    definition.set_function_material_contribution(energy_use, organic, genome(use_result));
 
     const world::FunctionTypeId energy_storage = definition.add_function_type("Energy Storage");
     const world::ParameterId storage_capacity = definition.add_genome_parameter(energy_storage, "Capacity", 5.0);
@@ -79,10 +78,10 @@ FirstWorldPreset make_first_world_preset()
                                                       .throughput = calculated(storage_calculation, storage_throughput),
                                                       .leakage = calculated(storage_calculation, storage_leakage),
                                                   });
-    definition.set_function_material_contribution(energy_storage, structural_organic,
+    definition.set_function_material_contribution(energy_storage, organic,
                                                   calculated(storage_calculation, storage_material));
 
-    definition.set_template_material_contribution(cell, structural_organic, 1.0);
+    definition.set_template_material_contribution(cell, organic, 1.0);
 
     (void)definition.add_genome_function(cell, light_absorption);
     (void)definition.add_genome_function(cell, energy_use);
@@ -123,7 +122,6 @@ FirstWorldPreset make_first_world_preset()
         .heat = heat,
         .temperature = temperature,
         .organic = organic,
-        .structural_organic = structural_organic,
         .cell = cell,
         .light_absorption = light_absorption,
         .energy_use = energy_use,

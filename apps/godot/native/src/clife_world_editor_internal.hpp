@@ -41,7 +41,6 @@ inline constexpr std::array kHostCapabilities{
 godot::String to_godot_string(std::string_view value);
 std::string to_std_string(const godot::String& value);
 world::ValueKey value_key(std::int64_t raw);
-world::MaterialId material_id(std::int64_t raw);
 world::UnitId unit_id(std::int64_t raw);
 world::UnitConversionId unit_conversion_id(std::int64_t raw);
 world::ObjectCharacteristicId object_characteristic_id(std::int64_t raw);

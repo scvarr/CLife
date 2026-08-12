@@ -45,15 +45,15 @@ Godot-side mapping `world.light -> Свет` хранится отдельно �
 
 ## Material and construction projection — реализовано сейчас
 
-`MaterialDefinition` задаёт статический construction material с собственным `MaterialId`. `MaterialContributionDefinition` явно связывает этот `MaterialId` и `FunctionValueSource`, например:
+`MaterialContributionDefinition` явно связывает пользовательский material `ValueKey` и `FunctionValueSource`, например:
 
 ```text
 СтруктурнаяОрганика <- genome.Канал
 ```
 
-Поэтому entry `02 | 5.0` может дать compiled material `СтруктурнаяОрганика = 5.0`; две entries `02 | 5.0` и `02 | 2.0` дают aggregate `СтруктурнаяОрганика = 7.0`. `StructuralOrganic` не hardcoded и не лежит в genome: это user-defined material. Он не является runtime `ValueKey`: material `Структурная органика` и изменяемый runtime Value `Organic` могут существовать одновременно и независимо. Связь material = parameter также не универсальна — её выбирает author функции.
+Поэтому entry `02 | 5.0` может дать compiled material `СтруктурнаяОрганика = 5.0`; две entries `02 | 5.0` и `02 | 2.0` дают aggregate `СтруктурнаяОрганика = 7.0`. `StructuralOrganic` не hardcoded и не лежит в genome: это user-defined World Quantity. Связь material = parameter также не универсальна — её выбирает author функции.
 
-`ObjectConstructionDefinition` запускает обычную Calculation над base characteristics, function-contribution sums и aggregate materials. Источник `ObjectConstructionSourceKind::material_amount` передаёт `CompiledPhenotype::material_amount(MaterialId)` во вход Calculation. Например, world law может получить material `СтруктурнаяОрганика`, вычислить `ОбъёмИзОрганики` и опубликовать final `ObjectCharacteristic Объём = 7`. Ни StructuralOrganic, ни Volume, ни эта формула не являются hardcoded. Compiled materials принадлежат статическому adult phenotype и не инициализируют `Calculator` runtime values.
+`ObjectConstructionDefinition` запускает обычную Calculation над base characteristics, function-contribution sums и aggregate materials. Источник `ObjectConstructionSourceKind::material_amount` передаёт `CompiledPhenotype::material_amount(ValueKey)` во вход Calculation. Например, world law может получить material `СтруктурнаяОрганика`, вычислить `ОбъёмИзОрганики` и опубликовать final `ObjectCharacteristic Объём = 7`. Ни StructuralOrganic, ни Volume, ни эта формула не являются hardcoded.
 
 Function characteristic contributions продолжают быть отдельным путём: их SUM — лишь промежуточная агрегация; final characteristic определяется ObjectConstruction Calculation, а не встроенным SUM.
 

@@ -43,11 +43,6 @@ struct ValueDefinition final {
     std::optional<UnitExpression> unit;
 };
 
-struct MaterialDefinition final {
-    MaterialId id;
-    std::string name;
-};
-
 struct ObjectCharacteristicDefinition final {
     ObjectCharacteristicId id;
     std::string name;
@@ -101,7 +96,7 @@ struct BufferProcessDefinition final {
 };
 
 struct MaterialContributionDefinition final {
-    MaterialId material;
+    ValueKey value;
     FunctionValueSource amount;
 };
 
@@ -151,7 +146,7 @@ struct InitialValueDefinition final {
 };
 
 struct TemplateMaterialContributionDefinition final {
-    MaterialId material;
+    ValueKey value;
     Amount amount;
 };
 
@@ -169,7 +164,7 @@ enum class ObjectConstructionSourceKind {
 struct ObjectConstructionSource final {
     ObjectConstructionSourceKind kind;
     ObjectCharacteristicId characteristic{};
-    MaterialId material{};
+    ValueKey value{};
 };
 
 struct ObjectConstructionInputBinding final {
@@ -264,9 +259,8 @@ struct CalculationSnapshot final {
 };
 
 struct WorldDefinitionSnapshot final {
-    std::uint32_t schema_version{9};
+    std::uint32_t schema_version{8};
     std::vector<ValueDefinition> values;
-    std::vector<MaterialDefinition> materials;
     std::vector<UnitDefinition> units;
     std::vector<UnitConversionDefinition> unit_conversions;
     std::vector<ObjectCharacteristicDefinition> object_characteristics;
@@ -277,7 +271,6 @@ struct WorldDefinitionSnapshot final {
     std::vector<CalculationWorldRuleDefinition> calculation_world_rules;
     std::optional<ObjectConstructionDefinition> object_construction;
     std::uint32_t next_value_key{1};
-    std::uint32_t next_material_id{1};
     std::uint32_t next_template_id{1};
     std::uint32_t next_function_type_id{1};
     std::uint32_t next_parameter_id{1};
@@ -291,9 +284,6 @@ struct WorldDefinitionSnapshot final {
 class WorldDefinition final {
 public:
     [[nodiscard]] ValueKey add_value(std::string name);
-    [[nodiscard]] MaterialId add_material(std::string name);
-    void rename_material(MaterialId id, std::string name);
-    void remove_material(MaterialId id);
     [[nodiscard]] UnitId add_unit(std::string symbol, std::string description = {});
     void update_unit(UnitId id, std::string symbol, std::string description);
     void remove_unit(UnitId id);
@@ -316,7 +306,7 @@ public:
     void remove_initial_value(TemplateId id, ValueKey value);
     void set_template_base_characteristic(TemplateId id, ObjectCharacteristicId characteristic, Amount amount);
     void remove_template_base_characteristic(TemplateId id, ObjectCharacteristicId characteristic);
-    void set_template_material_contribution(TemplateId id, MaterialId material, Amount amount);
+    void set_template_material_contribution(TemplateId id, ValueKey value, Amount amount);
 
     [[nodiscard]] FunctionTypeId add_function_type(std::string name);
     void rename_function_type(FunctionTypeId id, std::string name);
@@ -337,8 +327,8 @@ public:
     void remove_function_process(FunctionTypeId type);
     void set_buffer_process(FunctionTypeId type, BufferProcessDefinition process);
     void remove_buffer_process(FunctionTypeId type);
-    void set_function_material_contribution(FunctionTypeId type, MaterialId material, FunctionValueSource amount);
-    void remove_function_material_contribution(FunctionTypeId type, MaterialId material);
+    void set_function_material_contribution(FunctionTypeId type, ValueKey value, FunctionValueSource amount);
+    void remove_function_material_contribution(FunctionTypeId type, ValueKey value);
     void set_function_characteristic_contribution(FunctionTypeId type, ObjectCharacteristicId characteristic,
                                                   FunctionValueSource amount);
     void remove_function_characteristic_contribution(FunctionTypeId type, ObjectCharacteristicId characteristic);
@@ -371,7 +361,6 @@ public:
     void remove_object_construction();
 
     [[nodiscard]] const std::vector<ValueDefinition>& values() const noexcept;
-    [[nodiscard]] const std::vector<MaterialDefinition>& materials() const noexcept;
     [[nodiscard]] const std::vector<UnitDefinition>& units() const noexcept;
     [[nodiscard]] const std::vector<UnitConversionDefinition>& unit_conversions() const noexcept;
     [[nodiscard]] const std::vector<ObjectCharacteristicDefinition>& object_characteristics() const noexcept;
@@ -383,7 +372,6 @@ public:
     [[nodiscard]] const std::vector<WorldRuleDefinition>& world_rules() const noexcept;
     [[nodiscard]] const std::vector<CalculationWorldRuleDefinition>& calculation_world_rules() const noexcept;
     [[nodiscard]] const ValueDefinition& value(ValueKey key) const;
-    [[nodiscard]] const MaterialDefinition& material(MaterialId id) const;
     [[nodiscard]] const UnitDefinition& unit(UnitId id) const;
     [[nodiscard]] const ObjectCharacteristicDefinition& object_characteristic(ObjectCharacteristicId id) const;
     [[nodiscard]] const ObjectTemplate& object_template(TemplateId id) const;
@@ -407,7 +395,6 @@ private:
     void validate_binding(const ObjectTemplate& object, const HostBinding& binding, std::size_t ignored_index) const;
 
     std::vector<ValueDefinition> values_;
-    std::vector<MaterialDefinition> materials_;
     std::vector<UnitDefinition> units_;
     std::vector<UnitConversionDefinition> unit_conversions_;
     std::vector<ObjectCharacteristicDefinition> object_characteristics_;
@@ -418,7 +405,6 @@ private:
     std::vector<CalculationWorldRuleDefinition> calculation_world_rules_;
     std::optional<ObjectConstructionDefinition> object_construction_;
     std::uint32_t next_value_key_{1};
-    std::uint32_t next_material_id_{1};
     std::uint32_t next_template_id_{1};
     std::uint32_t next_function_type_id_{1};
     std::uint32_t next_parameter_id_{1};

@@ -20,14 +20,6 @@ world::ValueKey value_key(std::int64_t raw)
     return {static_cast<std::uint32_t>(raw)};
 }
 
-world::MaterialId material_id(std::int64_t raw)
-{
-    if (raw <= 0 || raw > std::numeric_limits<std::uint32_t>::max()) {
-        throw std::invalid_argument{"invalid MaterialId"};
-    }
-    return {static_cast<std::uint32_t>(raw)};
-}
-
 world::UnitId unit_id(std::int64_t raw)
 {
     if (raw <= 0 || raw > std::numeric_limits<std::uint32_t>::max()) {
