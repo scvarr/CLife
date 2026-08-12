@@ -195,6 +195,18 @@ msgstr "ADD WORLD RULE"
 msgid "ux.source"
 msgstr "Source"
 
+msgid "ux.calculation"
+msgstr "Calculation"
+
+msgid "ux.source_residual"
+msgstr "Source residual"
+
+msgid "ux.runtime_value_source"
+msgstr "Runtime value: %s"
+
+msgid "ux.object_characteristic_source"
+msgstr "Object characteristic: %s"
+
 msgid "ux.end_buffer"
 msgstr "End buffer"
 

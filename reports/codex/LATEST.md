@@ -2,7 +2,21 @@
 
 Date: 2026-08-12
 Starting HEAD: `ad7af636f0d2ae3a57838e11562aadde6d33f657`
-Scope: Make deletion of an existing function construction-material contribution explicit in the current Godot editor.
+Scope: Replace the current Godot World Rules panel's legacy authoring UI with `CalculationWorldRule` authoring.
+
+## Changed files
+
+- `apps/godot/scripts/world_editor_world_rules_panel.gd`
+- `apps/godot/translations/clife_editor.en.po`
+- `apps/godot/translations/clife_editor.ru.po`
+- `reports/codex/LATEST.md`
+
+## Facade API used
+
+- `get_calculation_world_rules()`
+- `add_calculation_world_rule(source_key, calculation_id, input_bindings, output_bindings)`
+- `change_calculation_world_rule(index, source_key, calculation_id, input_bindings, output_bindings)`
+- `remove_calculation_world_rule(index)`
 
 ## Commands
 
@@ -14,9 +28,10 @@ Scope: Make deletion of an existing function construction-material contribution 
 
 ## Result
 
-The existing material-contribution row now has an explicit Delete button that calls the existing native facade and refreshes the Functions panel on success.
+The panel reads, creates, changes, and removes calculation world rules. It binds every selected Calculation input to source residual, a runtime Value, or an ObjectCharacteristic, and every output to a runtime Value.
 
 ## Notes
 
-- No Godot project parsing or visual smoke test ran because a Godot executable is not available on `PATH`.
+- Legacy `WorldRule` backend remains unchanged but is no longer used by the current World Rules panel.
+- No Godot project parsing or interactive UI smoke test ran because a Godot executable is not available on `PATH`.
 - Release build/test was not run; it is not required for this focused UI change.

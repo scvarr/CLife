@@ -196,6 +196,18 @@ msgstr "ДОБАВИТЬ ПРАВИЛО МИРА"
 msgid "ux.source"
 msgstr "Источник"
 
+msgid "ux.calculation"
+msgstr "Вычисление"
+
+msgid "ux.source_residual"
+msgstr "Конечный остаток источника"
+
+msgid "ux.runtime_value_source"
+msgstr "Runtime величина: %s"
+
+msgid "ux.object_characteristic_source"
+msgstr "Характеристика объекта: %s"
+
 msgid "ux.end_buffer"
 msgstr "Конечный буфер"
 
