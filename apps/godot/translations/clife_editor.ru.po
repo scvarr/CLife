@@ -106,6 +106,9 @@ msgstr "Удалить «%s»?"
 msgid "ux.world_quantities"
 msgstr "Величины мира"
 
+msgid "ux.materials"
+msgstr "Материалы"
+
 msgid "ux.name"
 msgstr "Название"
 

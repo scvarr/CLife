@@ -29,6 +29,7 @@ struct FirstWorldPreset final {
     world::ValueKey heat;
     world::ValueKey temperature;
     world::ValueKey organic;
+    world::MaterialId structural_organic;
     world::TemplateId cell;
     world::FunctionTypeId light_absorption;
     world::FunctionTypeId energy_use;

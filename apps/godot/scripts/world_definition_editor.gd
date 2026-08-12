@@ -4,6 +4,7 @@ const WorldEditorSession = preload("res://scripts/world_editor_session.gd")
 const GodotHostConfig = preload("res://scripts/godot_host_config.gd")
 const UnitsPanel = preload("res://scripts/world_editor_units_panel.gd")
 const ValuesPanel = preload("res://scripts/world_editor_values_panel.gd")
+const MaterialsPanel = preload("res://scripts/world_editor_materials_panel.gd")
 const ConversionsPanel = preload("res://scripts/world_editor_conversions_panel.gd")
 const CalculationsPanel = preload("res://scripts/world_editor_calculations_panel.gd")
 const FunctionsPanel = preload("res://scripts/world_editor_functions_panel.gd")
@@ -25,6 +26,7 @@ var context_menu := PopupMenu.new()
 var delete_confirmation := ConfirmationDialog.new()
 var units_panel := UnitsPanel.new()
 var values_panel := ValuesPanel.new()
+var materials_panel := MaterialsPanel.new()
 var conversions_panel := ConversionsPanel.new()
 var calculations_panel := CalculationsPanel.new()
 var functions_panel := FunctionsPanel.new()
@@ -40,6 +42,7 @@ func _ready() -> void:
 	$Layout/Sidebar/Back.text = tr("ux.back_to_menu")
 	$Layout/Sidebar/Units.text = tr("ux.units")
 	$Layout/Sidebar/WorldQuantities.text = tr("ux.world_quantities")
+	$Layout/Sidebar/Materials.text = tr("ux.materials")
 	$Layout/Sidebar/Conversions.text = tr("ux.conversions")
 	$Layout/Sidebar/Formulas.text = tr("ux.formulas")
 	$Layout/Sidebar/Functions.text = tr("ux.functions")
@@ -62,7 +65,7 @@ func _ready() -> void:
 	if not startup_status.is_empty(): status.text = startup_status
 
 func _all_panels() -> Array[WorldEditorPanel]:
-	return [units_panel, values_panel, conversions_panel, calculations_panel, functions_panel, characteristics_panel, construction_panel, objects_panel, world_rules_panel, external_inputs_panel]
+	return [units_panel, values_panel, materials_panel, conversions_panel, calculations_panel, functions_panel, characteristics_panel, construction_panel, objects_panel, world_rules_panel, external_inputs_panel]
 
 func _activate_panel(panel: WorldEditorPanel) -> void:
 	if current_panel != panel:
@@ -73,6 +76,7 @@ func _activate_panel(panel: WorldEditorPanel) -> void:
 
 func _show_units() -> void: _activate_panel(units_panel)
 func _show_world_quantities() -> void: _activate_panel(values_panel)
+func _show_materials() -> void: _activate_panel(materials_panel)
 func _show_conversions() -> void: _activate_panel(conversions_panel)
 func _show_formulas() -> void: _activate_panel(calculations_panel)
 func _show_functions() -> void: _activate_panel(functions_panel)
@@ -203,6 +207,11 @@ func _show_error() -> void:
 func _value_name(key: int) -> String:
 	for value in editor.get_values():
 		if int(value.key) == key: return str(value.name)
+	return tr("ux.unknown")
+
+func _material_name(id: int) -> String:
+	for material in editor.get_materials():
+		if int(material.id) == id: return str(material.name)
 	return tr("ux.unknown")
 
 func _characteristic_name(id: int) -> String:

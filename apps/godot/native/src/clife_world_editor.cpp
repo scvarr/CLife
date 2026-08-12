@@ -9,6 +9,7 @@ using namespace detail;
 void CLifeWorldEditor::_bind_methods()
 {
     godot::ClassDB::bind_method(godot::D_METHOD("get_values"), &CLifeWorldEditor::get_values);
+    godot::ClassDB::bind_method(godot::D_METHOD("get_materials"), &CLifeWorldEditor::get_materials);
     godot::ClassDB::bind_method(godot::D_METHOD("get_units"), &CLifeWorldEditor::get_units);
     godot::ClassDB::bind_method(godot::D_METHOD("get_unit_conversions"), &CLifeWorldEditor::get_unit_conversions);
     godot::ClassDB::bind_method(godot::D_METHOD("get_object_characteristics"), &CLifeWorldEditor::get_object_characteristics);
@@ -30,6 +31,9 @@ void CLifeWorldEditor::_bind_methods()
                                 &CLifeWorldEditor::sample_template_shape);
     godot::ClassDB::bind_method(godot::D_METHOD("get_host_capabilities"), &CLifeWorldEditor::get_host_capabilities);
     godot::ClassDB::bind_method(godot::D_METHOD("add_value", "name"), &CLifeWorldEditor::add_value);
+    godot::ClassDB::bind_method(godot::D_METHOD("add_material", "name"), &CLifeWorldEditor::add_material);
+    godot::ClassDB::bind_method(godot::D_METHOD("rename_material", "material_id", "name"), &CLifeWorldEditor::rename_material);
+    godot::ClassDB::bind_method(godot::D_METHOD("remove_material", "material_id"), &CLifeWorldEditor::remove_material);
     godot::ClassDB::bind_method(godot::D_METHOD("add_unit", "symbol", "description"), &CLifeWorldEditor::add_unit, DEFVAL(godot::String{}));
     godot::ClassDB::bind_method(godot::D_METHOD("update_unit", "unit_id", "symbol", "description"), &CLifeWorldEditor::update_unit);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_unit", "unit_id"), &CLifeWorldEditor::remove_unit);
@@ -120,10 +124,10 @@ void CLifeWorldEditor::_bind_methods()
         godot::D_METHOD("remove_function_calculation_binding", "function_type_id", "calculation_id"),
         &CLifeWorldEditor::remove_function_calculation_binding);
     godot::ClassDB::bind_method(
-        godot::D_METHOD("set_function_material_contribution", "function_type_id", "value_key", "amount_source"),
+        godot::D_METHOD("set_function_material_contribution", "function_type_id", "material_id", "amount_source"),
         &CLifeWorldEditor::set_function_material_contribution);
     godot::ClassDB::bind_method(
-        godot::D_METHOD("remove_function_material_contribution", "function_type_id", "value_key"),
+        godot::D_METHOD("remove_function_material_contribution", "function_type_id", "material_id"),
         &CLifeWorldEditor::remove_function_material_contribution);
     godot::ClassDB::bind_method(godot::D_METHOD("set_function_characteristic_contribution", "function_type_id", "characteristic_id", "amount_source"), &CLifeWorldEditor::set_function_characteristic_contribution);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_function_characteristic_contribution", "function_type_id", "characteristic_id"), &CLifeWorldEditor::remove_function_characteristic_contribution);

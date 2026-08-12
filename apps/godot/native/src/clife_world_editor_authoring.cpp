@@ -17,6 +17,26 @@ std::int64_t CLifeWorldEditor::add_value(const godot::String& name)
     }
 }
 
+std::int64_t CLifeWorldEditor::add_material(const godot::String& name)
+{
+    try {
+        require_edit_mode();
+        const world::MaterialId id = definition_.add_material(to_std_string(name));
+        clear_error();
+        return static_cast<std::int64_t>(id.value);
+    } catch (...) { capture_current_error(); return 0; }
+}
+
+bool CLifeWorldEditor::rename_material(std::int64_t raw_material_id, const godot::String& name)
+{
+    return edit([&] { definition_.rename_material(material_id(raw_material_id), to_std_string(name)); });
+}
+
+bool CLifeWorldEditor::remove_material(std::int64_t raw_material_id)
+{
+    return edit([&] { definition_.remove_material(material_id(raw_material_id)); });
+}
+
 std::int64_t CLifeWorldEditor::add_unit(const godot::String& symbol, const godot::String& description)
 {
     try {
@@ -438,20 +458,20 @@ bool CLifeWorldEditor::remove_function_calculation_binding(std::int64_t raw_func
 }
 
 bool CLifeWorldEditor::set_function_material_contribution(std::int64_t raw_function_type_id,
-                                                           std::int64_t raw_value_key,
+                                                           std::int64_t raw_material_id,
                                                            const godot::Dictionary& amount_source)
 {
     return edit([&] {
-        definition_.set_function_material_contribution(function_type_id(raw_function_type_id), value_key(raw_value_key),
+        definition_.set_function_material_contribution(function_type_id(raw_function_type_id), material_id(raw_material_id),
                                                        function_value_source(amount_source));
     });
 }
 
 bool CLifeWorldEditor::remove_function_material_contribution(std::int64_t raw_function_type_id,
-                                                              std::int64_t raw_value_key)
+                                                              std::int64_t raw_material_id)
 {
     return edit([&] {
-        definition_.remove_function_material_contribution(function_type_id(raw_function_type_id), value_key(raw_value_key));
+        definition_.remove_function_material_contribution(function_type_id(raw_function_type_id), material_id(raw_material_id));
     });
 }
 
@@ -612,7 +632,7 @@ bool CLifeWorldEditor::set_object_construction(std::int64_t raw_calculation_id, 
                 .input = calculation_port_id(required_uint32(required_field(item, "input_id"), "construction input id")),
                 .source = kind == "material"
                               ? world::ObjectConstructionSource{.kind = world::ObjectConstructionSourceKind::material_amount,
-                                                                .value = value_key(required_uint32(required_field(item, "value_key"), "construction material value key"))}
+                                                                .material = material_id(required_uint32(required_field(item, "material_id"), "construction material id"))}
                               : world::ObjectConstructionSource{.kind = kind == "base" ? world::ObjectConstructionSourceKind::base_characteristic : world::ObjectConstructionSourceKind::function_contribution_sum,
                                                                 .characteristic = object_characteristic_id(required_uint32(required_field(item, "characteristic_id"), "construction characteristic id"))},
             });

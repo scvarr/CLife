@@ -118,6 +118,46 @@ ValueKey WorldDefinition::add_value(std::string name)
     return key;
 }
 
+MaterialId WorldDefinition::add_material(std::string name)
+{
+    require_name(name, "material");
+    if (std::ranges::any_of(materials_, [&name](const MaterialDefinition& entry) { return entry.name == name; })) {
+        throw std::invalid_argument{"material name must be unique"};
+    }
+    if (next_material_id_ == 0) throw std::overflow_error{"MaterialId space exhausted"};
+    const MaterialId id{next_material_id_++};
+    materials_.push_back({.id = id, .name = std::move(name)});
+    return id;
+}
+
+void WorldDefinition::rename_material(MaterialId id, std::string name)
+{
+    require_name(name, "material");
+    if (std::ranges::any_of(materials_, [id, &name](const MaterialDefinition& entry) {
+            return entry.id != id && entry.name == name;
+        })) throw std::invalid_argument{"material name must be unique"};
+    auto& entry = const_cast<MaterialDefinition&>(material(id));
+    entry.name = std::move(name);
+}
+
+void WorldDefinition::remove_material(MaterialId id)
+{
+    (void)material(id);
+    const auto referenced = [id](MaterialId candidate) { return candidate == id; };
+    if (std::ranges::any_of(templates_, [&](const ObjectTemplate& object) {
+            return std::ranges::any_of(object.material_contributions, [&](const auto& item) {
+                return referenced(item.material);
+            });
+        }) || std::ranges::any_of(function_types_, [&](const FunctionTypeDefinition& type) {
+            return std::ranges::any_of(type.material_contributions, [&](const auto& item) {
+                return referenced(item.material);
+            });
+        }) || (object_construction_ && std::ranges::any_of(object_construction_->inputs, [&](const auto& item) {
+            return item.source.kind == ObjectConstructionSourceKind::material_amount && referenced(item.source.material);
+        }))) throw std::invalid_argument{"cannot remove a referenced material"};
+    std::erase_if(materials_, [id](const MaterialDefinition& item) { return item.id == id; });
+}
+
 UnitId WorldDefinition::add_unit(std::string symbol, std::string description)
 {
     require_name(symbol, "unit");
@@ -284,10 +324,6 @@ void WorldDefinition::remove_value(ValueKey key)
     for (const ObjectTemplate& object : templates_) {
         if (std::ranges::any_of(object.initial_values,
                                 [&](const InitialValueDefinition& item) { return referenced(item.value); }) ||
-            std::ranges::any_of(object.material_contributions,
-                                [&](const TemplateMaterialContributionDefinition& item) {
-                                    return referenced(item.value);
-                                }) ||
             std::ranges::any_of(object.host_bindings,
                                 [&](const HostBinding& item) { return referenced(item.value); })) {
             throw std::invalid_argument{"cannot remove a referenced value"};
@@ -313,16 +349,7 @@ void WorldDefinition::remove_value(ValueKey key)
                                                          [&](const FunctionProcessOutputDefinition& output) {
                                                              return referenced(output.output);
                                                          }))) ||
-                   (type.buffer_process && referenced(type.buffer_process->value)) ||
-                   std::ranges::any_of(type.material_contributions,
-                                       [&](const MaterialContributionDefinition& item) {
-                                           return referenced(item.value);
-                                       });
-        })) {
-        throw std::invalid_argument{"cannot remove a referenced value"};
-    }
-    if (object_construction_ && std::ranges::any_of(object_construction_->inputs, [&](const auto& item) {
-            return item.source.kind == ObjectConstructionSourceKind::material_amount && referenced(item.source.value);
+                   (type.buffer_process && referenced(type.buffer_process->value));
         })) {
         throw std::invalid_argument{"cannot remove a referenced value"};
     }
@@ -426,17 +453,17 @@ void WorldDefinition::remove_template_base_characteristic(TemplateId id, ObjectC
     }
 }
 
-void WorldDefinition::set_template_material_contribution(TemplateId id, ValueKey key, Amount amount)
+void WorldDefinition::set_template_material_contribution(TemplateId id, MaterialId material_id, Amount amount)
 {
-    (void)value(key);
+    (void)material(material_id);
     if (!std::isfinite(amount) || amount < 0.0) {
         throw std::invalid_argument{"template material contribution must be finite and non-negative"};
     }
     ObjectTemplate& object = mutable_template(id);
-    const auto found = std::ranges::find(object.material_contributions, key,
-                                         &TemplateMaterialContributionDefinition::value);
+    const auto found = std::ranges::find(object.material_contributions, material_id,
+                                         &TemplateMaterialContributionDefinition::material);
     if (found == object.material_contributions.end()) {
-        object.material_contributions.push_back({.value = key, .amount = amount});
+        object.material_contributions.push_back({.material = material_id, .amount = amount});
     } else {
         found->amount = amount;
     }
@@ -731,17 +758,17 @@ void WorldDefinition::remove_buffer_process(FunctionTypeId type_id)
     type.buffer_process.reset();
 }
 
-void WorldDefinition::set_function_material_contribution(FunctionTypeId type_id, ValueKey key,
+void WorldDefinition::set_function_material_contribution(FunctionTypeId type_id, MaterialId material_id,
                                                           FunctionValueSource amount)
 {
-    (void)value(key);
+    (void)material(material_id);
     FunctionTypeDefinition& type = mutable_function_type(type_id);
     validate_function_value_source(type, amount);
     const auto contribution =
-        std::ranges::find(type.material_contributions, key, &MaterialContributionDefinition::value);
+        std::ranges::find(type.material_contributions, material_id, &MaterialContributionDefinition::material);
     if (contribution == type.material_contributions.end()) {
         type.material_contributions.push_back({
-            .value = key,
+            .material = material_id,
             .amount = amount,
         });
         return;
@@ -749,11 +776,11 @@ void WorldDefinition::set_function_material_contribution(FunctionTypeId type_id,
     contribution->amount = amount;
 }
 
-void WorldDefinition::remove_function_material_contribution(FunctionTypeId type_id, ValueKey key)
+void WorldDefinition::remove_function_material_contribution(FunctionTypeId type_id, MaterialId material_id)
 {
     FunctionTypeDefinition& type = mutable_function_type(type_id);
     if (std::erase_if(type.material_contributions,
-                      [key](const MaterialContributionDefinition& item) { return item.value == key; }) == 0) {
+                      [material_id](const MaterialContributionDefinition& item) { return item.material == material_id; }) == 0) {
         throw std::invalid_argument{"function material contribution does not exist"};
     }
 }
@@ -1078,6 +1105,7 @@ void WorldDefinition::remove_object_construction()
 }
 
 const std::vector<ValueDefinition>& WorldDefinition::values() const noexcept { return values_; }
+const std::vector<MaterialDefinition>& WorldDefinition::materials() const noexcept { return materials_; }
 const std::vector<UnitDefinition>& WorldDefinition::units() const noexcept { return units_; }
 const std::vector<UnitConversionDefinition>& WorldDefinition::unit_conversions() const noexcept
 {
@@ -1168,6 +1196,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
 {
     WorldDefinitionSnapshot result{
         .values = values_,
+        .materials = materials_,
         .units = units_,
         .unit_conversions = unit_conversions_,
         .object_characteristics = object_characteristics_,
@@ -1176,6 +1205,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
         .calculation_world_rules = calculation_world_rules_,
         .object_construction = object_construction_,
         .next_value_key = next_value_key_,
+        .next_material_id = next_material_id_,
         .next_template_id = next_template_id_,
         .next_function_type_id = next_function_type_id_,
         .next_parameter_id = next_parameter_id_,
@@ -1212,11 +1242,13 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
 
 WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& source)
 {
-    if (source.schema_version != 8) {
+    if (source.schema_version != 9) {
         throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version"};
     }
     require_unique_snapshot_ids(source.values, &ValueDefinition::key, "ValueKey");
     require_unique_snapshot_names(source.values, "value");
+    require_unique_snapshot_ids(source.materials, &MaterialDefinition::id, "MaterialId");
+    require_unique_snapshot_names(source.materials, "material");
     require_unique_snapshot_ids(source.units, &UnitDefinition::id, "UnitId");
     for (std::size_t index = 0; index < source.units.size(); ++index) {
         require_name(source.units[index].symbol, "unit");
@@ -1235,6 +1267,7 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
 
     WorldDefinition restored;
     restored.values_ = source.values;
+    restored.materials_ = source.materials;
     restored.units_ = source.units;
     require_unique_snapshot_ids(source.object_characteristics, &ObjectCharacteristicDefinition::id,
                                 "ObjectCharacteristicId");
@@ -1340,9 +1373,9 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
             type.buffer_process = stored.buffer_process;
         }
         for (const MaterialContributionDefinition& contribution : stored.material_contributions) {
-            (void)restored.value(contribution.value);
+            (void)restored.material(contribution.material);
             if (std::ranges::any_of(type.material_contributions, [&contribution](const auto& existing) {
-                    return existing.value == contribution.value;
+                    return existing.material == contribution.material;
                 })) {
                 throw std::invalid_argument{"function type has more than one contribution for a material value"};
             }
@@ -1375,10 +1408,10 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
             object.initial_values.push_back(initial);
         }
         for (const TemplateMaterialContributionDefinition& contribution : stored.material_contributions) {
-            (void)restored.value(contribution.value);
+            (void)restored.material(contribution.material);
             if (!std::isfinite(contribution.amount) || contribution.amount < 0.0 ||
                 std::ranges::any_of(object.material_contributions, [&contribution](const auto& existing) {
-                    return existing.value == contribution.value;
+                    return existing.material == contribution.material;
                 })) {
                 throw std::invalid_argument{"template material contribution must be finite, non-negative, and unique"};
             }
@@ -1428,6 +1461,7 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
     }
 
     require_next_id_is_unused(source.next_value_key, source.values, &ValueDefinition::key, "ValueKey");
+    require_next_id_is_unused(source.next_material_id, source.materials, &MaterialDefinition::id, "MaterialId");
     require_next_id_is_unused(source.next_template_id, source.templates, &ObjectTemplate::id, "TemplateId");
     require_next_id_is_unused(source.next_function_type_id, source.function_types, &FunctionTypeSnapshot::id,
                               "FunctionTypeId");
@@ -1443,6 +1477,7 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
     require_next_id_is_unused(source.next_object_characteristic_id, source.object_characteristics,
                               &ObjectCharacteristicDefinition::id, "ObjectCharacteristicId");
     restored.next_value_key_ = source.next_value_key;
+    restored.next_material_id_ = source.next_material_id;
     restored.next_template_id_ = source.next_template_id;
     restored.next_function_type_id_ = source.next_function_type_id;
     restored.next_parameter_id_ = source.next_parameter_id;
@@ -1556,6 +1591,15 @@ void WorldDefinition::validate_rule(const WorldRuleDefinition& rule, std::size_t
     }
 }
 
+const MaterialDefinition& WorldDefinition::material(MaterialId id) const
+{
+    const auto found = std::ranges::find(materials_, id, &MaterialDefinition::id);
+    if (found == materials_.end()) {
+        throw std::invalid_argument{"unknown MaterialId"};
+    }
+    return *found;
+}
+
 void WorldDefinition::validate_calculation_world_rule(const CalculationWorldRuleDefinition& rule, std::size_t ignored_index) const
 {
     (void)value(rule.source);
@@ -1635,7 +1679,7 @@ void WorldDefinition::validate_object_construction(const ObjectConstructionDefin
             throw std::invalid_argument{"object construction contains an unknown calculation input"};
         }
         if (binding.source.kind == ObjectConstructionSourceKind::material_amount) {
-            (void)value(binding.source.value);
+            (void)material(binding.source.material);
         } else if (binding.source.kind == ObjectConstructionSourceKind::base_characteristic ||
                    binding.source.kind == ObjectConstructionSourceKind::function_contribution_sum) {
             (void)object_characteristic(binding.source.characteristic);

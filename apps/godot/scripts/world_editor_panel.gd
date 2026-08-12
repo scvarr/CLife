@@ -110,5 +110,8 @@ func _find_function(id: int) -> Dictionary:
 func _value_name(key: int) -> String:
 	return shell._value_name(key)
 
+func _material_name(id: int) -> String:
+	return shell._material_name(id)
+
 func _characteristic_name(id: int) -> String:
 	return shell._characteristic_name(id)

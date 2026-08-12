@@ -17,14 +17,14 @@ namespace {
     return found->value;
 }
 
-void add_material(std::vector<MaterialAmount>& materials, ValueKey value, Amount amount)
+void add_material(std::vector<MaterialAmount>& materials, MaterialId material, Amount amount)
 {
     if (!std::isfinite(amount) || amount < 0.0) {
         throw std::invalid_argument{"material contribution must be finite and non-negative"};
     }
-    const auto found = std::ranges::find(materials, value, &MaterialAmount::value);
+    const auto found = std::ranges::find(materials, material, &MaterialAmount::material);
     if (found == materials.end()) {
-        materials.push_back({.value = value, .amount = amount});
+        materials.push_back({.material = material, .amount = amount});
     } else {
         found->amount += amount;
         if (!std::isfinite(found->amount)) {
@@ -80,7 +80,7 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
         add_characteristic(base_characteristics, base.characteristic, base.amount);
     }
     for (const TemplateMaterialContributionDefinition& contribution : object.material_contributions) {
-        add_material(phenotype.material_amounts_, contribution.value, contribution.amount);
+        add_material(phenotype.material_amounts_, contribution.material, contribution.amount);
     }
     phenotype.functions_.reserve(object.genome.size());
     for (const GenomeFunctionInstance& instance : object.genome) {
@@ -169,7 +169,7 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
             };
         }
         for (const MaterialContributionDefinition& contribution : type.material_contributions) {
-            add_material(phenotype.material_amounts_, contribution.value, source_value(function, contribution.amount));
+            add_material(phenotype.material_amounts_, contribution.material, source_value(function, contribution.amount));
         }
         for (const FunctionCharacteristicContributionDefinition& contribution : type.characteristic_contributions) {
             add_characteristic(phenotype.function_contribution_sums_, contribution.characteristic,
@@ -177,7 +177,7 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
         }
         phenotype.functions_.push_back(std::move(function));
     }
-    std::ranges::sort(phenotype.material_amounts_, {}, &MaterialAmount::value);
+    std::ranges::sort(phenotype.material_amounts_, {}, &MaterialAmount::material);
     std::ranges::sort(phenotype.function_contribution_sums_, {}, &ObjectCharacteristicAmount::characteristic);
     if (definition.object_construction()) {
         const ObjectConstructionDefinition& construction = *definition.object_construction();
@@ -190,7 +190,7 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
             } else if (binding.source.kind == ObjectConstructionSourceKind::function_contribution_sum) {
                 amount = characteristic_value(phenotype.function_contribution_sums_, binding.source.characteristic);
             } else if (binding.source.kind == ObjectConstructionSourceKind::material_amount) {
-                amount = phenotype.material_amount(binding.source.value);
+                amount = phenotype.material_amount(binding.source.material);
             } else {
                 throw std::invalid_argument{"object construction source kind is invalid"};
             }
@@ -264,9 +264,9 @@ const CompiledFunctionPhenotype& CompiledPhenotype::function(std::size_t index) 
 
 std::span<const MaterialAmount> CompiledPhenotype::material_amounts() const noexcept { return material_amounts_; }
 
-Amount CompiledPhenotype::material_amount(ValueKey value) const noexcept
+Amount CompiledPhenotype::material_amount(MaterialId material) const noexcept
 {
-    const auto found = std::ranges::find(material_amounts_, value, &MaterialAmount::value);
+    const auto found = std::ranges::find(material_amounts_, material, &MaterialAmount::material);
     return found == material_amounts_.end() ? 0.0 : found->amount;
 }
 

@@ -11,6 +11,7 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
         const world::WorldDefinitionSnapshot snapshot = definition_.snapshot();
         result["schema_version"] = static_cast<std::int64_t>(snapshot.schema_version);
         result["next_value_key"] = static_cast<std::int64_t>(snapshot.next_value_key);
+        result["next_material_id"] = static_cast<std::int64_t>(snapshot.next_material_id);
         result["next_template_id"] = static_cast<std::int64_t>(snapshot.next_template_id);
         result["next_function_type_id"] = static_cast<std::int64_t>(snapshot.next_function_type_id);
         result["next_parameter_id"] = static_cast<std::int64_t>(snapshot.next_parameter_id);
@@ -38,6 +39,14 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
             values.push_back(entry);
         }
         result["values"] = values;
+        godot::Array materials;
+        for (const auto& material : snapshot.materials) {
+            godot::Dictionary entry;
+            entry["id"] = static_cast<std::int64_t>(material.id.value);
+            entry["name"] = to_godot_string(material.name);
+            materials.push_back(entry);
+        }
+        result["materials"] = materials;
         godot::Array units;
         for (const world::UnitDefinition& unit : snapshot.units) {
             godot::Dictionary entry;
@@ -135,7 +144,7 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
             godot::Array contributions;
             for (const auto& contribution : type.material_contributions) {
                 godot::Dictionary item;
-                item["value_key"] = static_cast<std::int64_t>(contribution.value.value);
+                item["material_id"] = static_cast<std::int64_t>(contribution.material.value);
                 item["amount_source"] = function_value_source_dictionary(contribution.amount);
                 contributions.push_back(item);
             }
@@ -190,12 +199,12 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
                 stored["amount"] = item.amount;
                 initials.push_back(stored);
             }
-            godot::Array materials;
+            godot::Array template_materials;
             for (const auto& item : object.material_contributions) {
                 godot::Dictionary stored;
-                stored["value_key"] = static_cast<std::int64_t>(item.value.value);
+                stored["material_id"] = static_cast<std::int64_t>(item.material.value);
                 stored["amount"] = item.amount;
-                materials.push_back(stored);
+                template_materials.push_back(stored);
             }
             godot::Array base_characteristics;
             for (const auto& item : object.base_characteristics) {
@@ -229,7 +238,7 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
                 bindings.push_back(stored);
             }
             entry["initial_values"] = initials;
-            entry["material_contributions"] = materials;
+            entry["material_contributions"] = template_materials;
             entry["base_characteristics"] = base_characteristics;
             entry["genome"] = genome;
             entry["host_bindings"] = bindings;
@@ -280,7 +289,7 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
                     item["characteristic_id"] = static_cast<std::int64_t>(binding.source.characteristic.value);
                 } else if (binding.source.kind == world::ObjectConstructionSourceKind::material_amount) {
                     item["kind"] = "material";
-                    item["value_key"] = static_cast<std::int64_t>(binding.source.value.value);
+                    item["material_id"] = static_cast<std::int64_t>(binding.source.material.value);
                 } else {
                     throw std::invalid_argument{"invalid construction source kind"};
                 }
@@ -310,10 +319,11 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
         require_edit_mode();
         world::WorldDefinitionSnapshot snapshot;
         snapshot.schema_version = required_uint32(required_field(serialized, "schema_version"), "schema_version");
-        if (snapshot.schema_version != 8) {
+        if (snapshot.schema_version != 9) {
             throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version; recreate the test world"};
         }
         snapshot.next_value_key = required_uint32(required_field(serialized, "next_value_key"), "next_value_key");
+        snapshot.next_material_id = required_uint32(required_field(serialized, "next_material_id"), "next_material_id");
         snapshot.next_template_id = required_uint32(required_field(serialized, "next_template_id"), "next_template_id");
         snapshot.next_function_type_id =
             required_uint32(required_field(serialized, "next_function_type_id"), "next_function_type_id");
@@ -384,6 +394,13 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                     stored.unit = std::move(expression);
             }
             snapshot.values.push_back(std::move(stored));
+        }
+        for (const godot::Variant& value : required_array(required_field(serialized, "materials"), "materials")) {
+            const godot::Dictionary item = required_dictionary(value, "material");
+            snapshot.materials.push_back({
+                .id = {required_uint32(required_field(item, "id"), "material id")},
+                .name = required_string(required_field(item, "name"), "material name"),
+            });
         }
         for (const godot::Variant& value : required_array(required_field(serialized, "calculations"), "calculations")) {
             const godot::Dictionary item = required_dictionary(value, "calculation");
@@ -476,7 +493,7 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                  required_array(required_field(item, "material_contributions"), "function material contributions")) {
                 const godot::Dictionary contribution = required_dictionary(contribution_value, "function material contribution");
                 type.material_contributions.push_back({
-                    .value = {required_uint32(required_field(contribution, "value_key"), "material value key")},
+                    .material = {required_uint32(required_field(contribution, "material_id"), "material id")},
                     .amount = function_value_source(required_dictionary(required_field(contribution, "amount_source"),
                                                                         "material amount source")),
                 });
@@ -506,7 +523,7 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
             for (const godot::Variant& stored_value : required_array(required_field(item, "material_contributions"), "template materials")) {
                 const godot::Dictionary stored = required_dictionary(stored_value, "template material contribution");
                 object.material_contributions.push_back({
-                    .value = {required_uint32(required_field(stored, "value_key"), "template material value key")},
+                    .material = {required_uint32(required_field(stored, "material_id"), "template material id")},
                     .amount = required_number(required_field(stored, "amount"), "template material amount"),
                 });
             }
@@ -582,7 +599,7 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                 stored.inputs.push_back({.input = {required_uint32(required_field(input, "input_id"), "construction input id")},
                     .source = kind == "material"
                                   ? world::ObjectConstructionSource{.kind = world::ObjectConstructionSourceKind::material_amount,
-                                                                    .value = {required_uint32(required_field(input, "value_key"), "material value key")}}
+                                                                    .material = {required_uint32(required_field(input, "material_id"), "material id")}}
                                   : world::ObjectConstructionSource{.kind = kind == "base" ? world::ObjectConstructionSourceKind::base_characteristic : world::ObjectConstructionSourceKind::function_contribution_sum,
                                                                     .characteristic = {required_uint32(required_field(input, "characteristic_id"), "characteristic id")}}});
             }

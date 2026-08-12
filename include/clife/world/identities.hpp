@@ -11,6 +11,12 @@ struct ValueKey final {
     friend constexpr auto operator<=>(ValueKey, ValueKey) noexcept = default;
 };
 
+struct MaterialId final {
+    std::uint32_t value{};
+
+    friend constexpr auto operator<=>(MaterialId, MaterialId) noexcept = default;
+};
+
 struct TemplateId final {
     std::uint32_t value{};
 

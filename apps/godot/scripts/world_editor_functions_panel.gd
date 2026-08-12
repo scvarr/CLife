@@ -144,7 +144,7 @@ func _build_function_materials(parent: VBoxContainer, function_type: Dictionary)
 
 func _add_function_material_card(parent: VBoxContainer, function_type: Dictionary, contribution: Dictionary) -> void:
 	var card := PanelContainer.new(); var row := HBoxContainer.new(); card.add_child(row)
-	var material := _value_selector(int(contribution.get("value_key", 0))); material.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var material := _material_selector(int(contribution.get("material_id", 0))); material.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var amount := _source_selector(function_type, contribution.get("amount_source", {})); amount.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var save := Button.new(); save.text = tr("ux.save")
 	save.pressed.connect(func():
@@ -159,7 +159,7 @@ func _add_function_material_card(parent: VBoxContainer, function_type: Dictionar
 	parent.add_child(card)
 
 func _add_new_function_material_row(parent: VBoxContainer, function_type: Dictionary) -> void:
-	var row := HBoxContainer.new(); var material := _value_selector(0); material.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var row := HBoxContainer.new(); var material := _material_selector(0); material.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var amount := _source_selector(function_type, {}); amount.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var save := Button.new(); save.text = tr("ux.save"); var cancel := Button.new(); cancel.text = tr("ux.cancel")
 	save.pressed.connect(func():
@@ -168,6 +168,13 @@ func _add_new_function_material_row(parent: VBoxContainer, function_type: Dictio
 	)
 	cancel.pressed.connect(func(): new_function_material_active = false; _show_functions())
 	row.add_child(material); row.add_child(amount); row.add_child(save); row.add_child(cancel); parent.add_child(row)
+
+func _material_selector(selected_id: int) -> OptionButton:
+	var selector := OptionButton.new()
+	for material in editor.get_materials():
+		selector.add_item(str(material.name), int(material.id))
+		if int(material.id) == selected_id: selector.select(selector.item_count - 1)
+	return selector
 
 func _add_parameter_card(parent: VBoxContainer, function_type: Dictionary, parameter: Dictionary) -> void:
 	var card := PanelContainer.new(); var row := HBoxContainer.new(); card.add_child(row)
@@ -394,6 +401,6 @@ func _show_delete_menu(context: Dictionary, position: Vector2) -> void:
 			_show_functions(), position)
 		return
 	var contribution: Dictionary = context.get("contribution", {})
-	_request_delete(_value_name(int(contribution.get("value_key", 0))), func():
-		if not editor.remove_function_material_contribution(int(context.get("function_id", 0)), int(contribution.get("value_key", 0))): _show_error(); return
+	_request_delete(_material_name(int(contribution.get("material_id", 0))), func():
+		if not editor.remove_function_material_contribution(int(context.get("function_id", 0)), int(contribution.get("material_id", 0))): _show_error(); return
 		_show_functions(), position)

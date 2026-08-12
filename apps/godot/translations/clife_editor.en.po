@@ -105,6 +105,9 @@ msgstr "Delete \"%s\"?"
 msgid "ux.world_quantities"
 msgstr "World quantities"
 
+msgid "ux.materials"
+msgstr "Materials"
+
 msgid "ux.name"
 msgstr "Name"
 

@@ -25,6 +25,7 @@ public:
     ~CLifeWorldEditor() override;
 
     [[nodiscard]] godot::Array get_values();
+    [[nodiscard]] godot::Array get_materials();
     [[nodiscard]] godot::Array get_units();
     [[nodiscard]] godot::Array get_unit_conversions();
     [[nodiscard]] godot::Array get_object_characteristics();
@@ -44,6 +45,9 @@ public:
     [[nodiscard]] godot::Array get_host_capabilities();
 
     [[nodiscard]] std::int64_t add_value(const godot::String& name);
+    [[nodiscard]] std::int64_t add_material(const godot::String& name);
+    bool rename_material(std::int64_t material_id, const godot::String& name);
+    bool remove_material(std::int64_t material_id);
     [[nodiscard]] std::int64_t add_unit(const godot::String& symbol, const godot::String& description = godot::String{});
     bool update_unit(std::int64_t unit_id, const godot::String& symbol, const godot::String& description);
     bool remove_unit(std::int64_t unit_id);
@@ -103,9 +107,9 @@ public:
     bool set_function_calculation_binding(std::int64_t function_type_id, std::int64_t calculation_id,
                                           const godot::Array& input_bindings);
     bool remove_function_calculation_binding(std::int64_t function_type_id, std::int64_t calculation_id);
-    bool set_function_material_contribution(std::int64_t function_type_id, std::int64_t value_key,
+    bool set_function_material_contribution(std::int64_t function_type_id, std::int64_t material_id,
                                             const godot::Dictionary& amount_source);
-    bool remove_function_material_contribution(std::int64_t function_type_id, std::int64_t value_key);
+    bool remove_function_material_contribution(std::int64_t function_type_id, std::int64_t material_id);
     bool set_function_characteristic_contribution(std::int64_t function_type_id, std::int64_t characteristic_id,
                                                   const godot::Dictionary& amount_source);
     bool remove_function_characteristic_contribution(std::int64_t function_type_id, std::int64_t characteristic_id);

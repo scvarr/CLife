@@ -73,8 +73,8 @@ bool test_preset_material_volume_binding()
         clife::world::compile_phenotype(preset.definition, preset.cell);
     clife::world::RuntimeWorld runtime{preset.definition};
     const clife::world::ObjectId runtime_cell = runtime.instantiate(preset.cell);
-    if (!expect_near(phenotype.material_amount(preset.organic), 5.0, "compiled Organic material amount") ||
-        !expect_near(runtime.value(runtime_cell, preset.organic), 5.0, "runtime Organic includes material cost") ||
+    if (!expect_near(phenotype.material_amount(preset.structural_organic), 5.0, "compiled structural material amount") ||
+        !expect_near(runtime.value(runtime_cell, preset.organic), 0.0, "runtime Organic is independent from material") ||
         !expect_true(binding->value == preset.organic, "geometry.volume binds Organic ValueKey")) {
         return false;
     }
@@ -89,8 +89,8 @@ bool test_preset_material_volume_binding()
         clife::world::compile_phenotype(preset.definition, preset.cell);
     return expect_true(renamed_binding != renamed_cell.host_bindings.end() && renamed_binding->value == preset.organic,
                        "renaming material value preserves geometry binding identity") &&
-           expect_near(renamed_phenotype.material_amount(preset.organic), 5.0,
-                       "renaming material value preserves contribution identity");
+           expect_near(renamed_phenotype.material_amount(preset.structural_organic), 5.0,
+                       "renaming runtime value preserves material identity");
 }
 
 bool test_first_world_storage_genotype_and_phenotype()
@@ -114,7 +114,7 @@ bool test_first_world_storage_genotype_and_phenotype()
         !expect_near(initial.function(index).calculation_output(preset.storage_calculation,
                                                                 preset.storage_leakage), 0.0,
                      "storage leakage phenotype") ||
-        !expect_near(initial.material_amount(preset.organic), 5.0, "capacity 5 material total")) {
+        !expect_near(initial.material_amount(preset.structural_organic), 5.0, "capacity 5 material total")) {
         return false;
     }
     preset.definition.set_genome_parameter(preset.cell, index, preset.storage_capacity, 10.0);
@@ -128,9 +128,9 @@ bool test_first_world_storage_genotype_and_phenotype()
            expect_near(changed.function(index).calculation_output(preset.storage_calculation,
                                                                   preset.storage_throughput), 3.0,
                        "changed storage capacity recompiles throughput") &&
-           expect_near(changed.material_amount(preset.organic), 6.0, "capacity 10 material total") &&
-           expect_near(changed_runtime.value(changed_cell, preset.organic), 6.0,
-                       "capacity 10 runtime material total");
+           expect_near(changed.material_amount(preset.structural_organic), 6.0, "capacity 10 material total") &&
+           expect_near(changed_runtime.value(changed_cell, preset.organic), 0.0,
+                       "runtime Organic remains independent from material");
 }
 
 bool test_reset_reconstructs_runtime()
