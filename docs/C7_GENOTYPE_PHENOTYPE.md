@@ -87,6 +87,10 @@ Physical genome — каноническая encoded byte/hex sequence, а не 
 
 Universal vocabulary: `Object`, `ObjectTemplate`, `Genome`, `Phenotype`. «Клетка» — пример первого world preset. Adult object не растёт на обычном tick. Будущий embryo/bud получает определённые миром материалы от parent, после выполнения requirements компилирует genome и дискретно становится adult object. Embryo subsystem пока не реализован.
 
+Genome описывает наследуемые способности и construction объекта; неизбежные последствия этих способностей принадлежат world rules. В частности, будущая world-defined `Object Transition` сможет дискретно сменить текущую форму/type/template объекта по condition обычной world-authored Calculation, сохранив `ObjectId`. Это не создание нового объекта и не специальная клеточная семантика. Transition следует после numeric world rules на границе tick; новая форма работает со следующего tick. Одновременно подходящие разные transitions для одного объекта являются ошибкой неоднозначности, а не правилом порядка деклараций.
+
+Не вводится отдельная система non-genomic functions. Будущие теплообмен, контактные процессы и прочие взаимодействия объектов требуют отдельного simulation crisis world interactions.
+
 ## Persistence
 
 `WorldDefinitionSnapshot` сохраняет authoring semantic genome и definitions; expressions хранятся source-текстом и компилируются заново. RuntimeWorld и physical biological genome пока не сохраняются. Backward compatibility snapshot schema не гарантируется до отдельного этапа стабилизации.

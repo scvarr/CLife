@@ -198,6 +198,14 @@ external Light is supplied by world/engine
 
 World rules не являются продолжением genome и не должны зависеть от порядка записей функций genome.
 
+### Будущее направление: Object Transition
+
+После обычных numeric world rules world layer в будущем может применить world-defined `Object Transition`: condition использует существующую author-authored Calculation model, а не специальный comparator температуры или иной core primitive. Transition атомарно применяется на границе tick; выбранная новая форма/type/template начинает работать только со следующего tick.
+
+Для одного объекта допустим максимум один transition за tick. Если одновременно подходят разные transitions, это неоднозначность модели, которую нужно отклонить; declaration order не является arbitration rule.
+
+Это направление не меняет текущий Calculator и не вводит transition API в настоящем master. Если transition убирает buffer mechanism, его stored amount не должен исчезнуть: принятое направление — вернуть amount в связанный Value, после чего обычные world rules определяют дальнейшую судьбу остатка.
+
 ## 9. Топология организма
 
 В первом клеточном мире организм является графом клеток.

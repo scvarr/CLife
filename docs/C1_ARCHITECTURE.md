@@ -65,3 +65,11 @@ Physical Genome
 ```
 
 Rendering hosts, включая current Godot host, остаются consumers/adapters этих результатов, а не владельцами biological shape semantics.
+
+## Направление lifecycle объектов
+
+`Object` — универсальная сущность; клетка остаётся только первым world preset. Поэтому `clife_core` и `clife_world` не получают встроенные понятия `Temperature`, фазового перехода, `Organic`, смерти клетки или иной предметной семантики.
+
+Принятое направление будущего lifecycle primitive — world-defined **Object Transition**. Оно принадлежит world layer: условие, сформулированное author-defined Calculation, может дискретно сменить текущую форму/type/template объекта. Core остаётся числовым и не интерпретирует причину transition.
+
+Transition сохраняет identity (`ObjectId`). Создание нового объекта — отдельная structural operation, а не побочный результат смены состояния.

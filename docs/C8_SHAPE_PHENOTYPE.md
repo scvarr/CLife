@@ -66,6 +66,12 @@ The current Godot Objects editor samples this `ShapePhenotype`, tessellates it, 
 
 Не определены coefficients, opcodes, tessellation resolution или geometry API.
 
+## Lifecycle transition: shape state remains open
+
+Future world-defined Object Transition не обязан автоматически пересобирать geometry из target genome/template. Например, `cell -> inert/hot organic` может разумно сохранить уже сформированные размер и форму конкретного объекта, одновременно убрав его genomic mechanisms.
+
+Следствие принято как **OPEN**, а не как API: после lifecycle transitions потребуется различать детерминированное происхождение `ShapePhenotype` из genome и текущее shape/geometry state конкретного object instance. Точная модель сохранения или reconstruction формы пока не выбрана и должна появиться только при конкретном simulation crisis.
+
 ## Mutation consequence
 
 Одна mutation physical genome может одновременно изменить functional, material/construction и Shape phenotype. Это целевое emergent property одной sequence, а не отдельная «mutation of shape».

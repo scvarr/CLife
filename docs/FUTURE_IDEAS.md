@@ -36,3 +36,13 @@ The current CLife name is historical and temporary. Near release, a separate pro
 ## Structural operations
 
 Division, topology changes и structural mutations at tick boundary требуют отдельной модели последствий и будущей задачи.
+
+## Object lifecycle transitions
+
+Принято направление, но не API: world-defined Object Transition сохраняет `ObjectId`, атомарно меняет текущую форму/type/template на границе tick после numeric world rules и начинает действовать со следующего tick. Condition должен использовать обычную world-authored Calculation; несколько одновременно подходящих transitions одного объекта — неоднозначность, а не declaration-order choice. Если transition удаляет buffer mechanism, его stored amount должен вернуться в связанный Value, а обычные world rules уже определят последствия.
+
+OPEN: transition не обязан пересобирать geometry из target genome/template. Для состояния наподобие `cell -> inert/hot organic` может быть корректно оставить текущие размер и форму, убрав genomic mechanisms. Поэтому понадобится отдельная, ещё не выбранная модель различения genome-derived `ShapePhenotype` и текущего shape/geometry state object instance.
+
+Это не задаёт non-genomic function system, pair-interaction API, environment simulation, division, destruction into multiple objects или material physics. Теплообмен, контактные процессы и иные world interactions должны рассматриваться только при отдельном simulation crisis.
+
+Ненормативные примеры универсальности механизма: phase/state changes материалов, перегрев и отказ машин, горение и разрушение, игровые state transitions. Они не являются core concepts CLife.
