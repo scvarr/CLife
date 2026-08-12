@@ -13,10 +13,19 @@ var last_runtime_values: Array[Dictionary] = []
 var last_runtime_functions: Array[Dictionary] = []
 var last_end_buffer: Array[Dictionary] = []
 var external_inputs: Array[Dictionary]
+var autorun_timer: Timer
+var autorun_active := false
+var runtime_ticks_per_second := 10
+var last_runtime_refresh_msec := 0
 
 func configure(shell_instance: Control, editor_instance: CLifeWorldEditor, workspace_instance: VBoxContainer, status_instance: Label, host_config_instance: RefCounted) -> void:
 	super.configure(shell_instance, editor_instance, workspace_instance, status_instance, host_config_instance)
 	external_inputs = host_config.external_inputs
+	if autorun_timer == null:
+		autorun_timer = Timer.new()
+		autorun_timer.one_shot = false
+		shell.add_child(autorun_timer)
+		autorun_timer.timeout.connect(_on_autorun_timer_timeout)
 
 func deactivate() -> void:
 	_discard_runtime_preview()
@@ -253,13 +262,20 @@ func _add_stateful_runtime_preview(parent: VBoxContainer, template: Dictionary) 
 	var controls := HBoxContainer.new()
 	var start := Button.new(); start.text = tr("ux.runtime_start"); start.disabled = active
 	start.pressed.connect(func(): _start_runtime_preview(int(template.id)))
-	var step := Button.new(); step.text = tr("ux.runtime_step"); step.disabled = not active
+	var run := Button.new(); run.text = tr("ux.runtime_run"); run.disabled = not active or autorun_active
+	run.pressed.connect(_run_runtime_preview)
+	var pause := Button.new(); pause.text = tr("ux.runtime_pause"); pause.disabled = not autorun_active
+	pause.pressed.connect(_pause_runtime_preview)
+	var step := Button.new(); step.text = tr("ux.runtime_step"); step.disabled = not active or autorun_active
 	step.pressed.connect(_step_runtime_preview)
 	var reset := Button.new(); reset.text = tr("ux.runtime_reset"); reset.disabled = not active
 	reset.pressed.connect(_reset_runtime_preview)
 	var stop := Button.new(); stop.text = tr("ux.runtime_stop"); stop.disabled = not active
 	stop.pressed.connect(_stop_runtime_preview)
-	controls.add_child(start); controls.add_child(step); controls.add_child(reset); controls.add_child(stop); parent.add_child(controls)
+	var speed := SpinBox.new(); speed.min_value = 1.0; speed.max_value = 100.0; speed.step = 1.0; speed.value = runtime_ticks_per_second
+	speed.value_changed.connect(func(value: float): _set_runtime_ticks_per_second(value))
+	controls.add_child(start); controls.add_child(run); controls.add_child(pause); controls.add_child(step); controls.add_child(reset); controls.add_child(stop); parent.add_child(controls)
+	parent.add_child(_labeled_row(tr("ux.runtime_speed"), speed))
 	if not active:
 		return
 	var inputs_title := Label.new(); inputs_title.text = tr("ux.sent_inputs"); parent.add_child(inputs_title)
@@ -294,24 +310,75 @@ func _start_runtime_preview(template_id: int) -> void:
 
 func _step_runtime_preview() -> void:
 	if not editor.is_run_active(): return
+	if not _advance_runtime_preview(): return
+	_show_objects()
+
+func _advance_runtime_preview() -> bool:
 	last_test_inputs.clear()
 	for mapping in external_inputs:
 		if not editor.set_preview_input(int(mapping.get("value_key", 0)), float(mapping.get("test_value", 0.0))):
-			status.text = editor.get_last_error(); return
+			status.text = editor.get_last_error(); return false
 		last_test_inputs.append({"channel": str(mapping.get("channel", "")), "value_key": int(mapping.get("value_key", 0)), "amount": float(mapping.get("test_value", 0.0))})
 	if not editor.step_once():
-		status.text = editor.get_last_error(); return
-	_refresh_runtime_preview(); _show_objects()
+		status.text = editor.get_last_error(); return false
+	return true
+
+func _run_runtime_preview() -> void:
+	if not editor.is_run_active() or autorun_active: return
+	autorun_active = true
+	last_runtime_refresh_msec = 0
+	_update_autorun_timer()
+	_show_objects()
+
+func _pause_runtime_preview() -> void:
+	if not autorun_active: return
+	_stop_autorun_timer()
+	_refresh_runtime_preview()
+	_show_objects()
+
+func _set_runtime_ticks_per_second(value: float) -> void:
+	runtime_ticks_per_second = clampi(int(round(value)), 1, 100)
+	if autorun_active:
+		_update_autorun_timer()
+
+func _update_autorun_timer() -> void:
+	if autorun_timer == null: return
+	autorun_timer.stop()
+	autorun_timer.wait_time = 1.0 / float(runtime_ticks_per_second)
+	autorun_timer.start()
+
+func _stop_autorun_timer() -> void:
+	autorun_active = false
+	if autorun_timer != null:
+		autorun_timer.stop()
+
+func _on_autorun_timer_timeout() -> void:
+	if not autorun_active or not editor.is_run_active():
+		_stop_autorun_timer()
+		return
+	if not _advance_runtime_preview():
+		_stop_autorun_timer()
+		_refresh_runtime_preview()
+		_show_objects()
+		return
+	var now_msec := Time.get_ticks_msec()
+	if now_msec - last_runtime_refresh_msec >= 100:
+		last_runtime_refresh_msec = now_msec
+		_refresh_runtime_preview()
+		_show_objects()
 
 func _reset_runtime_preview() -> void:
+	_stop_autorun_timer()
 	if not editor.reset_runtime(): _show_error(); return
 	last_test_inputs.clear(); _refresh_runtime_preview(); _show_objects()
 
 func _stop_runtime_preview() -> void:
+	_stop_autorun_timer()
 	_discard_runtime_preview()
 	if selected_template_id != 0: _show_objects()
 
 func _discard_runtime_preview() -> void:
+	_stop_autorun_timer()
 	if editor.is_run_active(): editor.stop()
 	last_test_inputs.clear(); last_runtime_values.clear(); last_runtime_functions.clear(); last_end_buffer.clear()
 

@@ -403,6 +403,15 @@ msgstr "ПРЕДПРОСМОТР RUNTIME"
 msgid "ux.runtime_start"
 msgstr "Старт"
 
+msgid "ux.runtime_run"
+msgstr "Запуск"
+
+msgid "ux.runtime_pause"
+msgstr "Пауза"
+
+msgid "ux.runtime_speed"
+msgstr "Скорость (тактов/с)"
+
 msgid "ux.runtime_step"
 msgstr "Шаг"
 

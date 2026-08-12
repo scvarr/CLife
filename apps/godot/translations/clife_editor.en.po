@@ -402,6 +402,15 @@ msgstr "RUNTIME PREVIEW"
 msgid "ux.runtime_start"
 msgstr "Start"
 
+msgid "ux.runtime_run"
+msgstr "Run"
+
+msgid "ux.runtime_pause"
+msgstr "Pause"
+
+msgid "ux.runtime_speed"
+msgstr "Speed (ticks/sec)"
+
 msgid "ux.runtime_step"
 msgstr "Step"
 
