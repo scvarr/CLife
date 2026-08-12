@@ -251,21 +251,20 @@ func _build_function_process(parent: VBoxContainer, function_type: Dictionary) -
 	var process: Dictionary = process_value if process_value is Dictionary else {}
 	var input := _value_selector(int(process.get("input_key", 0)))
 	var throughput := _source_selector(function_type, process.get("throughput_source", {}))
-	var conversion := _conversion_selector(int(process.get("conversion_id", 0)))
-	parent.add_child(_labeled_row(tr("ux.input"), input)); parent.add_child(_labeled_row(tr("ux.throughput"), throughput)); parent.add_child(_labeled_row(tr("ux.conversion"), conversion))
+	parent.add_child(_labeled_row(tr("ux.input"), input)); parent.add_child(_labeled_row(tr("ux.throughput"), throughput))
 	if process.is_empty():
-		var output_value := _value_selector(0); var allocation := _source_selector(function_type, {})
-		parent.add_child(_labeled_row(tr("ux.output"), output_value)); parent.add_child(_labeled_row(tr("ux.allocation"), allocation))
+		var output_value := _value_selector(0); var allocation := _source_selector(function_type, {}); var output_conversion := _conversion_selector(0)
+		parent.add_child(_labeled_row(tr("ux.output"), output_value)); parent.add_child(_labeled_row(tr("ux.allocation"), allocation)); parent.add_child(_labeled_row(tr("ux.conversion"), output_conversion))
 		var create := Button.new(); create.text = tr("ux.create_process")
 		create.pressed.connect(func():
-			var outputs := [{"output_key": _selected_unit_id(output_value), "allocation_source": _selected_source(allocation)}]
-			if not editor.set_function_process_full(int(function_type.id), _selected_unit_id(input), _selected_source(throughput), _selected_unit_id(conversion), outputs): _show_error(); return
+			var outputs := [{"output_key": _selected_unit_id(output_value), "allocation_source": _selected_source(allocation), "conversion_id": _selected_unit_id(output_conversion)}]
+			if not editor.set_function_process_full(int(function_type.id), _selected_unit_id(input), _selected_source(throughput), outputs): _show_error(); return
 			_show_functions()
 		)
 		parent.add_child(create); return
 	var update := Button.new(); update.text = tr("ux.update_process")
 	update.pressed.connect(func():
-		if not editor.change_function_process_settings(int(function_type.id), _selected_unit_id(input), _selected_source(throughput), _selected_unit_id(conversion)): _show_error(); return
+		if not editor.change_function_process_settings(int(function_type.id), _selected_unit_id(input), _selected_source(throughput)): _show_error(); return
 		_show_functions()
 	)
 	parent.add_child(update)
@@ -285,11 +284,11 @@ func _build_function_process(parent: VBoxContainer, function_type: Dictionary) -
 
 func _add_process_output_card(parent: VBoxContainer, function_type: Dictionary, output: Dictionary) -> void:
 	var card := PanelContainer.new(); var box := VBoxContainer.new(); card.add_child(box)
-	var value := _value_selector(int(output.output_key)); var source := _source_selector(function_type, output.get("allocation_source", {}))
-	box.add_child(_labeled_row(tr("ux.output"), value)); box.add_child(_labeled_row(tr("ux.allocation"), source))
+	var value := _value_selector(int(output.output_key)); var source := _source_selector(function_type, output.get("allocation_source", {})); var conversion := _conversion_selector(int(output.get("conversion_id", 0)))
+	box.add_child(_labeled_row(tr("ux.output"), value)); box.add_child(_labeled_row(tr("ux.allocation"), source)); box.add_child(_labeled_row(tr("ux.conversion"), conversion))
 	var update := Button.new(); update.text = tr("ux.save")
 	update.pressed.connect(func():
-		if not editor.change_function_process_output(int(function_type.id), int(output.output_key), _selected_unit_id(value), _selected_source(source)): _show_error(); return
+		if not editor.change_function_process_output(int(function_type.id), int(output.output_key), _selected_unit_id(value), _selected_source(source), _selected_unit_id(conversion)): _show_error(); return
 		_show_functions()
 	)
 	box.add_child(update)
@@ -300,14 +299,14 @@ func _add_process_output_card(parent: VBoxContainer, function_type: Dictionary, 
 	parent.add_child(card)
 
 func _add_new_process_output_row(parent: VBoxContainer, function_type: Dictionary) -> void:
-	var row := HBoxContainer.new(); var value := _value_selector(0); value.size_flags_horizontal = Control.SIZE_EXPAND_FILL; var source := _source_selector(function_type, {}); source.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var row := HBoxContainer.new(); var value := _value_selector(0); value.size_flags_horizontal = Control.SIZE_EXPAND_FILL; var source := _source_selector(function_type, {}); source.size_flags_horizontal = Control.SIZE_EXPAND_FILL; var conversion := _conversion_selector(0)
 	var save := Button.new(); save.text = tr("ux.save"); var cancel := Button.new(); cancel.text = tr("ux.cancel")
 	save.pressed.connect(func():
-		if not editor.add_function_process_output(int(function_type.id), _selected_unit_id(value), _selected_source(source)): _show_error(); return
+		if not editor.add_function_process_output(int(function_type.id), _selected_unit_id(value), _selected_source(source), _selected_unit_id(conversion)): _show_error(); return
 		new_process_output_active = false; _show_functions()
 	)
 	cancel.pressed.connect(func(): new_process_output_active = false; _show_functions())
-	row.add_child(value); row.add_child(source); row.add_child(save); row.add_child(cancel); parent.add_child(row)
+	row.add_child(value); row.add_child(source); row.add_child(conversion); row.add_child(save); row.add_child(cancel); parent.add_child(row)
 
 func _value_selector(selected_id: int) -> OptionButton:
 	var selector := OptionButton.new()

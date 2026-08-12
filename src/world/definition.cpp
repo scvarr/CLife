@@ -187,7 +187,10 @@ void WorldDefinition::remove_unit_conversion(UnitConversionId id)
 {
     (void)unit_conversion(id);
     if (std::ranges::any_of(function_types_, [id](const FunctionTypeDefinition& type) {
-            return type.process && type.process->conversion == id;
+            return type.process && std::ranges::any_of(type.process->outputs,
+                                                       [id](const FunctionProcessOutputDefinition& output) {
+                                                           return output.conversion == id;
+                                                       });
         })) {
         throw std::invalid_argument{"cannot remove a referenced unit conversion"};
     }
@@ -626,7 +629,6 @@ void WorldDefinition::set_function_process(FunctionTypeId type_id, FunctionProce
         throw std::invalid_argument{"function type cannot have both conversion and buffer processes"};
     }
     validate_function_value_source(type, process.throughput);
-    (void)unit_conversion(process.conversion);
     if (process.outputs.empty()) {
         throw std::invalid_argument{"function process must contain at least one output"};
     }
@@ -634,6 +636,7 @@ void WorldDefinition::set_function_process(FunctionTypeId type_id, FunctionProce
         const FunctionProcessOutputDefinition& output = process.outputs[index];
         (void)value(output.output);
         validate_function_value_source(type, output.allocation);
+        (void)unit_conversion(output.conversion);
         for (std::size_t previous = 0; previous < index; ++previous) {
             if (process.outputs[previous].output == output.output) {
                 throw std::invalid_argument{"function process output ValueKey is duplicated"};
@@ -655,8 +658,7 @@ void WorldDefinition::add_function_process_output(FunctionTypeId type_id, Functi
 }
 
 void WorldDefinition::change_function_process_settings(FunctionTypeId type_id, ValueKey input,
-                                                        FunctionValueSource throughput,
-                                                        UnitConversionId conversion)
+                                                        FunctionValueSource throughput)
 {
     FunctionTypeDefinition& type = mutable_function_type(type_id);
     if (!type.process) {
@@ -665,7 +667,6 @@ void WorldDefinition::change_function_process_settings(FunctionTypeId type_id, V
     FunctionProcessDefinition process = *type.process;
     process.input = input;
     process.throughput = throughput;
-    process.conversion = conversion;
     set_function_process(type_id, std::move(process));
 }
 
@@ -1212,7 +1213,7 @@ WorldDefinitionSnapshot WorldDefinition::snapshot() const
 
 WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& source)
 {
-    if (source.schema_version != 8) {
+    if (source.schema_version != 8 && source.schema_version != 9) {
         throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version"};
     }
     require_unique_snapshot_ids(source.values, &ValueDefinition::key, "ValueKey");
@@ -1314,23 +1315,32 @@ WorldDefinition WorldDefinition::from_snapshot(const WorldDefinitionSnapshot& so
             throw std::invalid_argument{"function type cannot have both conversion and buffer processes"};
         }
         if (stored.process) {
-            (void)restored.value(stored.process->input);
-            (void)restored.unit_conversion(stored.process->conversion);
-            restored.validate_function_value_source(type, stored.process->throughput);
-            if (stored.process->outputs.empty()) {
+            FunctionProcessDefinition process = *stored.process;
+            if (source.schema_version == 8) {
+                if (!stored.legacy_process_conversion) {
+                    throw std::invalid_argument{"legacy process snapshot conversion is missing"};
+                }
+                for (FunctionProcessOutputDefinition& output : process.outputs) {
+                    output.conversion = *stored.legacy_process_conversion;
+                }
+            }
+            (void)restored.value(process.input);
+            restored.validate_function_value_source(type, process.throughput);
+            if (process.outputs.empty()) {
                 throw std::invalid_argument{"function process must contain at least one output"};
             }
-            for (std::size_t output_index = 0; output_index < stored.process->outputs.size(); ++output_index) {
-                const FunctionProcessOutputDefinition& output = stored.process->outputs[output_index];
+            for (std::size_t output_index = 0; output_index < process.outputs.size(); ++output_index) {
+                const FunctionProcessOutputDefinition& output = process.outputs[output_index];
                 (void)restored.value(output.output);
                 restored.validate_function_value_source(type, output.allocation);
+                (void)restored.unit_conversion(output.conversion);
                 for (std::size_t previous = 0; previous < output_index; ++previous) {
                     if (stored.process->outputs[previous].output == output.output) {
                         throw std::invalid_argument{"function process output ValueKey is duplicated"};
                     }
                 }
             }
-            type.process = stored.process;
+            type.process = std::move(process);
         }
         if (stored.buffer_process) {
             (void)restored.value(stored.buffer_process->value);

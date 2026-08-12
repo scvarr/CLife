@@ -155,12 +155,12 @@ godot::Dictionary CLifeWorldEditor::export_world_snapshot()
                 godot::Dictionary process;
                 process["input_key"] = static_cast<std::int64_t>(type.process->input.value);
                 process["throughput_source"] = function_value_source_dictionary(type.process->throughput);
-                process["conversion_id"] = static_cast<std::int64_t>(type.process->conversion.value);
                 godot::Array outputs;
                 for (const world::FunctionProcessOutputDefinition& output : type.process->outputs) {
                     godot::Dictionary stored;
                     stored["output_key"] = static_cast<std::int64_t>(output.output.value);
                     stored["allocation_source"] = function_value_source_dictionary(output.allocation);
+                    stored["conversion_id"] = static_cast<std::int64_t>(output.conversion.value);
                     outputs.push_back(stored);
                 }
                 process["outputs"] = outputs;
@@ -309,10 +309,12 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
     try {
         require_edit_mode();
         world::WorldDefinitionSnapshot snapshot;
-        snapshot.schema_version = required_uint32(required_field(serialized, "schema_version"), "schema_version");
-        if (snapshot.schema_version != 8) {
+        const std::uint32_t source_schema_version =
+            required_uint32(required_field(serialized, "schema_version"), "schema_version");
+        if (source_schema_version != 8 && source_schema_version != 9) {
             throw std::invalid_argument{"unsupported WorldDefinition snapshot schema version; recreate the test world"};
         }
+        snapshot.schema_version = source_schema_version;
         snapshot.next_value_key = required_uint32(required_field(serialized, "next_value_key"), "next_value_key");
         snapshot.next_template_id = required_uint32(required_field(serialized, "next_template_id"), "next_template_id");
         snapshot.next_function_type_id =
@@ -447,14 +449,22 @@ bool CLifeWorldEditor::import_world_snapshot(const godot::Dictionary& serialized
                     .input = {required_uint32(required_field(process, "input_key"), "process input key")},
                     .throughput = function_value_source(required_dictionary(
                         required_field(process, "throughput_source"), "process throughput source")),
-                    .conversion = {required_uint32(required_field(process, "conversion_id"), "process conversion")},
                 };
+                const std::uint32_t legacy_conversion = source_schema_version == 8
+                                                            ? required_uint32(required_field(process, "conversion_id"), "process conversion")
+                                                            : 0;
+                if (source_schema_version == 8) {
+                    type.legacy_process_conversion = {legacy_conversion};
+                }
                 for (const godot::Variant& output_value : required_array(required_field(process, "outputs"), "process outputs")) {
                         const godot::Dictionary output = required_dictionary(output_value, "process output");
                         stored.outputs.push_back({
                             .output = {required_uint32(required_field(output, "output_key"), "process output key")},
                             .allocation = function_value_source(required_dictionary(
                                 required_field(output, "allocation_source"), "process allocation source")),
+                            .conversion = {source_schema_version == 8
+                                               ? 0
+                                               : required_uint32(required_field(output, "conversion_id"), "process output conversion")},
                         });
                 }
                 type.process = std::move(stored);

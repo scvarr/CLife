@@ -218,12 +218,12 @@ godot::Array CLifeWorldEditor::get_function_types()
                 godot::Dictionary process;
                 process["input_key"] = static_cast<std::int64_t>(type.process->input.value);
                 process["throughput_source"] = function_value_source_dictionary(type.process->throughput);
-                process["conversion_id"] = static_cast<std::int64_t>(type.process->conversion.value);
                 godot::Array outputs;
                 for (const world::FunctionProcessOutputDefinition& output : type.process->outputs) {
                     godot::Dictionary stored;
                     stored["output_key"] = static_cast<std::int64_t>(output.output.value);
                     stored["allocation_source"] = function_value_source_dictionary(output.allocation);
+                    stored["conversion_id"] = static_cast<std::int64_t>(output.conversion.value);
                     outputs.push_back(stored);
                 }
                 process["outputs"] = outputs;

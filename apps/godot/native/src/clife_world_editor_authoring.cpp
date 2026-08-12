@@ -92,28 +92,27 @@ bool CLifeWorldEditor::remove_object_characteristic(std::int64_t id)
 }
 
 bool CLifeWorldEditor::set_function_process(std::int64_t raw_type, std::int64_t raw_input,
-                                            const godot::Dictionary& throughput_source, std::int64_t raw_conversion,
-                                            std::int64_t raw_output, const godot::Dictionary& allocation_source)
+                                            const godot::Dictionary& throughput_source, std::int64_t raw_output,
+                                            const godot::Dictionary& allocation_source, std::int64_t raw_conversion)
 {
     return edit([&] {
         definition_.set_function_process(function_type_id(raw_type), {
             .input = value_key(raw_input),
             .throughput = function_value_source(throughput_source),
-            .conversion = unit_conversion_id(raw_conversion),
-            .outputs = {{.output = value_key(raw_output), .allocation = function_value_source(allocation_source)}},
+            .outputs = {{.output = value_key(raw_output), .allocation = function_value_source(allocation_source),
+                         .conversion = unit_conversion_id(raw_conversion)}},
         });
     });
 }
 
 bool CLifeWorldEditor::set_function_process_full(std::int64_t raw_type, std::int64_t raw_input,
                                                  const godot::Dictionary& throughput_source,
-                                                 std::int64_t raw_conversion, const godot::Array& outputs)
+                                                 const godot::Array& outputs)
 {
     return edit([&] {
         world::FunctionProcessDefinition process{
             .input = value_key(raw_input),
             .throughput = function_value_source(throughput_source),
-            .conversion = unit_conversion_id(raw_conversion),
         };
         process.outputs.reserve(outputs.size());
         for (const godot::Variant& value : outputs) {
@@ -122,6 +121,7 @@ bool CLifeWorldEditor::set_function_process_full(std::int64_t raw_type, std::int
                 .output = value_key(required_uint32(required_field(output, "output_key"), "output_key")),
                 .allocation = function_value_source(required_dictionary(
                     required_field(output, "allocation_source"), "allocation_source")),
+                .conversion = unit_conversion_id(required_uint32(required_field(output, "conversion_id"), "conversion_id")),
             });
         }
         definition_.set_function_process(function_type_id(raw_type), std::move(process));
@@ -129,30 +129,31 @@ bool CLifeWorldEditor::set_function_process_full(std::int64_t raw_type, std::int
 }
 
 bool CLifeWorldEditor::add_function_process_output(std::int64_t raw_type, std::int64_t raw_output,
-                                                   const godot::Dictionary& allocation_source)
+                                                   const godot::Dictionary& allocation_source, std::int64_t raw_conversion)
 {
     return edit([&] { definition_.add_function_process_output(function_type_id(raw_type),
                                                                  {.output = value_key(raw_output),
-                                                                  .allocation = function_value_source(allocation_source)}); });
+                                                                  .allocation = function_value_source(allocation_source),
+                                                                  .conversion = unit_conversion_id(raw_conversion)}); });
 }
 
 bool CLifeWorldEditor::change_function_process_settings(std::int64_t raw_type, std::int64_t raw_input,
-                                                        const godot::Dictionary& throughput_source,
-                                                        std::int64_t raw_conversion)
+                                                        const godot::Dictionary& throughput_source)
 {
     return edit([&] { definition_.change_function_process_settings(function_type_id(raw_type), value_key(raw_input),
-                                                                     function_value_source(throughput_source),
-                                                                     unit_conversion_id(raw_conversion)); });
+                                                                     function_value_source(throughput_source)); });
 }
 
 bool CLifeWorldEditor::change_function_process_output(std::int64_t raw_type, std::int64_t raw_existing_output,
                                                       std::int64_t raw_output,
-                                                      const godot::Dictionary& allocation_source)
+                                                      const godot::Dictionary& allocation_source,
+                                                      std::int64_t raw_conversion)
 {
     return edit([&] { definition_.change_function_process_output(
                           function_type_id(raw_type), value_key(raw_existing_output),
                           {.output = value_key(raw_output),
-                           .allocation = function_value_source(allocation_source)}); });
+                           .allocation = function_value_source(allocation_source),
+                           .conversion = unit_conversion_id(raw_conversion)}); });
 }
 
 bool CLifeWorldEditor::remove_function_process_output(std::int64_t raw_type, std::int64_t raw_output)

@@ -40,8 +40,7 @@ FirstWorldPreset make_first_world_preset()
     definition.set_function_process(light_absorption, {
                                                           .input = light,
                                                           .throughput = genome(light_throughput),
-                                                          .conversion = identity_conversion,
-                                                          .outputs = {{.output = energy, .allocation = genome(light_result)}},
+                                                          .outputs = {{.output = energy, .allocation = genome(light_result), .conversion = identity_conversion}},
                                                       });
     definition.set_function_material_contribution(light_absorption, organic, genome(light_result));
 
@@ -51,8 +50,7 @@ FirstWorldPreset make_first_world_preset()
     definition.set_function_process(energy_use, {
                                                     .input = energy,
                                                     .throughput = genome(use_throughput),
-                                                    .conversion = identity_conversion,
-                                                    .outputs = {{.output = used_energy, .allocation = genome(use_result)}},
+                                                    .outputs = {{.output = used_energy, .allocation = genome(use_result), .conversion = identity_conversion}},
                                                 });
     definition.set_function_material_contribution(energy_use, organic, genome(use_result));
 

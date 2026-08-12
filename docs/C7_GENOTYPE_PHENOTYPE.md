@@ -15,7 +15,7 @@
 
 `compile_phenotype(template)` детерминированно применяет world-defined Calculations, FunctionValueSources, processes и contributions. Результат — статический adult phenotype; runtime calculator хранит отдельное состояние, которое меняется по tick. Обычный tick не перестраивает adult phenotype.
 
-`CalculationDefinition` — world-authored математика. FunctionType может связать genome parameters с её inputs, а outputs использовать как throughput, allocation, buffer parameter, material contribution или function characteristic contribution. `FunctionProcessDefinition` выбирает `UnitConversionId`; compilation передаёт calculator уже числовые `result_per_input` и allocations.
+`CalculationDefinition` — world-authored математика. FunctionType может связать genome parameters с её inputs, а outputs использовать как throughput, allocation, buffer parameter, material contribution или function characteristic contribution. Каждый `FunctionProcessOutputDefinition` выбирает собственный `UnitConversionId`; его allocation остаётся долей исходного потока до conversion. Compilation передаёт calculator уже числовые `result_per_input` и allocations.
 
 Function Calculation output (например, пользовательский `КПД` или `Утечка`) — результат конкретной функции, а не ObjectCharacteristic всего объекта.
 

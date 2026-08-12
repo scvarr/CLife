@@ -98,9 +98,8 @@ SynthesisWorld make_synthesis_world(Amount channel_default = 1.0)
     definition.set_function_process(type, {
         .input = light,
         .throughput = genome(channel),
-        .conversion = conversion,
-        .outputs = {{.output = useful, .allocation = calculated(calculation, efficiency)},
-                    {.output = loss, .allocation = calculated(calculation, losses)}},
+        .outputs = {{.output = useful, .allocation = calculated(calculation, efficiency), .conversion = conversion},
+                    {.output = loss, .allocation = calculated(calculation, losses), .conversion = conversion}},
     });
     definition.set_function_material_contribution(type, organic, calculated(calculation, size));
     const TemplateId cell = definition.add_template("Клетка");
@@ -422,9 +421,61 @@ bool test_allocation_validation()
     SynthesisWorld over = make_synthesis_world();
     const ParameterId extra = over.definition.add_genome_parameter(over.type, "Extra", 0.1);
     over.definition.change_function_process_output(
-        over.type, over.loss, {.output = over.loss, .allocation = genome(extra)});
+        over.type, over.loss, {.output = over.loss, .allocation = genome(extra), .conversion = over.definition.function_type(over.type).process->outputs[1].conversion});
     return rejects([&] { (void)compile_phenotype(over.definition, over.cell); },
                    "allocation sum above one must be rejected");
+}
+
+bool test_per_output_unit_conversions_and_snapshot_migration()
+{
+    WorldDefinition definition;
+    const ValueKey input = definition.add_value("Input");
+    const ValueKey first = definition.add_value("First");
+    const ValueKey second = definition.add_value("Second");
+    const UnitId unit = definition.add_unit("U");
+    const UnitConversionId double_conversion =
+        definition.add_unit_conversion({{{unit, 1}}}, 1.0, {{{unit, 1}}}, 2.0);
+    const UnitConversionId quadruple_conversion =
+        definition.add_unit_conversion({{{unit, 1}}}, 1.0, {{{unit, 1}}}, 4.0);
+    const FunctionTypeId type = definition.add_function_type("Split");
+    const ParameterId throughput = definition.add_genome_parameter(type, "Throughput", 1.0);
+    const ParameterId allocation = definition.add_genome_parameter(type, "Allocation", 0.5);
+    definition.set_function_process(type, {
+        .input = input,
+        .throughput = genome(throughput),
+        .outputs = {{.output = first, .allocation = genome(allocation), .conversion = double_conversion},
+                    {.output = second, .allocation = genome(allocation), .conversion = quadruple_conversion}},
+    });
+    const TemplateId cell = definition.add_template("Cell");
+    (void)definition.add_genome_function(cell, type);
+    definition.set_initial_value(cell, input, 1.0);
+    const CompiledPhenotype phenotype = compile_phenotype(definition, cell);
+    const auto& outputs = phenotype.function(0).process_parameters()->outputs;
+    const bool per_output = near(outputs[0].result_per_input, 1.0, "first output uses its own conversion") &&
+                            near(outputs[1].result_per_input, 2.0, "second output uses its own conversion");
+    WorldDefinitionSnapshot current = definition.snapshot();
+    const WorldDefinition restored = WorldDefinition::from_snapshot(current);
+    const auto& round_trip = restored.function_type(type).process->outputs;
+    WorldDefinitionSnapshot legacy = current;
+    legacy.schema_version = 8;
+    legacy.function_types[0].legacy_process_conversion = double_conversion;
+    for (FunctionProcessOutputDefinition& output : legacy.function_types[0].process->outputs) {
+        output.conversion = {};
+    }
+    const WorldDefinition migrated = WorldDefinition::from_snapshot(legacy);
+    const auto& migrated_outputs = migrated.function_type(type).process->outputs;
+    const ParameterId excessive = definition.add_genome_parameter(type, "Excessive", 0.75);
+    definition.change_function_process_output(type, second,
+                                              {.output = second, .allocation = genome(excessive),
+                                               .conversion = quadruple_conversion});
+    return per_output && round_trip[0].conversion == double_conversion &&
+           round_trip[1].conversion == quadruple_conversion &&
+           migrated_outputs[0].conversion == double_conversion &&
+           migrated_outputs[1].conversion == double_conversion &&
+           rejects([&] { (void)compile_phenotype(definition, cell); },
+                   "allocation total must not depend on conversion ratios") &&
+           rejects([&] { definition.remove_unit_conversion(double_conversion); },
+                   "per-output conversion removal must be rejected");
 }
 
 bool test_binding_validation_and_removal()
@@ -585,7 +636,7 @@ bool test_snapshot_round_trip()
     const CompiledFunctionPhenotype& function = phenotype.function(0);
     WorldDefinitionSnapshot old = snapshot;
     old.schema_version = 6;
-    return expect(snapshot.schema_version == 8, "current snapshot schema") &&
+    return expect(snapshot.schema_version == 9, "current snapshot schema") &&
            expect(type.calculations.size() == 1, "calculation binding round trip") &&
            expect(type.process->outputs.size() == 2, "process round trip") &&
            expect(type.material_contributions.size() == 1, "material source round trip") &&
@@ -772,8 +823,7 @@ bool test_genome_parameter_lifecycle()
     const UnitConversionId conversion = definition.add_unit_conversion({{{unit, 1}}}, 1.0, {{{unit, 1}}}, 1.0);
     definition.set_function_process(type, {.input = input,
                                            .throughput = genome(referenced),
-                                           .conversion = conversion,
-                                           .outputs = {{.output = output, .allocation = genome(referenced)}}});
+                                           .outputs = {{.output = output, .allocation = genome(referenced), .conversion = conversion}}});
     return updated && removed && rejects([&] { definition.remove_genome_parameter(type, referenced); },
                                          "referenced genome parameter removal must fail");
 }
@@ -795,8 +845,7 @@ bool test_unit_conversion_lifecycle()
     const ParameterId allocation = definition.add_genome_parameter(type, "Allocation", 1.0);
     definition.set_function_process(type, {.input = input,
                                            .throughput = genome(throughput),
-                                           .conversion = referenced,
-                                           .outputs = {{.output = output, .allocation = genome(allocation)}}});
+                                           .outputs = {{.output = output, .allocation = genome(allocation), .conversion = referenced}}});
     return removed && rejects([&] { definition.remove_unit_conversion(referenced); },
                               "referenced conversion removal must fail");
 }
@@ -955,6 +1004,7 @@ int main()
     run(test_runtime_rule_executor_is_order_independent, "runtime rule executor order independence");
     run(test_direct_external_input_without_host_binding, "direct external input without host binding");
     run(test_allocation_validation, "allocation validation");
+    run(test_per_output_unit_conversions_and_snapshot_migration, "per-output conversions and snapshot migration");
     run(test_binding_validation_and_removal, "binding validation and removal");
     run(test_buffer_calculation_sources, "buffer calculation sources");
     run(test_buffer_process_removal, "buffer process removal");

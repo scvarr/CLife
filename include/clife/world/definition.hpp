@@ -79,12 +79,12 @@ struct FunctionCalculationBinding final {
 struct FunctionProcessOutputDefinition final {
     ValueKey output;
     FunctionValueSource allocation;
+    UnitConversionId conversion;
 };
 
 struct FunctionProcessDefinition final {
     ValueKey input;
     FunctionValueSource throughput;
-    UnitConversionId conversion;
     std::vector<FunctionProcessOutputDefinition> outputs;
 };
 
@@ -240,6 +240,7 @@ struct FunctionTypeSnapshot final {
     std::vector<GenomeParameterDefinition> genome_parameters;
     std::vector<FunctionCalculationBinding> calculations;
     std::optional<FunctionProcessDefinition> process;
+    std::optional<UnitConversionId> legacy_process_conversion;
     std::optional<BufferProcessDefinition> buffer_process;
     std::vector<MaterialContributionDefinition> material_contributions;
     std::vector<FunctionCharacteristicContributionDefinition> characteristic_contributions;
@@ -259,7 +260,7 @@ struct CalculationSnapshot final {
 };
 
 struct WorldDefinitionSnapshot final {
-    std::uint32_t schema_version{8};
+    std::uint32_t schema_version{9};
     std::vector<ValueDefinition> values;
     std::vector<UnitDefinition> units;
     std::vector<UnitConversionDefinition> unit_conversions;
@@ -318,8 +319,7 @@ public:
     void set_function_calculation_binding(FunctionTypeId type, FunctionCalculationBinding binding);
     void remove_function_calculation_binding(FunctionTypeId type, CalculationId calculation);
     void set_function_process(FunctionTypeId type, FunctionProcessDefinition process);
-    void change_function_process_settings(FunctionTypeId type, ValueKey input, FunctionValueSource throughput,
-                                          UnitConversionId conversion);
+    void change_function_process_settings(FunctionTypeId type, ValueKey input, FunctionValueSource throughput);
     void change_function_process_output(FunctionTypeId type, ValueKey existing_output,
                                         FunctionProcessOutputDefinition replacement);
     void add_function_process_output(FunctionTypeId type, FunctionProcessOutputDefinition output);

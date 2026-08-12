@@ -56,17 +56,17 @@ public:
     bool rename_object_characteristic(std::int64_t characteristic_id, const godot::String& name);
     bool remove_object_characteristic(std::int64_t characteristic_id);
     bool set_function_process(std::int64_t function_type_id, std::int64_t input_value_key,
-                              const godot::Dictionary& throughput_source, std::int64_t conversion_id,
-                              std::int64_t output_value_key, const godot::Dictionary& allocation_source);
+                              const godot::Dictionary& throughput_source, std::int64_t output_value_key,
+                              const godot::Dictionary& allocation_source, std::int64_t conversion_id);
     bool set_function_process_full(std::int64_t function_type_id, std::int64_t input_value_key,
-                                   const godot::Dictionary& throughput_source, std::int64_t conversion_id,
-                                   const godot::Array& outputs);
+                                   const godot::Dictionary& throughput_source, const godot::Array& outputs);
     bool change_function_process_settings(std::int64_t function_type_id, std::int64_t input_value_key,
-                                          const godot::Dictionary& throughput_source, std::int64_t conversion_id);
+                                          const godot::Dictionary& throughput_source);
     bool change_function_process_output(std::int64_t function_type_id, std::int64_t existing_output_value_key,
-                                        std::int64_t output_value_key, const godot::Dictionary& allocation_source);
+                                        std::int64_t output_value_key, const godot::Dictionary& allocation_source,
+                                        std::int64_t conversion_id);
     bool add_function_process_output(std::int64_t function_type_id, std::int64_t output_value_key,
-                                     const godot::Dictionary& allocation_source);
+                                     const godot::Dictionary& allocation_source, std::int64_t conversion_id);
     bool remove_function_process_output(std::int64_t function_type_id, std::int64_t output_value_key);
     bool remove_function_process(std::int64_t function_type_id);
     bool set_buffer_process(std::int64_t function_type_id, std::int64_t value_key,

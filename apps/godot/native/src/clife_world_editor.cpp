@@ -47,22 +47,22 @@ void CLifeWorldEditor::_bind_methods()
     godot::ClassDB::bind_method(godot::D_METHOD("remove_object_characteristic", "characteristic_id"), &CLifeWorldEditor::remove_object_characteristic);
     godot::ClassDB::bind_method(
         godot::D_METHOD("set_function_process", "function_type_id", "input_value_key", "throughput_source",
-                        "conversion_id", "output_value_key", "allocation_source"),
+                        "output_value_key", "allocation_source", "conversion_id"),
         &CLifeWorldEditor::set_function_process);
     godot::ClassDB::bind_method(
         godot::D_METHOD("set_function_process_full", "function_type_id", "input_value_key", "throughput_source",
-                        "conversion_id", "outputs"),
+                        "outputs"),
         &CLifeWorldEditor::set_function_process_full);
     godot::ClassDB::bind_method(
-        godot::D_METHOD("add_function_process_output", "function_type_id", "output_value_key", "allocation_source"),
+        godot::D_METHOD("add_function_process_output", "function_type_id", "output_value_key", "allocation_source", "conversion_id"),
         &CLifeWorldEditor::add_function_process_output);
     godot::ClassDB::bind_method(
         godot::D_METHOD("change_function_process_settings", "function_type_id", "input_value_key",
-                        "throughput_source", "conversion_id"),
+                        "throughput_source"),
         &CLifeWorldEditor::change_function_process_settings);
     godot::ClassDB::bind_method(
         godot::D_METHOD("change_function_process_output", "function_type_id", "existing_output_value_key",
-                        "output_value_key", "allocation_source"),
+                        "output_value_key", "allocation_source", "conversion_id"),
         &CLifeWorldEditor::change_function_process_output);
     godot::ClassDB::bind_method(godot::D_METHOD("remove_function_process_output", "function_type_id", "output_value_key"),
                                 &CLifeWorldEditor::remove_function_process_output);

@@ -121,11 +121,6 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
             if (!std::isfinite(throughput) || throughput <= 0.0) {
                 throw std::invalid_argument{"compiled process throughput must be finite and positive"};
             }
-            const UnitConversionDefinition& conversion = definition.unit_conversion(type.process->conversion);
-            const Amount conversion_ratio = conversion.target_amount / conversion.source_amount;
-            if (!std::isfinite(conversion_ratio) || conversion_ratio < 0.0) {
-                throw std::invalid_argument{"compiled unit conversion ratio must be finite and non-negative"};
-            }
             CompiledProcessParameters parameters{.throughput = throughput};
             Amount allocation_sum{};
             for (const FunctionProcessOutputDefinition& output : type.process->outputs) {
@@ -136,6 +131,11 @@ CompiledPhenotype compile_phenotype(const WorldDefinition& definition, TemplateI
                 allocation_sum += allocation;
                 if (!std::isfinite(allocation_sum)) {
                     throw std::overflow_error{"compiled process allocation total overflow"};
+                }
+                const UnitConversionDefinition& conversion = definition.unit_conversion(output.conversion);
+                const Amount conversion_ratio = conversion.target_amount / conversion.source_amount;
+                if (!std::isfinite(conversion_ratio) || conversion_ratio < 0.0) {
+                    throw std::invalid_argument{"compiled unit conversion ratio must be finite and non-negative"};
                 }
                 const Amount result_per_input = conversion_ratio * allocation;
                 if (!std::isfinite(result_per_input)) {
